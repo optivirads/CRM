@@ -1,0 +1,91 @@
+# =============================================================================
+# Dependencies
+# =============================================================================
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# =============================================================================
+# Environment & Secret Files (CRITICAL FOR LIVE DEPLOYMENT)
+# =============================================================================
+.env
+.env.*
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# Allow example template files
+!.env.example
+!*/.env.example
+!.env*.example
+!*/.env*.example
+
+# =============================================================================
+# Production Build & Compilation Artifacts
+# =============================================================================
+dist/
+*/dist/
+build/
+*/build/
+.next/
+*/.next/
+out/
+*/out/
+
+# TypeScript & Cache Artifacts
+*.tsbuildinfo
+*/tsconfig.tsbuildinfo
+.eslintcache
+.cache/
+*/.cache/
+.turbo/
+
+# =============================================================================
+# Logs & Diagnostic Dumps
+# =============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =============================================================================
+# Operating System & IDE Files
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE & Editor Settings
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =============================================================================
+# Cloud Provider / Hosting Deployment Folders
+# =============================================================================
+.vercel
+.serverless/

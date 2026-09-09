@@ -1,0 +1,1118 @@
+'use client';
+
+import React, { useState, useRef } from 'react';
+import { useToast } from '@/lib/toast-context';
+import { exportToCsv } from '@/lib/exportCsv';
+import {
+  Briefcase,
+  CheckCircle2,
+  Clock,
+  Plus,
+  X,
+  Search,
+  SlidersHorizontal,
+  ChevronRight,
+  ChevronLeft,
+  Upload,
+  Download,
+  Calendar,
+  AlertTriangle,
+  Flame,
+  CheckSquare,
+  TrendingUp,
+  MoreVertical,
+  Kanban,
+  ListFilter,
+  BarChart3,
+  RefreshCw,
+  Trash2,
+  Archive,
+  ArrowRight,
+  DollarSign
+} from 'lucide-react';
+
+export const ProjectsView: React.FC = () => {
+  const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // State Simulator
+  const [activeSimulatorTab, setActiveSimulatorTab] = useState('1. Projects List');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // View Mode: List | Kanban | Timeline
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'timeline'>('list');
+
+  // Filter Tabs
+  const [activeFilterTab, setActiveFilterTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClient, setSelectedClient] = useState('All');
+  const [selectedLead, setSelectedLead] = useState('All');
+  const [selectedHealth, setSelectedHealth] = useState('All');
+
+  // Selection
+  const [selectedProjects, setSelectedProjects] = useState<string[]>(['p1', 'p2']);
+
+  // Add Project Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newClientName, setNewClientName] = useState('Acme Technologies');
+  const [newScopeType, setNewScopeType] = useState('Retainer Tier 1');
+  const [newLeadPM, setNewLeadPM] = useState('Maya Joseph');
+  const [newBudget, setNewBudget] = useState('₹4,50,000');
+  const [newDeadline, setNewDeadline] = useState('30 Sep 2026');
+
+  // Projects data matching Reference Image 3
+  const [projects, setProjects] = useState([
+    {
+      id: 'p1',
+      code: 'P-2026-089',
+      name: 'Acme Growth Campaign — Q3 Scale',
+      scopeType: 'Retainer Tier 1',
+      clientName: 'Acme Technologies',
+      clientAvatarText: 'AT',
+      clientAvatarBg: 'bg-[#0A1628]',
+      leadPM: 'Maya Joseph',
+      leadInitials: 'MJ',
+      status: 'Active',
+      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      health: 'Healthy (88)',
+      healthStatus: 'healthy',
+      progressPercent: 68,
+      sprint: 'Sprint 4/6',
+      budget: '₹4,50,000',
+      spent: '₹3.06L (68%)',
+      deadline: '30 Sep 2026',
+      deadlineSub: '22 days left',
+      deadlineUrgent: false,
+      tasksCompleted: 24,
+      tasksTotal: 36,
+    },
+    {
+      id: 'p2',
+      code: 'P-2026-094',
+      name: 'Website Revamp & CRO Architecture',
+      scopeType: 'Fixed Scope',
+      clientName: 'Acme Technologies',
+      clientAvatarText: 'AT',
+      clientAvatarBg: 'bg-[#0A1628]',
+      leadPM: 'Rahul Menon',
+      leadInitials: 'RM',
+      status: 'In Review',
+      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      health: 'Attention (52)',
+      healthStatus: 'attention',
+      progressPercent: 20,
+      sprint: 'Sprint 1/4',
+      budget: '₹2,20,000',
+      spent: '₹84,000 (38%)',
+      deadline: '20 Oct 2026',
+      deadlineSub: 'Stalled approval',
+      deadlineUrgent: true,
+      tasksCompleted: 6,
+      tasksTotal: 18,
+    },
+    {
+      id: 'p3',
+      code: 'P-2026-077',
+      name: 'Omnichannel Creative Studio & Reels',
+      scopeType: 'Retainer Ongoing',
+      clientName: 'Zenith Retail Global',
+      clientAvatarText: 'ZR',
+      clientAvatarBg: 'bg-[#0A1628]',
+      leadPM: 'Maya Joseph',
+      leadInitials: 'MJ',
+      status: 'Active',
+      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      health: 'Healthy (94)',
+      healthStatus: 'healthy',
+      progressPercent: 82,
+      sprint: 'Final Sprint',
+      budget: '₹5,20,000',
+      spent: '₹4.15L (79%)',
+      deadline: '15 Oct 2026',
+      deadlineSub: '37 days left',
+      deadlineUrgent: false,
+      tasksCompleted: 41,
+      tasksTotal: 48,
+    },
+    {
+      id: 'p4',
+      code: 'P-2026-105',
+      name: 'Healthcare Patient Portal Setup',
+      scopeType: 'Implementation',
+      clientName: 'Nova Healthcare',
+      clientAvatarText: 'NH',
+      clientAvatarBg: 'bg-[#0A1628]',
+      leadPM: 'Alex Morgan',
+      leadInitials: 'AM',
+      status: 'Planning',
+      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      health: 'Healthy (90)',
+      healthStatus: 'healthy',
+      progressPercent: 10,
+      sprint: 'Sprint 1/8',
+      budget: '₹3,80,000',
+      spent: '₹38,000 (10%)',
+      deadline: '15 Dec 2026',
+      deadlineSub: 'Kickoff stage',
+      deadlineUrgent: false,
+      tasksCompleted: 3,
+      tasksTotal: 22,
+    },
+    {
+      id: 'p5',
+      code: 'P-2026-061',
+      name: 'B2B SEO & Technical Migration',
+      scopeType: 'Critical Blocker',
+      isBlocker: true,
+      clientName: 'Vertex Solutions',
+      clientAvatarText: 'VS',
+      clientAvatarBg: 'bg-[#FEE2E2]',
+      clientAvatarTextColor: 'text-rose-600',
+      leadPM: 'Alex Morgan',
+      leadInitials: 'AM',
+      status: 'On Hold',
+      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      health: 'At Risk (32)',
+      healthStatus: 'at_risk',
+      progressPercent: 35,
+      sprint: 'Blocked',
+      budget: '₹1,80,000',
+      spent: '₹1.25L (69%)',
+      deadline: '15 Sep 2026',
+      deadlineSub: 'Overdue 5d',
+      deadlineUrgent: true,
+      tasksCompleted: 8,
+      tasksTotal: 16,
+    },
+  ]);
+
+  const toggleSelectAll = () => {
+    if (selectedProjects.length === projects.length) {
+      setSelectedProjects([]);
+    } else {
+      setSelectedProjects(projects.map((p) => p.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedProjects((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleCreateProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName) return;
+
+    const newProj = {
+      id: `p-${Date.now()}`,
+      code: `P-2026-${Math.floor(100 + Math.random() * 900)}`,
+      name: newProjectName,
+      scopeType: newScopeType,
+      clientName: newClientName,
+      clientAvatarText: newClientName.substring(0, 2).toUpperCase(),
+      clientAvatarBg: 'bg-[#0A1628]',
+      leadPM: newLeadPM,
+      leadInitials: newLeadPM.split(' ').map((n) => n[0]).join(''),
+      status: 'Active',
+      statusBg: 'bg-slate-100 text-slate-700',
+      health: 'Healthy (92)',
+      healthStatus: 'healthy',
+      progressPercent: 15,
+      sprint: 'Sprint 1/4',
+      budget: newBudget,
+      spent: '₹0 (0%)',
+      deadline: newDeadline,
+      deadlineSub: 'Just launched',
+      deadlineUrgent: false,
+      tasksCompleted: 1,
+      tasksTotal: 12,
+    };
+
+    setProjects([newProj, ...projects]);
+    setShowCreateModal(false);
+    setNewProjectName('');
+  };
+
+  // Filtered projects
+  const filteredProjects = projects.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.leadPM.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesClient = selectedClient === 'All' || p.clientName.includes(selectedClient);
+    const matchesLead = selectedLead === 'All' || p.leadPM.includes(selectedLead);
+    const matchesHealth = selectedHealth === 'All' || p.healthStatus === selectedHealth;
+
+    if (activeFilterTab === 'my') return matchesSearch && p.leadPM.includes('Alex');
+    if (activeFilterTab === 'active') return matchesSearch && p.status === 'Active';
+    if (activeFilterTab === 'at_risk') return matchesSearch && p.healthStatus === 'at_risk';
+    if (activeFilterTab === 'due_soon') return matchesSearch && p.deadlineUrgent;
+    if (activeFilterTab === 'completed') return matchesSearch && p.progressPercent === 100;
+
+    return matchesSearch && matchesClient && matchesLead && matchesHealth;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
+      {/* 1. Cockpit States Simulator Banner (Exact match to Reference Image 3) */}
+      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>COCKPIT STATES:</span>
+          </div>
+          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
+            {[
+              { id: '1. Projects List', label: '1. Projects List' },
+              { id: '2. Kanban Delivery', label: '2. Kanban Delivery' },
+              { id: '3. Project Overview', label: '3. Project Overview' },
+              { id: '4. Tasks & Sprint', label: '4. Tasks & Sprint' },
+              { id: '5. Milestones', label: '5. Milestones' },
+              { id: '6. Capacity', label: '6. Capacity' },
+              { id: '7. Budget Ledger', label: '7. Budget Ledger' },
+              { id: '9. Skeletons & Empty', label: '9. Skeletons & Empty' },
+              { id: '8. Create Drawer', label: '8. Create Drawer' },
+            ].map((state) => (
+              <button
+                key={state.id}
+                onClick={() => {
+                  setActiveSimulatorTab(state.id);
+                  if (state.id.includes('Kanban')) setViewMode('kanban');
+                  else if (state.id.includes('Projects List')) setViewMode('list');
+                  else if (state.id.includes('Create Drawer')) setShowCreateModal(true);
+                  else setViewMode('list');
+                }}
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
+                  activeSimulatorTab === state.id
+                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                {state.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-[1700px] mx-auto p-6 space-y-6">
+        {/* 2. Header & Breadcrumbs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
+              <span>OptiVir Enterprise</span>
+              <ChevronRight className="w-3 h-3 text-slate-400" />
+              <span>Delivery</span>
+              <ChevronRight className="w-3 h-3 text-slate-400" />
+              <span className="text-slate-800 dark:text-slate-200 font-medium">Projects</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Projects Cockpit</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                46 Active
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Plan, manage, track, and deliver client work across retainers and custom scopes.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  showToast(`Importing projects from "${file.name}"...`, 'info');
+                  setTimeout(() => {
+                    showToast(`Successfully imported project scopes from "${file.name}"`, 'success');
+                  }, 1000);
+                  e.target.value = '';
+                }
+              }}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import</span>
+            </button>
+            <button
+              onClick={() => {
+                exportToCsv(
+                  'optivir_projects_directory.csv',
+                  projects.map((p) => ({
+                    ID: p.code,
+                    Project: p.name,
+                    Client: p.clientName,
+                    Scope: p.scopeType,
+                    'Lead PM': p.leadPM,
+                    Status: p.status,
+                    Budget: p.budget,
+                    Deadline: p.deadline,
+                    Progress: `${p.progressPercent}%`,
+                    Health: p.health,
+                  }))
+                );
+                showToast(`Exported ${projects.length} projects to CSV`, 'success');
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Pipeline</span>
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg shadow-sm hover:shadow transition active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Create Project</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3. 5 KPI Summary Cards (Exact match to Reference Image 3) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Active Projects */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-rose-600 dark:text-rose-400">Active Projects</span>
+              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                🚀
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1 mt-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">46</span>
+              <span className="text-xs text-slate-500 font-medium">/ 58 portfolio</span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300">
+                +4 this month
+              </span>
+              <span>Across 28 brands</span>
+            </div>
+          </div>
+
+          {/* At Risk */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-rose-200 dark:border-rose-900/40 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-rose-600 dark:text-rose-400">At Risk</span>
+              <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-rose-600">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1.5">
+              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">4</span>
+              <span className="text-xs text-slate-500">SLA warning</span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+              <span className="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 font-bold text-rose-600">
+                Action Req.
+              </span>
+              <span>2 pending approvals</span>
+            </div>
+          </div>
+
+          {/* Due This Month */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium">Due This Month</span>
+              <Calendar className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">18</span>
+              <span className="text-xs text-slate-500">by Sep 30, 2026</span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              <span>6 final sign-off ready</span>
+            </div>
+          </div>
+
+          {/* Completed This Month */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium">Completed This Month</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">7</span>
+              <span className="text-xs text-slate-500">100% QA pass</span>
+            </div>
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+              ₹28.4L revenue recognized
+            </div>
+          </div>
+
+          {/* Contract Value (Dark Card with ₹ symbol, exact match to Image 3) */}
+          <div className="bg-[#0A1628] text-white p-4 rounded-xl border border-[#14233D] shadow-md relative overflow-hidden">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span className="font-medium">Contract Value</span>
+              <div className="w-6 h-6 rounded-full bg-[#12223D] flex items-center justify-center font-bold text-xs text-slate-300">
+                ₹
+              </div>
+            </div>
+            <div className="text-2xl font-black tracking-tight mt-1.5">₹1.42 Cr</div>
+            <div className="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
+              <span>Burned: <strong>₹86.4L</strong></span>
+              <span className="text-emerald-400 font-bold">60.8%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Filter Tabs & View Mode Switcher */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: 'all', label: 'All Projects (46)' },
+              { id: 'my', label: 'My Projects (14)' },
+              { id: 'active', label: 'Active (38)' },
+              { id: 'at_risk', label: 'At Risk (4)', isAlert: true },
+              { id: 'due_soon', label: 'Due Soon (18)' },
+              { id: 'completed', label: 'Completed (7)' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveFilterTab(tab.id)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  activeFilterTab === tab.id
+                    ? 'bg-[#0A1628] text-white shadow-xs'
+                    : tab.isAlert
+                    ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* View Toggles: List | Kanban | Timeline */}
+          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition ${
+                viewMode === 'list'
+                  ? 'bg-[#0A1628] text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition ${
+                viewMode === 'kanban'
+                  ? 'bg-[#0A1628] text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span>Kanban</span>
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition ${
+                viewMode === 'timeline'
+                  ? 'bg-[#0A1628] text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Timeline</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 5. Search Ribbon & Filters */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search projects, clients, managers... (⌘K)"
+              className="w-full pl-9 pr-12 py-1.5 text-xs bg-transparent border-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+              ESC
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-2 md:pt-0 md:pl-3 flex-wrap">
+            <select
+              value={selectedClient}
+              onChange={(e) => setSelectedClient(e.target.value)}
+              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
+            >
+              <option value="All">Client: All</option>
+              <option value="Acme Technologies">Acme Technologies</option>
+              <option value="Zenith Retail Global">Zenith Retail Global</option>
+              <option value="Nova Healthcare">Nova Healthcare</option>
+              <option value="Vertex Solutions">Vertex Solutions</option>
+            </select>
+
+            <select
+              value={selectedLead}
+              onChange={(e) => setSelectedLead(e.target.value)}
+              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
+            >
+              <option value="All">Lead PM: All</option>
+              <option value="Maya Joseph">Maya Joseph</option>
+              <option value="Alex Morgan">Alex Morgan</option>
+              <option value="Rahul Menon">Rahul Menon</option>
+            </select>
+
+            <select
+              value={selectedHealth}
+              onChange={(e) => setSelectedHealth(e.target.value)}
+              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
+            >
+              <option value="All">Health: All Status</option>
+              <option value="healthy">Healthy</option>
+              <option value="attention">Attention</option>
+              <option value="at_risk">At Risk</option>
+            </select>
+
+            <button
+              onClick={() => showToast('Active filters: Client, Lead & Health criteria applied', 'info')}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3 h-3 text-rose-500" />
+              <span>Filters (2)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedClient('All');
+                setSelectedLead('All');
+                setSelectedHealth('All');
+              }}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* 6. Multi-Select Bar (Shown when items selected, exact match to Image 3) */}
+        {selectedProjects.length > 0 && (
+          <div className="bg-[#0A1628] text-white px-4 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-md border border-[#14233D] animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedProjects.length === projects.length}
+                onChange={toggleSelectAll}
+                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold">{selectedProjects.length} projects selected</span>
+              <span className="text-slate-400 text-xs hidden sm:inline">| Blended Budget: ₹6,70,000</span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              <button
+                onClick={() => showToast(`Lead PM updated for ${selectedProjects.length} projects`, 'success')}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
+              >
+                Assign Lead
+              </button>
+              <button
+                onClick={() => showToast(`Status shifted to In Review for ${selectedProjects.length} projects`, 'success')}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
+              >
+                Change Status
+              </button>
+              <button
+                onClick={() => showToast(`Health status updated to On Track for ${selectedProjects.length} projects`, 'success')}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
+              >
+                Update Health
+              </button>
+              <button
+                onClick={() => {
+                  exportToCsv(
+                    'selected_projects.csv',
+                    projects
+                      .filter((p) => selectedProjects.includes(p.id))
+                      .map((p) => ({
+                        ID: p.code,
+                        Project: p.name,
+                        Client: p.clientName,
+                        'Lead PM': p.leadPM,
+                        Status: p.status,
+                        Budget: p.budget,
+                        Deadline: p.deadline,
+                      }))
+                  );
+                  showToast(`Exported ${selectedProjects.length} selected projects to CSV`, 'success');
+                }}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={() => showToast(`Archived ${selectedProjects.length} projects`, 'info')}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
+              >
+                Archive
+              </button>
+              <button
+                onClick={() => setSelectedProjects([])}
+                className="text-slate-400 hover:text-white p-1 ml-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 7. View Mode Conditional Render: Table / Kanban / Timeline */}
+        {viewMode === 'list' && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F8FAFC] dark:bg-[#0A101C] text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3.5 pl-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedProjects.length === projects.length}
+                        onChange={toggleSelectAll}
+                        className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      />
+                    </th>
+                    <th className="p-3.5">PROJECT & SCOPE</th>
+                    <th className="p-3.5">CLIENT ACCOUNT</th>
+                    <th className="p-3.5">LEAD PM</th>
+                    <th className="p-3.5">STATUS</th>
+                    <th className="p-3.5">HEALTH</th>
+                    <th className="p-3.5">PROGRESS & SPRINT</th>
+                    <th className="p-3.5">BUDGET & BURN</th>
+                    <th className="p-3.5">DEADLINE</th>
+                    <th className="p-3.5">TASKS</th>
+                    <th className="p-3.5 pr-4 text-right">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredProjects.map((project) => {
+                    const isSelected = selectedProjects.includes(project.id);
+                    return (
+                      <tr
+                        key={project.id}
+                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${
+                          isSelected ? 'bg-rose-50/20 dark:bg-rose-950/10' : ''
+                        }`}
+                      >
+                        <td className="p-3.5 pl-4">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectRow(project.id)}
+                            className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                          />
+                        </td>
+
+                        {/* Project & Scope */}
+                        <td className="p-3.5">
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-slate-900 dark:text-white hover:text-rose-600 transition cursor-pointer">
+                              {project.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                              <span>{project.code}</span>
+                              <span>•</span>
+                              <span
+                                className={`px-1.5 py-0.2 rounded font-semibold ${
+                                  project.isBlocker
+                                    ? 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                }`}
+                              >
+                                {project.scopeType}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Client Account */}
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-6 h-6 rounded ${project.clientAvatarBg} flex items-center justify-center text-[10px] font-bold ${
+                                project.clientAvatarTextColor || 'text-white'
+                              }`}
+                            >
+                              {project.clientAvatarText}
+                            </div>
+                            <span className="font-semibold text-rose-600 dark:text-rose-400">
+                              {project.clientName}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Lead PM */}
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">
+                              {project.leadInitials}
+                            </div>
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                              {project.leadPM}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {project.status}
+                          </span>
+                        </td>
+
+                        {/* Health */}
+                        <td className="p-3.5">
+                          {project.healthStatus === 'healthy' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              {project.health}
+                            </span>
+                          ) : project.healthStatus === 'attention' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              {project.health}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                              {project.health}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Progress & Sprint */}
+                        <td className="p-3.5">
+                          <div className="w-32 space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {project.progressPercent}%
+                              </span>
+                              <span className="text-slate-500">{project.sprint}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  project.healthStatus === 'at_risk'
+                                    ? 'bg-rose-600'
+                                    : project.healthStatus === 'attention'
+                                    ? 'bg-amber-500'
+                                    : 'bg-[#0A1628] dark:bg-blue-500'
+                                }`}
+                                style={{ width: `${project.progressPercent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Budget & Burn */}
+                        <td className="p-3.5">
+                          <div>
+                            <div className="font-bold text-rose-600 dark:text-rose-400">
+                              {project.budget}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Spent: {project.spent}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Deadline */}
+                        <td className="p-3.5">
+                          <div>
+                            <div
+                              className={`font-semibold ${
+                                project.deadlineUrgent
+                                  ? 'text-rose-600 dark:text-rose-400 font-bold'
+                                  : 'text-slate-800 dark:text-slate-200'
+                              }`}
+                            >
+                              {project.deadline}
+                            </div>
+                            <div
+                              className={`text-[11px] ${
+                                project.deadlineUrgent
+                                  ? 'text-rose-600 font-medium'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {project.deadlineSub}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Tasks */}
+                        <td className="p-3.5">
+                          <span className="font-medium text-slate-700 dark:text-slate-300">
+                            {project.tasksCompleted}/{project.tasksTotal}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-3.5 pr-4 text-right">
+                          <button
+                            onClick={() => showToast(`Options for project: ${project.name}`, 'info')}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                            title="Project options"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="p-4 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-4">
+                <span>
+                  Showing <strong className="text-slate-800 dark:text-slate-200">1–5</strong> of{' '}
+                  <strong className="text-slate-800 dark:text-slate-200">46</strong> projects
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span>Rows:</span>
+                  <select className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-xs">
+                    <option>10</option>
+                    <option>25</option>
+                    <option>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {[1, 2, 3, 5].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                      currentPage === p
+                        ? 'font-bold bg-[#0A1628] text-white dark:bg-slate-700'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => setCurrentPage((p) => Math.min(5, p + 1))}
+                  disabled={currentPage === 5}
+                  className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Kanban View */}
+        {viewMode === 'kanban' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {['Planning', 'Active', 'In Review', 'Completed'].map((stage) => {
+              const stageProjects = projects.filter((p) => {
+                if (stage === 'Planning') return p.status === 'Planning' || p.status === 'On Hold';
+                if (stage === 'Active') return p.status === 'Active';
+                if (stage === 'In Review') return p.status === 'In Review';
+                return p.progressPercent === 100;
+              });
+
+              return (
+                <div key={stage} className="bg-slate-100/70 dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-slate-900 dark:text-white uppercase tracking-wider">{stage}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] border border-slate-200 dark:border-slate-700">
+                      {stageProjects.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {stageProjects.map((p) => (
+                      <div key={p.id} className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-2.5">
+                        <div className="text-[10px] font-semibold text-rose-600">{p.clientName}</div>
+                        <div className="font-bold text-xs text-slate-900 dark:text-white leading-tight">{p.name}</div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-[#0A1628] dark:bg-blue-500 h-full" style={{ width: `${p.progressPercent}%` }}></div>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-700/60">
+                          <span>{p.budget}</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">{p.leadPM}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Timeline View */}
+        {viewMode === 'timeline' && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Gantt & Sprint Execution Timeline (Q3-Q4 2026)</h3>
+              <span className="text-xs text-slate-500">Milestone cadence: 2-week sprints</span>
+            </div>
+            <div className="space-y-4 pt-2">
+              {projects.map((p) => (
+                <div key={p.id} className="space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{p.name}</span>
+                    <span className="text-slate-500">{p.deadline}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-6 rounded-lg overflow-hidden flex items-center p-1">
+                    <div
+                      className="bg-[#0A1628] dark:bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center justify-between h-full"
+                      style={{ width: `${Math.max(25, p.progressPercent)}%` }}
+                    >
+                      <span>{p.sprint}</span>
+                      <span>{p.progressPercent}%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 8. Create Project Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">Create New Project Scope</h3>
+                <p className="text-xs text-slate-500">Initiate deliverable sprint under client retainer or custom MSA</p>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProject} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-semibold block mb-1">Project Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="e.g. Omnichannel Creative Studio & Reels"
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Client Account</label>
+                  <select
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option>Acme Technologies</option>
+                    <option>Zenith Retail Global</option>
+                    <option>Nova Healthcare</option>
+                    <option>Vertex Solutions</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Scope Category</label>
+                  <select
+                    value={newScopeType}
+                    onChange={(e) => setNewScopeType(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option>Retainer Tier 1</option>
+                    <option>Fixed Scope</option>
+                    <option>Implementation</option>
+                    <option>Retainer Ongoing</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Lead PM</label>
+                  <select
+                    value={newLeadPM}
+                    onChange={(e) => setNewLeadPM(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option>Maya Joseph</option>
+                    <option>Alex Morgan</option>
+                    <option>Rahul Menon</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Project Budget (₹)</label>
+                  <input
+                    type="text"
+                    value={newBudget}
+                    onChange={(e) => setNewBudget(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Target Deadline</label>
+                <input
+                  type="text"
+                  value={newDeadline}
+                  onChange={(e) => setNewDeadline(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold shadow-md transition"
+                >
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
