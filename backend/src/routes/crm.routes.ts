@@ -288,4 +288,82 @@ router.get('/lead-sources', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
+// Delete Lead (Soft Delete)
+router.delete('/leads/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const leadId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE leads
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, leadId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Lead not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'leads', leadId, null, null, req);
+    res.json({ success: true, message: 'Lead successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Company (Soft Delete)
+router.delete('/companies/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const companyId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE companies
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, companyId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Company not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'companies', companyId, null, null, req);
+    res.json({ success: true, message: 'Company successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Contact (Soft Delete)
+router.delete('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const contactId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE contacts
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, contactId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Contact not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'contacts', contactId, null, null, req);
+    res.json({ success: true, message: 'Contact successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

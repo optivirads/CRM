@@ -191,6 +191,35 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>(`/activities${query ? `?${query}` : ''}`);
   }
 
+  // Delete Operations (CRUD)
+  async deleteLead(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/crm/leads/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteCompany(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/crm/companies/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteContact(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/crm/contacts/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteDeal(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/sales/deals/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteTask(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/projects/tasks/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteInvoice(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/finance/invoices/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteClient(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/clients/${id}`, { method: 'DELETE' });
+  }
+
   // Reports
   async getExecutiveSummary() {
     return this.request<{ success: boolean; data: any }>('/reports/executive-summary');
