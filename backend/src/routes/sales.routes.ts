@@ -181,4 +181,30 @@ router.get('/services', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
+// Delete Deal (Soft Delete)
+router.delete('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const dealId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE deals
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, dealId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Deal not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'deals', dealId, null, null, req);
+    res.json({ success: true, message: 'Deal successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

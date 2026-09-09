@@ -153,4 +153,56 @@ router.get('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
+// Delete Invoice (Soft Delete)
+router.delete('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const invoiceId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE invoices
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, invoiceId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invoice not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'invoices', invoiceId, null, null, req);
+    res.json({ success: true, message: 'Invoice successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Expense (Soft Delete)
+router.delete('/expenses/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const expenseId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE expenses
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, expenseId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Expense not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'expenses', expenseId, null, null, req);
+    res.json({ success: true, message: 'Expense successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

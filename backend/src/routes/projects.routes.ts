@@ -157,4 +157,56 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
+// Delete Task (Soft Delete)
+router.delete('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const taskId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE tasks
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, taskId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Task not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'tasks', taskId, null, null, req);
+    res.json({ success: true, message: 'Task successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Project (Soft Delete)
+router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const projectId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE projects
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, projectId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Project not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'projects', projectId, null, null, req);
+    res.json({ success: true, message: 'Project successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;
