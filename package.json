@@ -4,14 +4,26 @@
   "private": true,
   "description": "OptiVir CRM - Enterprise Agency Operating System",
   "scripts": {
+    "dev": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
+    "generate-pdf": "node generate_pdf.js",
     "migrate": "npm --prefix backend run migrate",
     "seed": "npm --prefix backend run seed"
   },
-  "keywords": ["crm", "agency-os", "enterprise", "nextjs", "express", "supabase"],
+  "keywords": [
+    "crm",
+    "agency-os",
+    "enterprise",
+    "nextjs",
+    "express",
+    "supabase"
+  ],
   "author": "OptiVir",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "pdfkit": "^0.20.2"
+  }
 }

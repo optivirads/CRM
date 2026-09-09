@@ -35,6 +35,12 @@ router.post('/login', async (req, res: Response): Promise<void> => {
     }
 
     const row = userRes.rows[0];
+
+    if (row.status !== 'active') {
+      res.status(403).json({ success: false, message: 'Account is suspended or inactive. Please contact administrator.' });
+      return;
+    }
+
     const isMatch = verifyPassword(password, row.password_hash);
     if (!isMatch) {
       res.status(401).json({ success: false, message: 'Invalid email or password' });

@@ -1,0 +1,175 @@
+'use client';
+
+import React, { useState } from 'react';
+import {
+  LayoutDashboard,
+  Users2,
+  Contact2,
+  Building2,
+  Sparkles,
+  Kanban,
+  Briefcase,
+  FolderClosed,
+  TrendingUp,
+  BarChart3,
+  Receipt,
+  FileText,
+  FileCheck,
+  Activity,
+  FileSpreadsheet,
+  Settings,
+  Bell,
+  Rocket
+} from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+
+export type NavItem =
+  | 'dashboard'
+  | 'leads'
+  | 'contacts'
+  | 'companies'
+  | 'opportunities'
+  | 'pipeline'
+  | 'proposals'
+  | 'clients'
+  | 'client-360'
+  | 'onboarding'
+  | 'projects'
+  | 'tasks'
+  | 'sales'
+  | 'marketing'
+  | 'finance'
+  | 'documents'
+  | 'activities'
+  | 'reports'
+  | 'notifications'
+  | 'settings';
+
+interface SidebarProps {
+  currentTab: NavItem;
+  onTabChange: (tab: NavItem) => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => {
+  const { user, canAccessTab } = useAuth();
+
+  const navSections = [
+    {
+      title: 'OVERVIEW',
+      items: [
+        { id: 'dashboard' as NavItem, label: 'Dashboard', icon: LayoutDashboard },
+      ]
+    },
+    {
+      title: 'CRM',
+      items: [
+        { id: 'leads' as NavItem, label: 'Leads', icon: Users2 },
+        { id: 'contacts' as NavItem, label: 'Contacts', icon: Contact2 },
+        { id: 'companies' as NavItem, label: 'Companies', icon: Building2 },
+        { id: 'opportunities' as NavItem, label: 'Opportunities', icon: Sparkles },
+        { id: 'pipeline' as NavItem, label: 'Pipeline', icon: Kanban },
+      ]
+    },
+    {
+      title: 'DELIVERY',
+      items: [
+        { id: 'clients' as NavItem, label: 'Clients', icon: Briefcase },
+        { id: 'onboarding' as NavItem, label: 'Onboarding', icon: Rocket },
+        { id: 'projects' as NavItem, label: 'Projects', icon: FolderClosed },
+      ]
+    },
+    {
+      title: 'REVENUE',
+      items: [
+        { id: 'proposals' as NavItem, label: 'Proposals', icon: FileCheck },
+        { id: 'sales' as NavItem, label: 'Sales', icon: TrendingUp },
+        { id: 'marketing' as NavItem, label: 'Marketing', icon: BarChart3 },
+        { id: 'finance' as NavItem, label: 'Finance', icon: Receipt },
+      ]
+    },
+    {
+      title: 'OPERATIONS',
+      items: [
+        { id: 'documents' as NavItem, label: 'Documents', icon: FileText },
+        { id: 'activities' as NavItem, label: 'Activities', icon: Activity },
+        { id: 'reports' as NavItem, label: 'Reports', icon: FileSpreadsheet },
+        { id: 'notifications' as NavItem, label: 'Notifications', icon: Bell },
+        { id: 'settings' as NavItem, label: 'Settings', icon: Settings },
+      ]
+    }
+  ];
+
+  return (
+    <aside className="w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-colors duration-200">
+      {/* 1. Header Brand — OptiVir CRM */}
+      <div className="p-3 border-b border-[#14233D] bg-[#070E1A]/60">
+        <button
+          onClick={() => onTabChange('dashboard')}
+          className="w-full flex items-center justify-center p-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm border border-slate-200/40 transition cursor-pointer"
+          title="OptiVir CRM Overview"
+        >
+          <img
+            src="/images/optivir-logo.png"
+            alt="OptiVir CRM"
+            className="h-8 w-auto max-w-full object-contain"
+          />
+        </button>
+      </div>
+
+      {/* 2. Navigation Sections */}
+      <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5 custom-scrollbar">
+        {navSections.map((section, idx) => {
+          const visibleItems = section.items.filter((item) => canAccessTab(item.id));
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={idx} className="space-y-1">
+              <p className="text-[10px] font-bold text-[#627797] tracking-widest px-2.5 uppercase">
+                {section.title}
+              </p>
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onTabChange(item.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition duration-150 text-left ${
+                        isActive
+                          ? 'bg-[#0E274D] text-white font-semibold shadow-xs border border-[#1A3D73]'
+                          : 'text-[#94A3B8] hover:text-white hover:bg-[#101F38]'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 transition ${
+                          isActive ? 'text-[#EF4444]' : 'text-[#64748B]'
+                        }`}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 3. Footer System Status & Quick Nav */}
+      <div className="p-3.5 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B]">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-[#94A3B8]">System Status</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
+            <span className="text-emerald-400 font-semibold text-[11px]">Operational</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] text-[#94A3B8] font-mono">
+          <span>Quick Nav</span>
+          <kbd className="px-1.5 py-0.5 rounded bg-[#112440] border border-[#1D365D] text-[10px] text-[#CBD5E1]">⌘K</kbd>
+        </div>
+      </div>
+    </aside>
+  );
+};
