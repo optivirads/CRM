@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getActualStorageEstimate, StorageEstimateData } from '@/lib/storage-estimate';
 import {
   FileText,
   ShieldCheck,
@@ -68,6 +69,19 @@ export const DocumentsView: React.FC = () => {
   const [showRelinkModal, setShowRelinkModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Actual Storage Space State
+  const [storageData, setStorageData] = useState<StorageEstimateData>({
+    usage: 0,
+    quota: 0,
+    formattedUsage: '0.0 MB',
+    formattedQuota: 'Loading...',
+    percent: 0
+  });
+
+  useEffect(() => {
+    getActualStorageEstimate().then(setStorageData);
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -86,7 +100,7 @@ export const DocumentsView: React.FC = () => {
     {
       title: 'Total Documents',
       value: '0 Assets',
-      sub: '0 GB of 50 GB Vault',
+      sub: `${storageData.formattedUsage} of ${storageData.formattedQuota} Vault`,
       badge: '+0.0% MoM',
       badgeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400',
       progress: 0,
@@ -204,7 +218,7 @@ export const DocumentsView: React.FC = () => {
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
-                348 Stored Assets • 1.84 GB Encrypted Storage • Multi-Entity Indexed
+                0 Stored Assets • {storageData.formattedUsage} Encrypted Storage • Multi-Entity Indexed
               </span>
             </div>
             <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1 max-w-3xl">
