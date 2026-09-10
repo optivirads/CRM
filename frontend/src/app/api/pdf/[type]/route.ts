@@ -42,8 +42,8 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   const promise = streamToBuffer(doc);
 
   const invNumber = params.number || 'INV-2026-089';
-  const clientName = params.client || 'Acme Global Technologies Inc.';
-  const clientEmail = params.email || 'billing@acmeglobal.com';
+  const clientName = params.client || 'Client Organization';
+  const clientEmail = params.email || 'billing@client.com';
   const clientGstin = params.gstin || '27AAACA1234A1Z1';
   const totalAmount = Number(params.total) || 177000;
   const subtotal = Math.round(totalAmount / 1.18);
@@ -59,11 +59,11 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
     doc.roundedRect(52, 54, 130, 42, 4).fill('#FFFFFF');
     doc.image(LOGO_PATH, 57, 59, { width: 120 });
     doc.fillColor(COLORS.crimsonLight).fontSize(7.5).font('Helvetica-Bold').text('PERFORMANCE MARKETING & ENTERPRISE CRM', 195, 68);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Media Pvt Ltd • GSTIN: 29ABCDE1234F1Z5 • billing@optivir.io', 195, 80);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 195, 80);
   } else {
-    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('OPTIVIR CRM', 55, 58);
+    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('OPTIVIR ADS', 55, 58);
     doc.fillColor(COLORS.crimsonLight).fontSize(7.5).font('Helvetica-Bold').text('PERFORMANCE MARKETING & ENTERPRISE CRM', 55, 76);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Media Pvt Ltd • GSTIN: 29ABCDE1234F1Z5 • billing@optivir.io', 55, 87);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 55, 87);
   }
 
   // Invoice Title Right
@@ -94,9 +94,9 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   // Billed By
   doc.roundedRect(40, y, boxW, 70, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.fillColor(COLORS.crimson).fontSize(7.5).font('Helvetica-Bold').text('ISSUED BY (SERVICE PROVIDER)', 50, y + 8);
-  doc.fillColor(COLORS.navyDark).fontSize(9).font('Helvetica-Bold').text('OptiVir CRM Technologies Pvt Ltd', 50, y + 20);
+  doc.fillColor(COLORS.navyDark).fontSize(9).font('Helvetica-Bold').text('OptiVir Ads', 50, y + 20);
   doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica')
-     .text('Cyber City Tower B, Floor 14, Gurugram / Bengaluru, India\nGSTIN: 29ABCDE1234F1Z5 • PAN: AAACE1234F\nEmail: accounts@optivir.io • Phone: +91 (80) 4920-8000', 50, y + 32, { lineGap: 2 });
+     .text('Performance Marketing & Operating System\nWebsite: www.optivirads.com\nEmail: optivirads@gmail.com • Phone: +919995037109', 50, y + 32, { lineGap: 2 });
 
   // Billed To
   doc.roundedRect(303, y, boxW, 70, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
@@ -186,7 +186,7 @@ async function generateProposalPDF(params: any): Promise<Buffer> {
   const promise = streamToBuffer(doc);
 
   const proposalTitle = params.title || 'Enterprise Growth Retainer & Meta CAPI Architecture';
-  const clientName = params.client || 'Acme Global Technologies Inc.';
+  const clientName = params.client || 'Client Organization';
   const proposalNum = params.number || 'PROP-2026-042';
 
   // --- PAGE 1: COVER ---
@@ -361,7 +361,7 @@ async function generateQuotationPDF(params: any): Promise<Buffer> {
   const promise = streamToBuffer(doc);
 
   const quoteNum = params.number || 'QUO-2026-015';
-  const clientName = params.client || 'Acme Global Technologies Inc.';
+  const clientName = params.client || 'Client Organization';
 
   // Top Accent Bar
   doc.rect(40, 40, 515, 6).fill(COLORS.blue);
@@ -371,11 +371,11 @@ async function generateQuotationPDF(params: any): Promise<Buffer> {
     doc.roundedRect(52, 54, 130, 42, 4).fill('#FFFFFF');
     doc.image(LOGO_PATH, 57, 59, { width: 120 });
     doc.fillColor('#38BDF8').fontSize(7.5).font('Helvetica-Bold').text('COMMERCIAL ESTIMATE & QUOTATION', 195, 68);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Media Pvt Ltd • solutions@optivir.io', 195, 80);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 195, 80);
   } else {
-    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('OPTIVIR CRM', 55, 58);
+    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('OPTIVIR ADS', 55, 58);
     doc.fillColor('#38BDF8').fontSize(7.5).font('Helvetica-Bold').text('COMMERCIAL ESTIMATE & QUOTATION', 55, 76);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Media Pvt Ltd • solutions@optivir.io', 55, 87);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 55, 87);
   }
 
   doc.fillColor('#FFFFFF').fontSize(18).font('Helvetica-Bold').text('QUOTATION', 380, 56, { align: 'right', width: 160 });
@@ -438,7 +438,7 @@ async function generateReportPDF(params: any): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
   const promise = streamToBuffer(doc);
 
-  const clientName = params.client || 'Acme Global Technologies Inc.';
+  const clientName = params.client || 'Client Organization';
   const reportTitle = params.title || 'Quarterly Business Review & Performance Attribution Dossier';
 
   doc.rect(40, 40, 515, 6).fill(COLORS.crimson);
@@ -528,7 +528,7 @@ async function generateContractPDF(params: any): Promise<Buffer> {
   const promise = streamToBuffer(doc);
 
   const docId = params.id || 'DOC-2026-089-MSA';
-  const clientName = params.client || 'Acme Global Technologies Inc.';
+  const clientName = params.client || 'Client Organization';
 
   doc.rect(40, 40, 515, 6).fill(COLORS.crimson);
   doc.rect(40, 46, 515, 65).fill(COLORS.navyDark);
@@ -569,7 +569,7 @@ async function generateContractPDF(params: any): Promise<Buffer> {
   doc.roundedRect(40, y, 515, 75, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.fillColor(COLORS.green).fontSize(8).font('Helvetica-Bold').text('CRYPTOGRAPHICALLY VERIFIED & EXECUTED', 50, y + 10);
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica')
-     .text('SHA-256 Certificate Hash: 4e9a1b0287cd4f89021bde7a998c01\nDocuSign Envelope ID: 89012-ACME-OPTIVIR-2026\nExecuted: Oct 01, 2026 • Validated Across Enterprise Node US-04', 50, y + 24, { lineGap: 3 });
+     .text('SHA-256 Certificate Hash: 4e9a1b0287cd4f89021bde7a998c01\nDocuSign Envelope ID: 89012-EXEC-OPTIVIR-2026\nExecuted: Oct 01, 2026 • Validated Across Enterprise Node US-04', 50, y + 24, { lineGap: 3 });
 
   doc.end();
   return promise;

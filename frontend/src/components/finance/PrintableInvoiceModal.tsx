@@ -131,7 +131,7 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
                   />
                   <div>
                     <h1 className="text-xl font-extrabold tracking-tight text-[#0B1727]">
-                      OPTIVIR DIGITAL AGENCY
+                      OPTIVIR ADS
                     </h1>
                     <span className="text-[10px] uppercase font-bold tracking-widest text-[#B91C1C] block">
                       Performance Marketing & Growth Engineering
@@ -139,10 +139,8 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed max-w-md">
-                  <strong>OptiVir Technologies Private Limited</strong><br />
-                  Level 8, Express Towers, Nariman Point, Mumbai, Maharashtra 400021, India<br />
-                  <strong>GSTIN:</strong> 27AAAC01234F1Z8 • <strong>PAN:</strong> AAAC01234F • <strong>CIN:</strong> U72200MH2023PTC398210<br />
-                  <strong>Email:</strong> billing@optivir.io • <strong>Phone:</strong> +91 (022) 6789-0100 • <strong>Web:</strong> www.optivir.io
+                  <strong>OptiVir Ads</strong><br />
+                  <strong>Email:</strong> optivirads@gmail.com • <strong>Phone:</strong> +919995037109 • <strong>Web:</strong> www.optivirads.com
                 </p>
               </div>
 
@@ -344,7 +342,7 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
                 <li>3. Intellectual property for creative assets, ad designs, and copywriting transfers to client upon 100% receipt of invoice settlement.</li>
               </ul>
               <div className="pt-2 text-center text-slate-400 text-[10px]">
-                Thank you for partnering with OptiVir Digital. We appreciate your business! • www.optivir.io
+                Thank you for partnering with OptiVir Ads. We appreciate your business! • www.optivirads.com • optivirads@gmail.com
               </div>
             </div>
           </div>

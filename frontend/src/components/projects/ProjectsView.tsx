@@ -49,16 +49,16 @@ export const ProjectsView: React.FC = () => {
   const [selectedHealth, setSelectedHealth] = useState('All');
 
   // Selection
-  const [selectedProjects, setSelectedProjects] = useState<string[]>(['p1', 'p2']);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   // Add Project Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [newClientName, setNewClientName] = useState('Acme Technologies');
-  const [newScopeType, setNewScopeType] = useState('Retainer Tier 1');
-  const [newLeadPM, setNewLeadPM] = useState('Maya Joseph');
-  const [newBudget, setNewBudget] = useState('₹4,50,000');
-  const [newDeadline, setNewDeadline] = useState('30 Sep 2026');
+  const [newClientName, setNewClientName] = useState('');
+  const [newScopeType, setNewScopeType] = useState('Performance Marketing Retainer');
+  const [newLeadPM, setNewLeadPM] = useState('OptiVir Project Lead');
+  const [newBudget, setNewBudget] = useState('');
+  const [newDeadline, setNewDeadline] = useState('');
 
   // Projects data matching Reference Image 3
   const [projects, setProjects] = useState<any[]>([]);
@@ -428,10 +428,6 @@ export const ProjectsView: React.FC = () => {
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
               <option value="All">Client: All</option>
-              <option value="Acme Technologies">Acme Technologies</option>
-              <option value="Zenith Retail Global">Zenith Retail Global</option>
-              <option value="Nova Healthcare">Nova Healthcare</option>
-              <option value="Vertex Solutions">Vertex Solutions</option>
             </select>
 
             <select
@@ -916,16 +912,13 @@ export const ProjectsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold block mb-1">Client Account</label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="Enter Client Name"
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                  >
-                    <option>Acme Technologies</option>
-                    <option>Zenith Retail Global</option>
-                    <option>Nova Healthcare</option>
-                    <option>Vertex Solutions</option>
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="font-semibold block mb-1">Scope Category</label>

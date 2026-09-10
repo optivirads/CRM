@@ -400,11 +400,6 @@ export const ReportsView: React.FC = () => {
               className="bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-1.5 text-xs text-[#0B1727] dark:text-white font-medium"
             >
               <option value="All Clients">All Clients</option>
-              <option value="Acme Technologies Pvt Ltd">Acme Technologies Pvt Ltd</option>
-              <option value="Zenith Retail Global Ltd">Zenith Retail Global Ltd</option>
-              <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
-              <option value="Apex Apparel D2C">Apex Apparel D2C</option>
-              <option value="Vertex Solutions Inc">Vertex Solutions Inc</option>
             </select>
 
             <select
@@ -462,14 +457,14 @@ export const ReportsView: React.FC = () => {
         {/* 5. Bulk Action Toolbar */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-[#64748B] dark:text-[#94A3B8] px-1 gap-2">
           <span>
-            Showing <strong>{filteredReports.length}</strong> of <strong>148</strong> Reports • Sorted by Last Modified (Descending)
+            Showing <strong>{filteredReports.length}</strong> of <strong>{reportsList.length}</strong> Reports • Sorted by Last Modified (Descending)
           </span>
 
           <div className="flex items-center gap-2">
             <span>Bulk Action:</span>
             <button
               onClick={() => {
-                downloadClientPdf('report', { client: 'Acme Global Technologies Inc.', title: 'Batch Executive Intelligence Dossier' });
+                downloadClientPdf('report', { client: 'Client Organization', title: 'Batch Executive Intelligence Dossier' });
                 showToast(`Downloading verified PDF report dossier...`);
               }}
               disabled={selectedReports.length === 0}
@@ -707,13 +702,11 @@ export const ReportsView: React.FC = () => {
                   <label className="block text-[#64748B] dark:text-slate-300 font-semibold mb-1">
                     Client Account
                   </label>
-                  <select className="w-full bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg p-2.5 text-xs text-[#0B1727] dark:text-white">
-                    <option>Acme Technologies Pvt Ltd</option>
-                    <option>Zenith Retail Global Ltd</option>
-                    <option>Nova Healthcare Labs</option>
-                    <option>Apex Apparel D2C</option>
-                    <option>Internal Executive Board</option>
-                  </select>
+                  <input
+                    type="text"
+                    placeholder="Client Account Name"
+                    className="w-full bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg p-2.5 text-xs text-[#0B1727] dark:text-white"
+                  />
                 </div>
 
                 <div>
@@ -845,7 +838,7 @@ export const ReportsView: React.FC = () => {
                 <label className="block text-slate-600 dark:text-slate-400 font-semibold mb-1">Recipients</label>
                 <input
                   type="text"
-                  defaultValue="david.miller@acmetechnologies.com, board@acme.com"
+                  placeholder="client@company.com, stakeholders@company.com"
                   className="w-full bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs"
                 />
               </div>

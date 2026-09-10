@@ -495,7 +495,7 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
                 <div className="p-3.5 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20 text-slate-700 dark:text-slate-300 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileCheck className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span>Signed Master Services Agreement (MSA) counter-signed by Alex Morgan and Arjun Nair.</span>
+                    <span>Signed Master Services Agreement (MSA) counter-signed by OptiVir Lead and Authorized Client Representative.</span>
                   </div>
                   <button
                     onClick={() => onNavigate && onNavigate('documents')}

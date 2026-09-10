@@ -411,12 +411,13 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </div>
             <div className="space-y-1 text-xs">
-              <p className="text-[10px] font-bold text-slate-400 uppercase px-2">Quick Results</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase px-2">Quick Navigation</p>
               {[
-                { name: 'Arjun Nair', sub: 'Acme Technologies • Lead', tab: 'leads' },
-                { name: 'Sara Thomas', sub: 'Zenith Retail • Lead', tab: 'leads' },
-                { name: 'Revenue Overview & Projections', sub: 'Financial Analytics', tab: 'dashboard' },
-                { name: 'Deal Pipeline Kanban', sub: 'Active stages', tab: 'pipeline' }
+                { name: 'Executive Overview Dashboard', sub: 'Revenue, performance metrics & operations', tab: 'dashboard' },
+                { name: 'Leads & Opportunities', sub: 'Inbound acquisition, conversion & qualification', tab: 'leads' },
+                { name: 'Sales Pipeline Kanban', sub: 'Commercial deals & closing stages', tab: 'pipeline' },
+                { name: 'Clients & Accounts Directory', sub: 'Client accounts, 360° view & onboarding', tab: 'clients' },
+                { name: 'Finance & Invoicing Ledger', sub: 'Tax invoices, payments & receivables', tab: 'finance' }
               ].map((item, idx) => (
                 <div
                   key={idx}

@@ -162,7 +162,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => downloadClientPdf('proposal', { number: 'PROP-2026-042', title: 'Enterprise Growth Retainer & Meta CAPI Architecture', client: 'Acme Global Technologies Inc.' })}
+                  onClick={() => downloadClientPdf('proposal', { number: 'PROP-001', title: 'Performance Marketing Growth SOW', client: 'Client Organization' })}
                   className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition"
                 >
                   <Download className="w-3.5 h-3.5 text-[#B91C1C]" />
@@ -550,7 +550,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <span>Audit Diff</span>
                 </button>
                 <button
-                  onClick={() => downloadClientPdf('proposal', { number: 'PROP-2026-042', title: 'Enterprise Growth Retainer & Meta CAPI Architecture', client: 'Acme Global Technologies Inc.' })}
+                  onClick={() => downloadClientPdf('proposal', { number: 'PROP-001', title: 'Performance Marketing Growth SOW', client: 'Client Organization' })}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
                   title="Download Client Proposal PDF"
                 >
@@ -596,7 +596,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
               <div className="flex items-center gap-2 text-slate-500 shrink-0">
                 <span>Linked Deal:</span>
-                <span className="font-bold text-slate-900 dark:text-white">Acme Growth Suite ($24.8k) ▾</span>
+                <span className="font-bold text-slate-900 dark:text-white">Active Retainer SOW ▾</span>
               </div>
             </div>
           </div>
@@ -748,9 +748,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     <div className="text-[10px] text-slate-400">Prepared exclusively for</div>
                     <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1 justify-end">
                       <div className="w-4 h-4 rounded bg-[#0A1628] text-white text-[8px] flex items-center justify-center font-bold">
-                        AT
+                        CL
                       </div>
-                      <span>Acme Tech Pvt Ltd</span>
+                      <span>Client Account</span>
                     </div>
                   </div>
                 </div>
@@ -765,11 +765,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   </h2>
 
                   <div className="flex items-center gap-4 text-[11px] text-slate-500 pt-1 flex-wrap">
-                    <span>Client: <strong className="text-blue-600">Acme Technologies Pvt Ltd</strong></span>
+                    <span>Client: <strong className="text-blue-600">Client Organization</strong></span>
                     <span>•</span>
-                    <span>Target Regions: <strong>APAC & US-West</strong></span>
+                    <span>Target Regions: <strong>APAC & Global</strong></span>
                     <span>•</span>
-                    <span>Principal Architect: <strong>Rahul Menon</strong></span>
+                    <span>Principal Lead: <strong>OptiVir Lead</strong></span>
                   </div>
                 </div>
 

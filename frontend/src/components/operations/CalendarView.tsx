@@ -48,17 +48,17 @@ PRODID:-//OptiVir CRM Calendar//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-SUMMARY:Sprint 24 Alignment & Deliverables Sign-off
+SUMMARY:Sprint Alignment & Deliverables Sign-off
 DTSTART:20261024T100000Z
 DTEND:20261024T110000Z
-DESCRIPTION:Client sync with Acme Technologies
+DESCRIPTION:Client project milestone synchronization
 STATUS:CONFIRMED
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Monthly ROAS Performance Review
 DTSTART:20261025T140000Z
 DTEND:20261025T150000Z
-DESCRIPTION:Acme Tech Q4 growth milestone evaluation
+DESCRIPTION:Growth milestone & performance evaluation
 STATUS:CONFIRMED
 END:VEVENT
 END:VCALENDAR`;
@@ -484,9 +484,6 @@ END:VCALENDAR`;
 
             <select className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium">
               <option>All Clients</option>
-              <option>Acme Technologies</option>
-              <option>Zenith Retail Global</option>
-              <option>Nova Healthcare</option>
             </select>
 
             <select className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium">
@@ -699,7 +696,7 @@ END:VCALENDAR`;
                   </div>
                   <div className="font-bold text-slate-900 dark:text-white">Monthly ROAS Review</div>
                   <div className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Acme Technologies • Google Meet
+                    Client Strategy • Google Meet
                   </div>
                   <button
                     onClick={() => {
@@ -717,21 +714,21 @@ END:VCALENDAR`;
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
                   <div className="text-[10px] text-slate-500 font-bold">01:30 PM – 02:15 PM</div>
                   <div className="font-bold text-slate-900 dark:text-white">CAPI Deduplication Dive</div>
-                  <div className="text-[10px] text-slate-500">Vertex Solutions • Rahul M.</div>
+                  <div className="text-[10px] text-slate-500">Technical Scope • Architecture</div>
                 </div>
 
                 {/* Event 4 */}
                 <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 space-y-1">
                   <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400">03:00 PM Deadline</div>
                   <div className="font-bold text-slate-900 dark:text-white">GA4 Container Handover</div>
-                  <div className="text-[10px] text-slate-500">Sprint 4 • Acme Technologies</div>
+                  <div className="text-[10px] text-slate-500">Milestone • Deliverable</div>
                 </div>
 
                 {/* Event 5 */}
                 <div className="p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 space-y-1">
                   <div className="text-[10px] font-bold text-rose-700 dark:text-rose-400">18:00 Due Date</div>
-                  <div className="font-bold text-slate-900 dark:text-white">Invoice INV-2026-082 (₹75k)</div>
-                  <div className="text-[10px] text-slate-500">Acme Technologies • Finance</div>
+                  <div className="font-bold text-slate-900 dark:text-white">Invoice Settlement Notice</div>
+                  <div className="text-[10px] text-slate-500">Commercial Operations • Finance</div>
                 </div>
               </div>
             </div>
@@ -1207,7 +1204,7 @@ END:VCALENDAR`;
                 <label className="font-semibold block mb-1">Primary Attendee &amp; Account</label>
                 <input
                   type="text"
-                  defaultValue="Arjun Nair (Acme Technologies)"
+                  placeholder="Attendee Name &amp; Client Account"
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -1241,13 +1238,13 @@ END:VCALENDAR`;
                     id: `act-${Date.now()}`,
                     type: 'meeting',
                     title: meetingTitleInput || 'Client Review Meeting',
-                    contact: 'Arjun Nair',
-                    entity: 'Acme Technologies',
+                    contact: 'Client Attendee',
+                    entity: 'Client Account',
                     details: logNotes || 'Video conference meeting completed with client team.',
                     duration: '45 mins',
                     outcome: 'Action Items Formalized',
-                    author: 'Alex Morgan',
-                    avatar: 'AM',
+                    author: 'OptiVir Lead',
+                    avatar: 'OP',
                     timestamp: 'Just now',
                     color: 'text-purple-600 bg-purple-50 border-purple-200',
                   };
@@ -1282,7 +1279,7 @@ END:VCALENDAR`;
                 <label className="font-semibold block mb-1">To / Recipient</label>
                 <input
                   type="email"
-                  defaultValue="arjun.nair@acmetech.com"
+                  placeholder="client@company.com"
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -1317,13 +1314,13 @@ END:VCALENDAR`;
                     id: `act-${Date.now()}`,
                     type: 'email',
                     title: emailSubjectInput || 'Commercial Email Thread',
-                    contact: 'Arjun Nair',
-                    entity: 'Acme Technologies',
+                    contact: 'Client',
+                    entity: 'Client Account',
                     details: logNotes || 'Commercial proposal email dispatched.',
-                    duration: 'Sent via Gmail Sync',
+                    duration: 'Sent via Email Sync',
                     outcome: 'Delivered',
-                    author: 'Alex Morgan',
-                    avatar: 'AM',
+                    author: 'OptiVir Lead',
+                    avatar: 'OP',
                     timestamp: 'Just now',
                     color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
                   };
@@ -1358,7 +1355,7 @@ END:VCALENDAR`;
                 <label className="font-semibold block mb-1">Entity / Client Account</label>
                 <input
                   type="text"
-                  defaultValue="Acme Technologies Pvt Ltd"
+                  placeholder="Client Account Name"
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -1384,12 +1381,12 @@ END:VCALENDAR`;
                     type: 'note',
                     title: 'Strategic Account Note',
                     contact: 'Account File',
-                    entity: 'Acme Technologies',
+                    entity: 'Client Account',
                     details: logNotes || 'Internal note added to account dossier.',
                     duration: 'Internal Memo',
                     outcome: 'Pinned to Account Dossier',
-                    author: 'Alex Morgan',
-                    avatar: 'AM',
+                    author: 'OptiVir Lead',
+                    avatar: 'OP',
                     timestamp: 'Just now',
                     color: 'text-amber-600 bg-amber-50 border-amber-200',
                   };
@@ -1457,7 +1454,7 @@ END:VCALENDAR`;
                 <label className="font-semibold block mb-1">Associated Entity / Account</label>
                 <input
                   type="text"
-                  defaultValue="Acme Technologies Pvt Ltd"
+                  placeholder="Client Account Name"
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -1472,13 +1469,13 @@ END:VCALENDAR`;
                     id: `act-${Date.now()}`,
                     type: 'followup',
                     title: followupTitleInput || 'Action Follow-up Task',
-                    contact: 'Arjun Nair',
-                    entity: 'Acme Technologies',
+                    contact: 'Client',
+                    entity: 'Client Account',
                     details: `Scheduled follow-up due ${followupDue} with ${followupPriorityInput} priority.`,
                     duration: `${followupPriorityInput} Priority`,
                     outcome: 'Scheduled SLA Active',
-                    author: 'Alex Morgan',
-                    avatar: 'AM',
+                    author: 'OptiVir Lead',
+                    avatar: 'OP',
                     timestamp: 'Just now',
                     color: 'text-rose-600 bg-rose-50 border-rose-200',
                   };
@@ -1546,16 +1543,13 @@ END:VCALENDAR`;
 
               <div>
                 <label className="font-semibold block mb-1">Associated Client</label>
-                <select
+                <input
+                  type="text"
+                  placeholder="e.g. Enterprise Client"
                   value={newEventClient}
                   onChange={(e) => setNewEventClient(e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
-                >
-                  <option>Acme Technologies</option>
-                  <option>Zenith Retail Global</option>
-                  <option>Nova Healthcare</option>
-                  <option>Vertex Solutions</option>
-                </select>
+                />
               </div>
             </div>
 

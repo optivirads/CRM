@@ -366,10 +366,10 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
                     <span className="text-[10px] text-slate-500">• Due Today at 11:00 AM</span>
                   </div>
                   <h3 className="font-bold text-sm text-[#0B1727] dark:text-white mt-0.5">
-                    Call Arjun regarding revised inbound ROI projection model
+                    Follow up with {lead.name.split(' ')[0]} regarding proposal &amp; onboarding timeline
                   </h3>
                   <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                    Proposal revision sent yesterday at 4:30 PM. Lead opened attachment twice this morning from Bengaluru IP.
+                    Proposal review scheduled. Lead confirmed interest in service scope.
                   </p>
                 </div>
               </div>
@@ -462,7 +462,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
               <div>
                 <span className="text-[11px] text-[#8492A6] block">Assigned Lead Owner</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 block">
-                  Alex Morgan (Sr. Enterprise AE)
+                  {lead.owner || 'OptiVir Account Executive'}
                 </span>
               </div>
 
@@ -512,7 +512,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
                   High (Sign-off)
                 </span>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  Joint sign with CFO (Meera Sen)
+                  Procurement &amp; Financial Sign-off
                 </span>
               </div>
 
@@ -548,7 +548,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
             </div>
           </div>
 
-          {/* Card D: Company Profile — Acme Technologies (Matching Image 4) */}
+          {/* Card D: Company Profile (Matching Image 4) */}
           <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-6 shadow-xs space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-sm text-[#0B1727] dark:text-[#F8FAFC] flex items-center gap-2">
@@ -601,7 +601,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
                   <p className="text-[11px] text-red-600 font-medium mt-0.5">
                     Outer Ring Road, Koramangala 4th Block, Bengaluru 560034
                   </p>
-                  <p className="text-[10px] text-slate-400">URL: acmetechnologies.io</p>
+                  <p className="text-[10px] text-slate-400">URL: {lead.company.toLowerCase().replace(/[^a-z0-9]/g, '') || 'client'}.com</p>
                 </div>
               </div>
               <button
@@ -645,7 +645,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
                     <span className="text-[10px] text-slate-400">08 Sep - 04:42 PM</span>
                   </div>
                   <p className="text-[11px] text-red-600 mt-1">
-                    Arjun opened attachment &ldquo;OptiVir_Growth_Engine_SOW_Acme.pdf&rdquo; from macOS Mail Client.
+                    {lead.name.split(' ')[0]} opened attachment &ldquo;OptiVir_Growth_Engine_SOW.pdf&rdquo; from Mail Client.
                   </p>
                 </div>
               </div>
@@ -839,7 +839,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
               Classification &amp; Tags
             </span>
             <div className="flex flex-wrap gap-1.5 text-xs">
-              {['#B2B-SaaS', '#Koramangala-Hub', '#Fast-Close-Q3', '#Attribution-Upgrade', '#Budget-Approved'].map((t) => (
+              {['#Enterprise', '#Qualified', '#Fast-Close', '#Q3-Strategic', '#Budget-Approved'].map((t) => (
                 <span
                   key={t}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium ${
@@ -870,28 +870,28 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
             </span>
 
             <div 
-              onClick={() => showToast('Navigating to linked Deal: Acme Tech Retainer', 'info')}
+              onClick={() => showToast(`Navigating to linked Deal: ${lead.company} Growth Retainer`, 'info')}
               className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0A101C] flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#111E34] cursor-pointer transition"
             >
               <div className="flex items-center gap-2.5">
                 <Briefcase className="w-4 h-4 text-slate-500" />
                 <div>
-                  <p className="font-bold text-xs text-[#0B1727] dark:text-white">Acme Tech Retainer</p>
-                  <p className="text-[10px] text-slate-500">Qualified Stage • ₹75k/mo</p>
+                  <p className="font-bold text-xs text-[#0B1727] dark:text-white">{lead.company} Growth Retainer</p>
+                  <p className="text-[10px] text-slate-500">Qualified Stage • ₹75,000/mo</p>
                 </div>
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
             </div>
 
             <div 
-              onClick={() => showToast('Navigating to contact record: Meera Sen (CFO)', 'info')}
+              onClick={() => showToast(`Navigating to primary stakeholder record`, 'info')}
               className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0A101C] flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#111E34] cursor-pointer transition"
             >
               <div className="flex items-center gap-2.5">
                 <Users className="w-4 h-4 text-slate-500" />
                 <div>
-                  <p className="font-bold text-xs text-[#0B1727] dark:text-white">Meera Sen (CFO)</p>
-                  <p className="text-[10px] text-slate-500">Financial Sign-off Contact</p>
+                  <p className="font-bold text-xs text-[#0B1727] dark:text-white">{lead.name}</p>
+                  <p className="text-[10px] text-slate-500">Primary Decision Maker</p>
                 </div>
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />

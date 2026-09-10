@@ -63,10 +63,10 @@ export const MarketingView: React.FC = () => {
 
   // New Campaign Form State
   const [newCampaignName, setNewCampaignName] = useState('');
-  const [newCampaignClient, setNewCampaignClient] = useState('Acme Technologies Pvt Ltd');
+  const [newCampaignClient, setNewCampaignClient] = useState('');
   const [newCampaignPlatform, setNewCampaignPlatform] = useState('Google Ads');
-  const [newCampaignBudget, setNewCampaignBudget] = useState('₹4,50,000');
-  const [newCampaignTargetRoas, setNewCampaignTargetRoas] = useState('4.2x');
+  const [newCampaignBudget, setNewCampaignBudget] = useState('');
+  const [newCampaignTargetRoas, setNewCampaignTargetRoas] = useState('4.0x');
 
   const triggerAction = (msg: string) => {
     setActionNotice(msg);
@@ -370,12 +370,7 @@ export const MarketingView: React.FC = () => {
               }}
               className="bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] text-[#0B1727] dark:text-white rounded-lg px-3 py-1.5 font-medium text-xs focus:outline-none focus:border-[#B91C1C]"
             >
-              <option value="All Clients (12)">All Clients (12)</option>
-              <option value="Acme Technologies Pvt Ltd">Acme Technologies Pvt Ltd</option>
-              <option value="Zenith Retail Global Ltd">Zenith Retail Global Ltd</option>
-              <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
-              <option value="Apex Apparel D2C">Apex Apparel D2C</option>
-              <option value="Vertex Solutions Inc">Vertex Solutions Inc</option>
+              <option value="All Clients">All Clients</option>
             </select>
 
             <select
@@ -1156,17 +1151,13 @@ export const MarketingView: React.FC = () => {
                   <label className="block text-[#64748B] dark:text-slate-300 mb-1 font-semibold">
                     Client Account
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="Enter Client Account Name"
                     value={newCampaignClient}
                     onChange={(e) => setNewCampaignClient(e.target.value)}
                     className="w-full bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg p-2.5 text-xs text-[#0B1727] dark:text-white"
-                  >
-                    <option value="Acme Technologies Pvt Ltd">Acme Technologies Pvt Ltd</option>
-                    <option value="Zenith Retail Global Ltd">Zenith Retail Global Ltd</option>
-                    <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
-                    <option value="Apex Apparel D2C">Apex Apparel D2C</option>
-                    <option value="Vertex Solutions Inc">Vertex Solutions Inc</option>
-                  </select>
+                  />
                 </div>
 
                 <div>

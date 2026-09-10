@@ -346,9 +346,6 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-medium text-slate-900 dark:text-white outline-hidden focus:ring-1 focus:ring-[#B91C1C]"
                 >
                   <option value="All">All Clients</option>
-                  <option value="Acme Technologies">Acme Technologies</option>
-                  <option value="Zenith Retail Global">Zenith Retail Global</option>
-                  <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
                 </select>
 
                 <div className="relative">
