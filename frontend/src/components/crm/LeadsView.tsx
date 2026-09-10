@@ -933,7 +933,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Arjun Nair"
+                    placeholder="e.g. Rahul Sharma"
                     value={newLeadForm.name}
                     onChange={(e) => setNewLeadForm({ ...newLeadForm, name: e.target.value })}
                     className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-[#F8FAFC] dark:bg-[#080E18] text-[#0B1727] dark:text-[#F8FAFC] outline-none focus:ring-1 focus:ring-[#DC2626]"
@@ -1052,7 +1052,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
                       <input
                         type="email"
                         required
-                        placeholder="arjun.nair@acmetech.com"
+                        placeholder="contact@company.com"
                         value={newLeadForm.email}
                         onChange={(e) => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
                         className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-[#F8FAFC] dark:bg-[#080E18] text-[#0B1727] dark:text-[#F8FAFC] outline-none focus:ring-1 focus:ring-[#DC2626]"

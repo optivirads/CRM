@@ -229,7 +229,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
           {[
             '1. Opportunities List',
-            '2. Detail (Acme Tech)',
+            '2. Deal Inspection',
             '3. Proposal & Quotation',
             '4. Timeline & Audit',
             '5. Create/Edit Drawer',
@@ -788,7 +788,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
                   required
                   value={newCompany}
                   onChange={(e) => setNewCompany(e.target.value)}
-                  placeholder="e.g. Acme Technologies" 
+                  placeholder="Client Company Name" 
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none focus:border-[#DC2626]" 
                 />
               </div>

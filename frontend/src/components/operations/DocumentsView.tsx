@@ -167,8 +167,8 @@ export const DocumentsView: React.FC = () => {
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
-                {v === '1. Documents Directory & Metrics' ? '📁 Documents Directory & Metrics (348)' :
-                 v === '2. Preview & Audit Drawer' ? '👁️ Preview & Audit Drawer DOC-2026-MSA-Acme' :
+                {v === '1. Documents Directory & Metrics' ? '📁 Documents Directory & Metrics' :
+                 v === '2. Preview & Audit Drawer' ? '👁️ Preview & Audit Drawer DOC-MSA-001' :
                  v === '3. Upload Queue & OCR' ? '☁️ Upload Queue & OCR ●' :
                  v === '4. Entity Hierarchy' ? '🏢 Entity Hierarchy' : '🛡️ Vault & Empty State'}
               </button>
@@ -370,10 +370,6 @@ export const DocumentsView: React.FC = () => {
               className="bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-1.5 text-xs text-[#0B1727] dark:text-white font-medium"
             >
               <option value="All Clients">All Clients</option>
-              <option value="Acme Technologies Pvt Ltd">Acme Technologies Pvt Ltd</option>
-              <option value="Zenith Retail Global Ltd">Zenith Retail Global Ltd</option>
-              <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
-              <option value="Vertex Solutions Inc">Vertex Solutions Inc</option>
             </select>
 
             <select
@@ -382,9 +378,7 @@ export const DocumentsView: React.FC = () => {
               className="bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-1.5 text-xs text-[#0B1727] dark:text-white font-medium"
             >
               <option value="All Authors">All Authors</option>
-              <option value="Marcus Vance">Marcus Vance</option>
-              <option value="Alex Morgan">Alex Morgan</option>
-              <option value="Rahul Menon">Rahul Menon</option>
+              <option value="OptiVir Team">OptiVir Team</option>
             </select>
 
             {/* List / Grid toggle */}
@@ -446,7 +440,7 @@ export const DocumentsView: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  downloadClientPdf('contract', { id: selectedDocs[0] || 'DOC-2026-089-MSA', client: 'Acme Global Technologies Inc.' });
+                  downloadClientPdf('contract', { id: selectedDocs[0] || 'DOC-MSA-TEMPL', client: 'Client Organization' });
                   showToast('Downloading verified contract PDF...');
                 }}
                 className="flex items-center gap-1 text-slate-700 dark:text-slate-200 font-semibold hover:text-[#B91C1C]"
@@ -674,10 +668,10 @@ export const DocumentsView: React.FC = () => {
                   Document Inspector & Audit Hash
                 </span>
                 <h3 className="text-base font-bold text-[#0B1727] dark:text-white mt-0.5">
-                  Acme_Technologies_Master_Services_Agreement_v3.pdf
+                  Master_Services_Agreement_Template.pdf
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  DOC-2026-089-MSA • SHA-256: 7f83b165...9481 • Verified Valid
+                  DOC-MSA-001 • SHA-256: 7f83b165...9481 • Verified Valid
                 </p>
               </div>
               <button onClick={() => setShowPreviewDrawer(false)} className="text-slate-400 hover:text-slate-600">
@@ -690,19 +684,19 @@ export const DocumentsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800">
                 <div>
                   <span className="text-slate-400 text-[10px] font-semibold block">CLIENT RELATIONSHIP</span>
-                  <span className="font-bold text-slate-900 dark:text-white">Acme Technologies Pvt Ltd</span>
+                  <span className="font-bold text-slate-900 dark:text-white">Client Organization</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] font-semibold block">GOVERNING SOW / DEAL</span>
-                  <span className="font-bold text-slate-900 dark:text-white">PROP-089 (₹42,00,000 / yr)</span>
+                  <span className="font-bold text-slate-900 dark:text-white">Active Retainer SOW</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] font-semibold block">LEGAL STATUS</span>
-                  <span className="font-bold text-emerald-600">✓ Countersigned & Sealed</span>
+                  <span className="font-bold text-emerald-600">✓ Standard OptiVir Template</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] font-semibold block">RENEWAL HORIZON</span>
-                  <span className="font-bold text-slate-900 dark:text-white">15 Oct 2027 (Auto-Renew)</span>
+                  <span className="font-bold text-slate-900 dark:text-white">Annual Auto-Renew</span>
                 </div>
               </div>
 
@@ -716,12 +710,12 @@ export const DocumentsView: React.FC = () => {
                   MASTER SERVICES & SLA AGREEMENT
                 </h2>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  This Master Services Agreement ("Agreement") is made effective as of August 1, 2026, by and between OptiVir Enterprise Systems ("Service Provider") and Acme Technologies Pvt Ltd ("Client").
+                  This Master Services Agreement ("Agreement") is made effective by and between OptiVir Ads ("Service Provider") and Client Organization ("Client").
                 </p>
                 <div className="p-3 bg-slate-50 dark:bg-[#0F172A] rounded border border-slate-200 dark:border-slate-800 text-[10px] font-sans">
-                  <strong className="text-slate-900 dark:text-white">DocuSign Digital Certificate ID:</strong> 8892-4112-9901<br />
-                  <strong>Signer:</strong> David Miller, PMM Acme Technologies (Aug 14, 2026 11:24 IST)<br />
-                  <strong>Witness:</strong> Marcus Vance, VP of Operations
+                  <strong className="text-slate-900 dark:text-white">Digital Security Certificate ID:</strong> OPTIVIR-SHA256-VERIFIED<br />
+                  <strong>Service Provider:</strong> OptiVir Ads (optivirads@gmail.com)<br />
+                  <strong>Client Signatory:</strong> Authorized Representative
                 </div>
               </div>
 
@@ -752,7 +746,7 @@ export const DocumentsView: React.FC = () => {
             <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#0A101C] flex justify-between items-center">
               <button
                 onClick={() => {
-                  downloadClientPdf('contract', { id: 'CERT-2026-SHA256', client: 'Acme Technologies Inc.' });
+                  downloadClientPdf('contract', { id: 'CERT-SHA256', client: 'Client Organization' });
                   showToast('Downloaded SHA-256 Audit Certificate PDF');
                 }}
                 className="px-3.5 py-2 rounded-lg bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 text-xs font-semibold hover:bg-slate-50"
@@ -761,8 +755,8 @@ export const DocumentsView: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  downloadClientPdf('contract', { id: 'DOC-2026-089-MSA', client: 'Acme Technologies Inc.' });
-                  showToast('Downloaded Acme_Technologies_Master_Services_Agreement_v3.pdf');
+                  downloadClientPdf('contract', { id: 'DOC-MSA-001', client: 'Client Organization' });
+                  showToast('Downloaded Master_Services_Agreement_Template.pdf');
                   setShowPreviewDrawer(false);
                 }}
                 className="px-4 py-2 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition"
@@ -799,12 +793,11 @@ export const DocumentsView: React.FC = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-slate-600 dark:text-slate-400 font-semibold mb-1">Associate Client Entity</label>
-                <select className="w-full bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs">
-                  <option>Acme Technologies Pvt Ltd</option>
-                  <option>Zenith Retail Global Ltd</option>
-                  <option>Nova Healthcare Labs</option>
-                  <option>Apex Apparel D2C</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="Client Organization Name"
+                  className="w-full bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs text-[#0B1727] dark:text-white"
+                />
               </div>
 
               <div>
@@ -873,9 +866,8 @@ export const DocumentsView: React.FC = () => {
                 <label className="block text-slate-600 dark:text-slate-400 font-semibold mb-1">Target Record</label>
                 <input
                   type="text"
-                  placeholder="e.g. PROP-2026-089 or PRJ-882"
-                  defaultValue="PROP-2026-089 (Acme Technologies)"
-                  className="w-full bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs"
+                  placeholder="e.g. PROP-001 or Client Deal ID"
+                  className="w-full bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs text-[#0B1727] dark:text-white"
                 />
               </div>
             </div>

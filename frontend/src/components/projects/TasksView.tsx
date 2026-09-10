@@ -261,13 +261,13 @@ export const TasksView: React.FC = () => {
                   title: 'New Commercial Deliverable Spec',
                   subtasksCount: '0/3 Subtasks',
                   subtasksBadge: 'Pending Kickoff',
-                  clientName: 'Acme Technologies',
-                  clientAvatar: 'AT',
+                  clientName: 'Client Account',
+                  clientAvatar: 'CL',
                   clientAvatarBg: 'bg-[#0A1628]',
                   project: 'Enterprise Retainer',
                   milestone: 'Sprint Planning',
-                  assignee: 'Alex Morgan',
-                  assigneeInitials: 'AM',
+                  assignee: 'OptiVir Lead',
+                  assigneeInitials: 'OP',
                   priority: 'Medium',
                   status: 'In Progress',
                   statusBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
@@ -443,10 +443,6 @@ export const TasksView: React.FC = () => {
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
               <option value="All">All Clients</option>
-              <option value="Acme Technologies">Acme Technologies</option>
-              <option value="Zenith Retail Global">Zenith Retail Global</option>
-              <option value="Vertex Solutions">Vertex Solutions</option>
-              <option value="Nova Healthcare">Nova Healthcare</option>
             </select>
 
             <select
@@ -873,7 +869,7 @@ export const TasksView: React.FC = () => {
                     Technical Scope & Acceptance Criteria
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Provision and deploy the Google Cloud Run server-side Tag Manager container under the custom subdomain <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">tag.acmetech.io</code>. Ensure first-party cookie isolation and route Meta Conversions API (CAPI) events with deduplicated <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">event_id</code> parameters matching client-side pixel triggers.
+                    Provision and deploy the server-side Tag Manager container under the custom subdomain <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">tag.clientdomain.com</code>. Ensure first-party cookie isolation and route Meta Conversions API (CAPI) events with deduplicated <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">event_id</code> parameters matching client-side pixel triggers.
                   </p>
                   <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-5 pt-1">
                     <li>Provision Cloud Run cluster with multi-region failover (US-East / EU-Central).</li>
@@ -1044,7 +1040,7 @@ export const TasksView: React.FC = () => {
                           <span className="text-[10px] text-slate-400">2 hours ago</span>
                         </div>
                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                          CNAME verification completed on Acme&apos;s DNS. Have run 5 test event packets and Meta CAPI is reporting an 8.9/10 Event Quality Match score. Only synthetic purchases remain.
+                          CNAME verification completed on client DNS. Have run 5 test event packets and Meta CAPI is reporting an 8.9/10 Event Quality Match score. Only synthetic purchases remain.
                         </div>
                       </div>
                     </div>
@@ -1133,8 +1129,8 @@ export const TasksView: React.FC = () => {
                         AT
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-white">Acme Technologies Pvt Ltd</div>
-                        <div className="text-[10px] text-slate-500">Tier 1 Enterprise • APAC HQ</div>
+                        <div className="font-bold text-slate-900 dark:text-white">Client Organization</div>
+                        <div className="text-[10px] text-slate-500">Gold Retainer Tier</div>
                       </div>
                     </div>
                   </div>
@@ -1142,7 +1138,7 @@ export const TasksView: React.FC = () => {
                   <div className="space-y-2 pt-1 text-slate-600 dark:text-slate-400">
                     <div className="flex items-center justify-between">
                       <span>Project:</span>
-                      <strong className="text-slate-900 dark:text-white">Acme Growth Campaign</strong>
+                      <strong className="text-slate-900 dark:text-white">Client Growth SOW</strong>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Active Retainer:</span>

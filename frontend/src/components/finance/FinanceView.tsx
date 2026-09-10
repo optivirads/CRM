@@ -68,9 +68,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
   // Expenses State & Dataset
   const [expenseFilter, setExpenseFilter] = useState<'all' | 'pending' | 'approved' | 'media' | 'saas'>('all');
   const [newExpCategory, setNewExpCategory] = useState('Paid Media / Ad Spend');
-  const [newExpAmount, setNewExpAmount] = useState('₹45,000');
+  const [newExpAmount, setNewExpAmount] = useState('');
   const [newExpDesc, setNewExpDesc] = useState('');
-  const [newExpEntity, setNewExpEntity] = useState('Acme Technologies');
+  const [newExpEntity, setNewExpEntity] = useState('');
   const [uploadedReceiptName, setUploadedReceiptName] = useState<string | null>(null);
 
   interface ExpenseItem {
@@ -1367,16 +1367,13 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
 
               <div>
                 <label className="font-semibold block mb-1">Client / Project Allocation</label>
-                <select
+                <input
+                  type="text"
+                  placeholder="Client or Project Allocation Name"
                   value={newExpEntity}
                   onChange={(e) => setNewExpEntity(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
-                >
-                  <option>Acme Technologies (CAPI Project)</option>
-                  <option>Zenith Retail Global (Omnichannel)</option>
-                  <option>Vertex Solutions (AI CRM)</option>
-                  <option>Agency Operations / Overhead</option>
-                </select>
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
               </div>
 
               <div>
@@ -1465,18 +1462,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
             <div className="space-y-3 text-xs">
               <div>
                 <label className="font-semibold block mb-1">Select Client / Entity</label>
-                <select className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700">
-                  <option>Acme Technologies Pvt Ltd (INV-2026-089)</option>
-                  <option>Zenith Retail Global Ltd (INV-2026-088)</option>
-                  <option>Nova Healthcare Labs (INV-2026-078)</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="Client Name or Invoice Ref"
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
               </div>
               <div>
                 <label className="font-semibold block mb-1">Amount Received (₹)</label>
                 <input
                   type="text"
-                  defaultValue="₹9,25,000"
-                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
+                  placeholder="e.g. 50,000"
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
               </div>
               <div>

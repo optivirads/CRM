@@ -58,7 +58,9 @@ import { downloadClientPdf } from '@/lib/downloadPdf';
 
 interface Client360ViewProps {
   clientId?: string;
+  clientName?: string;
   onBackToList?: () => void;
+  onNavigate?: (tab: string) => void;
 }
 
 export interface ClientDeliverable {
@@ -74,7 +76,15 @@ export interface ClientDeliverable {
   downloadParams: Record<string, any>;
 }
 
-export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackToList }) => {
+export const Client360View: React.FC<Client360ViewProps> = ({
+  clientId,
+  clientName: propClientName,
+  onBackToList,
+  onNavigate
+}) => {
+  const activeClientName = propClientName || (clientId ? `Client #${clientId}` : 'Client 360° Profile');
+  const activeClientDomain = activeClientName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+  const activeInitials = activeClientName.substring(0, 2).toUpperCase();
   const { showToast: showGlobalToast } = useToast();
   const [simulatorState, setSimulatorState] = useState('1. Overview (Command)');
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'campaigns' | 'deliverables' | 'performance' | 'projects' | 'retainers' | 'finance' | 'timeline' | 'health'>('overview');
@@ -101,7 +111,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
   // Live Running Campaigns Telemetry (Google Ads & Meta Ads)
   const [campaignPlatformFilter, setCampaignPlatformFilter] = useState<'ALL' | 'GOOGLE' | 'META'>('ALL');
   const [campaignSearchQuery, setCampaignSearchQuery] = useState('');
-  const acmeCampaigns: any[] = [];
+  const activeCampaigns: any[] = [];
 
   const showToast = (msg: string, type: ToastType = 'success') => {
     setToastMessage(msg);
@@ -158,7 +168,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
       fileType: newDelivFormat,
       downloadType: downType,
       downloadParams: {
-        client: 'Acme Technologies',
+        client: activeClientName,
         title: newDelivTitle,
         number: newId
       }
@@ -170,7 +180,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
 
     // Direct real vector PDF download
     downloadClientPdf(downType, {
-      client: 'Acme Technologies',
+      client: activeClientName,
       title: newDelivTitle,
       number: newId
     });
@@ -193,7 +203,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
           {onBackToList && <span>/</span>}
           <span>Client 360° Profile</span>
           <span>/</span>
-          <span className="font-bold text-slate-900 dark:text-white">Acme Technologies</span>
+          <span className="font-bold text-slate-900 dark:text-white">{activeClientName}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -208,17 +218,17 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
             {/* Left: Avatar & Identity */}
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 rounded-xl bg-[#0A1628] text-white flex items-center justify-center text-2xl font-black shrink-0 shadow-md">
-                AT
+                {activeInitials}
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                   <span>Clients</span>
                   <ChevronRight className="w-3 h-3 text-slate-400" />
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Acme Technologies Pvt Ltd</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{activeClientName}</span>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                    Acme Technologies
+                    {activeClientName}
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
                     Enterprise Retainer Client
@@ -229,28 +239,19 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 flex-wrap pt-1">
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold">
                     <Building2 className="w-3.5 h-3.5" />
-                    <span>Technology & Software</span>
+                    <span>Technology &amp; Performance</span>
                   </span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
                     <MapPin className="w-3.5 h-3.5" />
-                    <span>Bengaluru, KA, India</span>
+                    <span>Client Headquarters</span>
                   </span>
                   <span>•</span>
-                  <a
-                    href="https://acmetechnologies.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    <span>acmetechnologies.com</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <span>•</span>
-                  <span>Client Since: <strong>05 Jan 2020</strong></span>
-                  <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-bold text-[11px]">
-                    Gold SLA Tier
+                  <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <span>Verified Client Account</span>
                   </span>
+                  <span>•</span>
+                  <span>Client Tier: <strong>Gold SLA</strong></span>
                 </div>
               </div>
             </div>
@@ -295,7 +296,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                   Edit Account
                 </button>
                 <button
-                  onClick={() => showToast('Activity logged with Acme Technologies', 'success')}
+                  onClick={() => showToast('Activity logged for client account', 'success')}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
                 >
                   + Activity
@@ -522,7 +523,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <div className="text-2xl font-black text-blue-600 mt-1.5">
                   {deliverables.filter(d => d.status === 'Client Approved').length}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">Signed off by Acme stakeholder</div>
+                <div className="text-[11px] text-slate-500 mt-1">Signed off by client stakeholder</div>
               </div>
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
@@ -638,7 +639,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       </button>
 
                       <button
-                        onClick={() => showToast(`Deliverable ${deliv.id} dispatched to Acme client portal!`)}
+                        onClick={() => showToast(`Deliverable ${deliv.id} dispatched to client portal!`)}
                         className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
                       >
                         <Send className="w-3.5 h-3.5" />
@@ -647,7 +648,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
 
                       <button
                         onClick={() => {
-                          navigator.clipboard?.writeText?.(`https://optivirads.com/portal/acme/deliverables/${deliv.id}`);
+                          navigator.clipboard?.writeText?.(`https://optivirads.com/portal/deliverables/${deliv.id}`);
                           showToast(`Secure client link copied for ${deliv.id}!`);
                         }}
                         className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg transition"
@@ -668,7 +669,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                   </div>
                   <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">No deliverables match this filter</h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Try clearing the search or category filter, or generate a new deliverable package for Acme Technologies.
+                    Try clearing the search or category filter, or generate a new deliverable package for {activeClientName}.
                   </p>
                   <button
                     onClick={() => { setDelivFilterCategory('All'); setDelivSearchQuery(''); }}
@@ -693,7 +694,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                     Live Attribution Telemetry & Agency Compliance Guardrails
                   </h4>
                   <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5 leading-relaxed">
-                    Ad campaigns for Acme Technologies are monitored in real time via Google Ads & Meta Marketing APIs. In accordance with agency pixel safety, conversion API tracking, and master credit line constraints, direct campaign creation is strictly handled inside Google Ads Console & Meta Ads Manager.
+                    Ad campaigns for this client account are monitored in real time via Google Ads &amp; Meta Marketing APIs. In accordance with agency pixel safety, conversion API tracking, and master credit line constraints, direct campaign creation is strictly handled inside Google Ads Console &amp; Meta Ads Manager.
                   </p>
                 </div>
               </div>
@@ -708,7 +709,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               </div>
             </div>
 
-            {/* Acme Executive Campaign Telemetry KPIs */}
+            {/* Client Executive Campaign Telemetry KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -764,7 +765,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  All Platforms ({acmeCampaigns.length})
+                  All Platforms ({activeCampaigns.length})
                 </button>
                 <button
                   onClick={() => setCampaignPlatformFilter('GOOGLE')}
@@ -774,7 +775,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  Google Ads ({acmeCampaigns.filter(c => c.platform === 'Google Ads').length})
+                  Google Ads ({activeCampaigns.filter(c => c.platform === 'Google Ads').length})
                 </button>
                 <button
                   onClick={() => setCampaignPlatformFilter('META')}
@@ -784,7 +785,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  Meta Ads ({acmeCampaigns.filter(c => c.platform === 'Meta Ads').length})
+                  Meta Ads ({activeCampaigns.filter(c => c.platform === 'Meta Ads').length})
                 </button>
               </div>
 
@@ -802,7 +803,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
 
             {/* Campaign Cards List */}
             <div className="space-y-4">
-              {acmeCampaigns
+              {activeCampaigns
                 .filter(c => {
                   if (campaignPlatformFilter === 'GOOGLE') return c.platform === 'Google Ads';
                   if (campaignPlatformFilter === 'META') return c.platform === 'Meta Ads';
@@ -1146,7 +1147,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                         <span>Download PDF</span>
                       </button>
                       <button
-                        onClick={() => showToast(`Deliverable ${item.id} dispatched to Acme client portal!`)}
+                        onClick={() => showToast(`Deliverable ${item.id} dispatched to ${activeClientName} client portal!`)}
                         className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-50 transition"
                         title="Dispatch to Portal"
                       >
@@ -1189,7 +1190,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       </div>
                       <div>
                         <div className="font-bold text-xs text-slate-900 dark:text-white">
-                          Acme Growth Campaign — Q3 Scale
+                          {activeClientName} Growth Campaign — Q3 Scale
                         </div>
                         <div className="text-[10px] text-slate-500 flex items-center gap-2">
                           <span>Sprint 4 of 6</span>
@@ -1393,7 +1394,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                   </p>
                 </div>
                 <button
-                  onClick={() => showToast('Synchronizing calendar schedules with Acme Google Workspace', 'info')}
+                  onClick={() => showToast(`Synchronizing calendar schedules with ${activeClientName} Google Workspace`, 'info')}
                   className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Clock className="w-3.5 h-3.5" />
@@ -1415,7 +1416,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                         <span className="text-[10px] text-slate-500 font-normal">11:00 AM IST</span>
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
-                        Alex Morgan with Arjun Nair (Marketing Director) • Google Meet
+                        Alex Morgan with Client Stakeholder • Google Meet
                       </div>
                     </div>
                   </div>
@@ -1520,7 +1521,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                       </span>
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                      Weekly ROAS Attribution Report reviewed and approved by <strong>Arjun Nair</strong>. Noted positive feedback on Meta CPL reductions.
+                      Weekly ROAS Attribution Report reviewed and approved by <strong>Key Stakeholder</strong>. Noted positive feedback on Meta CPL reductions.
                     </p>
                   </div>
                 </div>
@@ -1581,7 +1582,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <span className="text-[10px] text-slate-500">Updated 05 Sep by Alex Morgan</span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">
-                “Client strictly prefers monthly strategy reviews on the first Thursday. Arjun Nair requires performance attribution reports delivered before the 5th business day. Primary sponsor is Founder/CEO Sara Nair, any commercial expansions exceeding ₹25L must include Sara Menon in quotation drafts.”
+                “Client strictly prefers monthly strategy reviews on the first Thursday. Executive stakeholders require performance attribution reports delivered before the 5th business day. Commercial expansions exceeding ₹25L must include the designated finance lead in quotation drafts.”
               </p>
             </div>
           </div>
@@ -1672,7 +1673,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Key Stakeholders (3)</h3>
                 <button
-                  onClick={() => showToast('Opening Add Stakeholder form for Acme Technologies...', 'info')}
+                  onClick={() => showToast(`Opening Add Stakeholder form for ${activeClientName}...`, 'info')}
                   className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
@@ -1684,20 +1685,20 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center text-xs font-bold">
-                      AN
+                      MD
                     </div>
                     <div>
                       <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
-                        <span>Arjun Nair</span>
+                        <span>Marketing Director</span>
                         <span className="text-[10px] text-rose-600 font-normal">Decision Maker</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">Marketing Director • arjun.nair@acme...</div>
+                      <div className="text-[10px] text-slate-500">Growth &amp; Brand • marketing@{activeClientDomain}</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => showToast('Drafting email to Arjun Nair (arjun.nair@acme.com)...', 'info')}
+                    onClick={() => showToast(`Drafting email to marketing@${activeClientDomain}...`, 'info')}
                     className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email Arjun Nair"
+                    title="Email Marketing Director"
                   >
                     <Mail className="w-3.5 h-3.5" />
                   </button>
@@ -1706,20 +1707,20 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-[#B91C1C] text-white flex items-center justify-center text-xs font-bold">
-                      SM
+                      BF
                     </div>
                     <div>
                       <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
-                        <span>Sara Menon</span>
+                        <span>Finance Director</span>
                         <span className="text-[10px] text-slate-500 font-normal">Economic Buyer</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">Billing & Finance • sara.menon@acme...</div>
+                      <div className="text-[10px] text-slate-500">Billing &amp; Finance • billing@{activeClientDomain}</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => showToast('Drafting email to Sara Menon (sara.menon@acme.com)...', 'info')}
+                    onClick={() => showToast(`Drafting email to billing@${activeClientDomain}...`, 'info')}
                     className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email Sara Menon"
+                    title="Email Finance Lead"
                   >
                     <Mail className="w-3.5 h-3.5" />
                   </button>
@@ -1728,17 +1729,17 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs font-bold">
-                      RD
+                      VT
                     </div>
                     <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white">Rohan Deshmukh</div>
-                      <div className="text-[10px] text-slate-500">VP Technology • rohan.d@acmetech.in</div>
+                      <div className="font-bold text-xs text-slate-900 dark:text-white">VP Technology</div>
+                      <div className="text-[10px] text-slate-500">Infrastructure &amp; CAPI • tech@{activeClientDomain}</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => showToast('Drafting email to Rohan Deshmukh (rohan.d@acmetech.in)...', 'info')}
+                    onClick={() => showToast(`Drafting email to tech@${activeClientDomain}...`, 'info')}
                     className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email Rohan Deshmukh"
+                    title="Email VP Technology"
                   >
                     <Mail className="w-3.5 h-3.5" />
                   </button>
@@ -1750,9 +1751,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Contract & Renewal Hub</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Contract &amp; Renewal Hub</h3>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                    MSA-2026-ACME-01 • Value: <strong>₹18.5L / yr</strong>
+                    MSA-2026-01 • Value: <strong>₹18.5L / yr</strong>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
@@ -1761,30 +1762,13 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               </div>
 
               {/* Renewal Timeline Bar */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                  <span className="text-rose-600 font-bold">120d (Now)</span>
-                  <span>90d (Early)</span>
-                  <span>60d (Draft)</span>
-                  <span>30d (Signing)</span>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>Signed: 05 Jan 2026</span>
+                  <span>Expires: 04 Jan 2027</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: '45%' }}></div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 pt-1">
-                <div className="flex items-center justify-between">
-                  <span>Renewal Probability:</span>
-                  <strong className="text-emerald-600 font-bold">High (87%)</strong>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Term Period:</span>
-                  <span>05 Jan 2026 – 04 Jan 2027</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Auto-renew Clause:</span>
-                  <span>30-day notice period</span>
+                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: '66%' }}></div>
                 </div>
               </div>
 
@@ -1796,7 +1780,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                   Initiate Renewal
                 </button>
                 <button
-                  onClick={() => downloadClientPdf('contract', { id: 'MSA-2026-ACME-01', client: 'Acme Technologies' })}
+                  onClick={() => downloadClientPdf('contract', { id: 'MSA-2026-01', client: activeClientName })}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold hover:bg-slate-50 flex items-center gap-1 transition"
                   title="Download Master Services Agreement PDF"
                 >
@@ -1847,13 +1831,13 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
 
               <div className="flex items-center gap-2 pt-1">
                 <button
-                  onClick={() => showToast('Opening invoice creation wizard for Acme Technologies', 'info')}
+                  onClick={() => showToast(`Opening invoice creation wizard for ${activeClientName}`, 'info')}
                   className="flex-1 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   + Generate Invoice
                 </button>
                 <button
-                  onClick={() => showToast('Payment reconciliation modal opened for Acme Technologies', 'info')}
+                  onClick={() => showToast(`Payment reconciliation modal opened for ${activeClientName}`, 'info')}
                   className="flex-1 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Record Payment
@@ -1890,42 +1874,42 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               </h3>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
-                  onClick={() => showToast('Task creation drawer opened for Acme Technologies', 'info')}
+                  onClick={() => showToast(`Task creation drawer opened for ${activeClientName}`, 'info')}
                   className="flex items-center gap-1.5 p-2 bg-[#12223D] hover:bg-[#1A3157] rounded-lg border border-[#1C335A] font-medium transition cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 text-rose-400" />
                   <span>Create Task</span>
                 </button>
                 <button
-                  onClick={() => showToast('Meeting scheduler opened with Acme stakeholders', 'info')}
+                  onClick={() => showToast(`Meeting scheduler opened with ${activeClientName} stakeholders`, 'info')}
                   className="flex items-center gap-1.5 p-2 bg-[#12223D] hover:bg-[#1A3157] rounded-lg border border-[#1C335A] font-medium transition cursor-pointer"
                 >
                   <Calendar className="w-3.5 h-3.5 text-blue-400" />
                   <span>Book Meeting</span>
                 </button>
                 <button
-                  onClick={() => showToast('Commercial invoice modal opened for Acme Technologies', 'info')}
+                  onClick={() => showToast(`Commercial invoice modal opened for ${activeClientName}`, 'info')}
                   className="flex items-center gap-1.5 p-2 bg-[#12223D] hover:bg-[#1A3157] rounded-lg border border-[#1C335A] font-medium transition cursor-pointer"
                 >
                   <Receipt className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Log Invoice</span>
                 </button>
                 <button
-                  onClick={() => showToast('Internal note saved to Acme profile', 'success')}
+                  onClick={() => showToast(`Internal note saved to ${activeClientName} profile`, 'success')}
                   className="flex items-center gap-1.5 p-2 bg-[#12223D] hover:bg-[#1A3157] rounded-lg border border-[#1C335A] font-medium transition cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5 text-amber-400" />
                   <span>Add Note</span>
                 </button>
                 <button
-                  onClick={() => showToast('Project creation wizard launched for Acme Technologies', 'info')}
+                  onClick={() => showToast(`Project creation wizard launched for ${activeClientName}`, 'info')}
                   className="flex items-center gap-1.5 p-2 bg-[#12223D] hover:bg-[#1A3157] rounded-lg border border-[#1C335A] font-medium transition cursor-pointer"
                 >
                   <Briefcase className="w-3.5 h-3.5 text-purple-400" />
                   <span>New Project</span>
                 </button>
                 <button
-                  onClick={() => showToast('QBR Executive Deck generated & export ready for Acme Technologies', 'success')}
+                  onClick={() => showToast(`QBR Executive Deck generated & export ready for ${activeClientName}`, 'success')}
                   className="flex items-center gap-1.5 p-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg font-bold transition cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5" />
@@ -1953,7 +1937,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                 <label className="font-semibold block mb-1">Company Name</label>
                 <input
                   type="text"
-                  defaultValue="Acme Technologies Pvt Ltd"
+                  defaultValue={activeClientName}
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -1999,7 +1983,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white">Initiate Enterprise Contract Renewal</h3>
-                <p className="text-xs text-slate-500">Acme Technologies • MSA-2026-ACME-01</p>
+                <p className="text-xs text-slate-500">{activeClientName} • MSA-2026-01</p>
               </div>
               <button onClick={() => setShowRenewalModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -2043,7 +2027,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               </button>
               <button
                 onClick={() => {
-                  showToast('Renewal proposal dispatched to Arjun Nair & Sara Menon!');
+                  showToast(`Renewal proposal dispatched to ${activeClientName} executive team!`);
                   setShowRenewalModal(false);
                 }}
                 className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold"
@@ -2069,7 +2053,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
                     <span>Generate Client Deliverable</span>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                      Acme Technologies
+                      {activeClientName}
                     </span>
                   </h3>
                   <p className="text-xs text-slate-300 mt-0.5">
@@ -2211,7 +2195,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
               <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                 <div className="text-[11px] text-slate-600 dark:text-slate-400">
-                  Clicking <strong>Generate & Download Vector PDF</strong> will compile and trigger a pure vector PDF document download into your browser and log the deliverable directly inside Acme Technologies' account profile.
+                  Clicking <strong>Generate & Download Vector PDF</strong> will compile and trigger a pure vector PDF document download into your browser and log the deliverable directly inside {activeClientName}&apos;s account profile.
                 </div>
               </div>
 

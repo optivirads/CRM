@@ -159,7 +159,7 @@ export const CompaniesView: React.FC = () => {
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
           {[
             '1. Companies List',
-            '2. Acme Detail',
+            '2. Company Detail',
             '3. Finance & Projects',
             '4. Drawer Flyout',
             '5. Modals (Contact & Op'
@@ -717,7 +717,7 @@ export const CompaniesView: React.FC = () => {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold mb-1">Company Name *</label>
-                <input type="text" placeholder="e.g. Acme Technologies" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                <input type="text" placeholder="e.g. Enterprise Global Corp" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -726,7 +726,7 @@ export const CompaniesView: React.FC = () => {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Domain</label>
-                  <input type="text" placeholder="acmetech.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input type="text" placeholder="company.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">

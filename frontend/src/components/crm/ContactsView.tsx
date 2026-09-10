@@ -148,7 +148,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
           {[
             '1. Contacts List',
-            '2. Contact Detail (Arjun Nair)',
+            '2. Contact Detail',
             '3. Create Drawer',
             '3b. Validation State',
             '4. States & Feedback'
@@ -374,15 +374,12 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
           {/* Filter Dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
             <select className="bg-[#F8FAFC] dark:bg-[#080E18] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-2 text-xs text-[#0B1727] dark:text-white">
-              <option>Company: All (480)</option>
-              <option>Acme Technologies</option>
-              <option>Zenith Retail</option>
+              <option>Company: All</option>
             </select>
 
             <select className="bg-[#F8FAFC] dark:bg-[#080E18] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-2 text-xs text-[#0B1727] dark:text-white">
-              <option>Owner: Team (3)</option>
-              <option>Alex Morgan</option>
-              <option>Maya Joseph</option>
+              <option>Owner: All</option>
+              <option>OptiVir Lead</option>
             </select>
 
             <select className="bg-[#F8FAFC] dark:bg-[#080E18] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-2 text-xs text-[#0B1727] dark:text-white">
@@ -719,22 +716,22 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold mb-1">Full Name *</label>
-                <input type="text" placeholder="e.g. Arjun Nair" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                <input type="text" placeholder="Full Name" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Company</label>
-                  <input type="text" placeholder="Acme Technologies" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input type="text" placeholder="Company Name" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Job Title</label>
-                  <input type="text" placeholder="Marketing Director" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input type="text" placeholder="Job Title" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Email *</label>
-                  <input type="email" placeholder="arjun@acmetech.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input type="email" placeholder="contact@company.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Phone</label>

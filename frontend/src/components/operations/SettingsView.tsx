@@ -48,13 +48,13 @@ export const SettingsView: React.FC = () => {
   // Active Sub-Navigation Tab
   const [activeSection, setActiveSection] = useState('Organization Identity');
 
-  // Form Field States
-  const [orgLegalName, setOrgLegalName] = useState('Acme Global Enterprise Technologies Corp');
-  const [taxGstin, setTaxGstin] = useState('27AAACA9021M1ZT');
-  const [domainWebsite, setDomainWebsite] = useState('https://acme-enterprises.global');
-  const [industry, setIndustry] = useState('Enterprise B2B SaaS & Digital Transformation');
-  const [supportEmail, setSupportEmail] = useState('ops-admin@acme-enterprises.global');
-  const [switchboardPhone, setSwitchboardPhone] = useState('+91 (022) 6789-9000');
+  // Form Field States (OptiVir CRM Owner Company Details)
+  const [orgLegalName, setOrgLegalName] = useState('OptiVir');
+  const [taxGstin, setTaxGstin] = useState('');
+  const [domainWebsite, setDomainWebsite] = useState('https://www.optivirads.com');
+  const [industry, setIndustry] = useState('Performance Marketing & Advertising Agency');
+  const [supportEmail, setSupportEmail] = useState('optivirads@gmail.com');
+  const [switchboardPhone, setSwitchboardPhone] = useState('+919995037109');
 
   // Regionalization States
   const [timezone, setTimezone] = useState('Asia/Kolkata (IST, UTC+05:30)');
@@ -78,12 +78,12 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleCopyUUID = () => {
-    navigator.clipboard.writeText('opt-9021-acme-prod');
-    showToast('Tenant UUID copied to clipboard: opt-9021-acme-prod');
+    navigator.clipboard.writeText('opt-tenant-optivirads');
+    showToast('Tenant UUID copied to clipboard: opt-tenant-optivirads');
   };
 
   const handleSaveChanges = () => {
-    showToast('All global tenant policies & configurations saved to master ledger [200 OK]');
+    showToast('All OptiVir tenant policies & configurations saved to master ledger [200 OK]');
   };
 
   const handleRollback = () => {
@@ -114,7 +114,7 @@ export const SettingsView: React.FC = () => {
       title: 'IDENTITY & ACCESS',
       count: 4,
       items: [
-        { id: 'User Directory', icon: Users, badge: '42' },
+        { id: 'User Directory', icon: Users, badge: '1' },
         { id: 'Roles & Permissions', icon: KeyRound, redDot: true },
         { id: 'Teams & Pods', icon: Users },
         { id: 'SSO & Security 2FA', icon: ShieldCheck }
@@ -312,16 +312,16 @@ export const SettingsView: React.FC = () => {
 
               <div className="flex items-baseline justify-between text-xs">
                 <span className="text-slate-400">Active Seats</span>
-                <span className="font-bold text-white text-sm">42 / 50</span>
+                <span className="font-bold text-white text-sm">1 / 50</span>
               </div>
 
               <div className="space-y-1 text-xs">
                 <div className="flex items-baseline justify-between">
                   <span className="text-slate-400">Storage Index</span>
-                  <span className="font-semibold text-slate-200 text-[11px]">142.8 GB / 500 GB</span>
+                  <span className="font-semibold text-slate-200 text-[11px]">0.0 GB / 500 GB</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '28.5%' }}></div>
+                  <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '0%' }}></div>
                 </div>
               </div>
             </div>
@@ -352,7 +352,7 @@ export const SettingsView: React.FC = () => {
                     onClick={handleCopyUUID}
                     className="font-mono bg-slate-100 dark:bg-[#111E34] text-slate-800 dark:text-slate-200 px-2 py-1 rounded border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 hover:bg-slate-200 transition"
                   >
-                    <span>opt-9021-acme-prod</span>
+                    <span>opt-tenant-optivirads</span>
                     <Copy className="w-3 h-3 text-slate-400" />
                   </button>
                 </div>
