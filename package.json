@@ -13,6 +13,7 @@
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
     "generate-pdf": "node generate_pdf.js",
+    "generate-guide": "node generate_crm_master_guide.js",
     "migrate": "npm --prefix backend run migrate",
     "seed": "npm --prefix backend run seed"
   },

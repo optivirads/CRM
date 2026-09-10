@@ -21,29 +21,29 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
 
   const handleDownloadPDF = () => {
     downloadClientPdf('report', {
-      client: data?.client || 'Acme Global Technologies Inc.',
-      title: 'Q3 Executive Agency Operating Report'
+      client: data?.client || 'Enterprise Client',
+      title: 'Executive Agency Operating Report'
     });
   };
 
   const handleDownloadCSV = () => {
     const csvContent =
       'Category,Metric,Value\n' +
-      'Finance,Gross Invoiced Revenue,₹42,50,000\n' +
-      'Finance,Actual Cash Collected,₹38,25,000\n' +
-      'Finance,Outstanding Receivables,₹4,25,000\n' +
-      'Finance,Operating Expenses,₹8,40,000\n' +
-      'Finance,Net Operating Margin,₹29,85,000 (78%)\n' +
-      'Pipeline,Total Pipeline Value,₹14.82 Cr\n' +
-      'Pipeline,Weighted Closing Forecast,₹8.45 Cr\n' +
-      'Pipeline,Active Opportunity Deals,18 Deals\n' +
-      'Pipeline,Win Probability Average,68%\n' +
-      'Clients,Active Retainer Accounts,24 Clients\n' +
-      'Clients,Healthy Accounts (>75),21 Clients (88%)\n' +
-      'Clients,At-Risk Accounts,3 Clients\n' +
-      'Marketing,Total Media Ad Spend,₹18,50,000\n' +
-      'Marketing,Attributed Revenue,₹89,72,500\n' +
-      'Marketing,Blended Omnichannel ROAS,4.85x\n';
+      'Finance,Gross Invoiced Revenue,₹0\n' +
+      'Finance,Actual Cash Collected,₹0\n' +
+      'Finance,Outstanding Receivables,₹0\n' +
+      'Finance,Operating Expenses,₹0\n' +
+      'Finance,Net Operating Margin,₹0 (0%)\n' +
+      'Pipeline,Total Pipeline Value,₹0\n' +
+      'Pipeline,Weighted Closing Forecast,₹0\n' +
+      'Pipeline,Active Opportunity Deals,0 Deals\n' +
+      'Pipeline,Win Probability Average,0%\n' +
+      'Clients,Active Retainer Accounts,0 Clients\n' +
+      'Clients,Healthy Accounts (>75),0 Clients (0%)\n' +
+      'Clients,At-Risk Accounts,0 Clients\n' +
+      'Marketing,Total Media Ad Spend,₹0\n' +
+      'Marketing,Attributed Revenue,₹0\n' +
+      'Marketing,Blended Omnichannel ROAS,0.00x\n';
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -141,23 +141,23 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
               <div className="grid grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Revenue (₹)</span>
-                  <span className="text-base font-extrabold text-[#0B1727]">₹42,50,000</span>
-                  <span className="text-[10px] text-emerald-700 block font-semibold">+18.4% YoY</span>
+                  <span className="text-base font-extrabold text-[#0B1727]">₹0.00</span>
+                  <span className="text-[10px] text-slate-500 block font-semibold">+0.0% YoY</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cash Settled (₹)</span>
-                  <span className="text-base font-extrabold text-emerald-700">₹38,25,000</span>
-                  <span className="text-[10px] text-slate-500 block">90% Collected</span>
+                  <span className="text-base font-extrabold text-[#0B1727]">₹0.00</span>
+                  <span className="text-[10px] text-slate-500 block">0% Collected</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Active Pipeline (₹)</span>
-                  <span className="text-base font-extrabold text-[#2563EB]">₹14.82 Cr</span>
-                  <span className="text-[10px] text-slate-500 block">₹8.45 Cr Weighted</span>
+                  <span className="text-base font-extrabold text-[#0B1727]">₹0.00</span>
+                  <span className="text-[10px] text-slate-500 block">₹0.00 Weighted</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Blended ROAS</span>
-                  <span className="text-base font-extrabold text-[#0B1727]">4.85x</span>
-                  <span className="text-[10px] text-slate-500 block">₹18.5L Spend</span>
+                  <span className="text-base font-extrabold text-[#0B1727]">0.00x</span>
+                  <span className="text-[10px] text-slate-500 block">₹0 Spend</span>
                 </div>
               </div>
             </div>
@@ -180,32 +180,32 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
                   <tr>
                     <td className="p-2.5 font-bold text-[#0B1727]">Gross Invoiced Revenue</td>
                     <td className="p-2.5 text-slate-600">Total contractual client billings across all retainers</td>
-                    <td className="p-2.5 text-right font-bold">₹42,50,000</td>
+                    <td className="p-2.5 text-right font-bold">₹0.00</td>
                     <td className="p-2.5 text-right text-emerald-700 font-semibold">Healthy ✓</td>
                   </tr>
                   <tr>
                     <td className="p-2.5 font-bold text-emerald-700">Actual Cash Collected</td>
                     <td className="p-2.5 text-slate-600">Reconciled electronic wire transfers and UPI deposits</td>
-                    <td className="p-2.5 text-right font-bold text-emerald-700">₹38,25,000</td>
-                    <td className="p-2.5 text-right text-emerald-700 font-semibold">90% Realized</td>
+                    <td className="p-2.5 text-right font-bold text-emerald-700">₹0.00</td>
+                    <td className="p-2.5 text-right text-slate-500 font-semibold">0% Realized</td>
                   </tr>
                   <tr>
                     <td className="p-2.5 font-bold text-amber-700">Outstanding Receivables</td>
                     <td className="p-2.5 text-slate-600">Pending client balances within net-15 terms</td>
-                    <td className="p-2.5 text-right font-bold text-amber-700">₹4,25,000</td>
-                    <td className="p-2.5 text-right text-amber-700 font-semibold">Within SLA</td>
+                    <td className="p-2.5 text-right font-bold text-amber-700">₹0.00</td>
+                    <td className="p-2.5 text-right text-slate-500 font-semibold">Clean Ledger</td>
                   </tr>
                   <tr>
                     <td className="p-2.5 font-bold text-[#B91C1C]">Operating Agency Expenses</td>
                     <td className="p-2.5 text-slate-600">Software subscriptions, cloud servers, team payroll</td>
-                    <td className="p-2.5 text-right font-bold text-[#B91C1C]">₹8,40,000</td>
-                    <td className="p-2.5 text-right text-slate-600 font-semibold">Optimal 20%</td>
+                    <td className="p-2.5 text-right font-bold text-[#B91C1C]">₹0.00</td>
+                    <td className="p-2.5 text-right text-slate-600 font-semibold">Optimal 0%</td>
                   </tr>
                   <tr className="bg-slate-50 font-bold">
                     <td className="p-2.5 text-[#0B1727]">Net Operating Cash Margin</td>
                     <td className="p-2.5 text-slate-600">Retained operating liquidity after agency expenditure</td>
-                    <td className="p-2.5 text-right text-emerald-700 font-black">₹29,85,000</td>
-                    <td className="p-2.5 text-right text-emerald-700 font-black">70.2% Margin</td>
+                    <td className="p-2.5 text-right text-emerald-700 font-black">₹0.00</td>
+                    <td className="p-2.5 text-right text-emerald-700 font-black">0.0% Margin</td>
                   </tr>
                 </tbody>
               </table>
@@ -228,34 +228,9 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
                   <tr>
-                    <td className="p-2.5">
-                      <strong className="text-[#0B1727]">Starlight Logistics Corp</strong>
-                      <span className="text-[10px] text-slate-500 block">Supply Chain Automation Retainer</span>
+                    <td colSpan={5} className="p-4 text-center text-slate-400">
+                      No active pipeline opportunities recorded.
                     </td>
-                    <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">Negotiation</span></td>
-                    <td className="p-2.5 text-center font-bold">85%</td>
-                    <td className="p-2.5 text-right font-bold">₹84,00,000</td>
-                    <td className="p-2.5 text-right text-slate-600">Sep 28, 2025</td>
-                  </tr>
-                  <tr>
-                    <td className="p-2.5">
-                      <strong className="text-[#0B1727]">Aegis Biopharma Group</strong>
-                      <span className="text-[10px] text-slate-500 block">Cloud ERP & Regulatory Compliance</span>
-                    </td>
-                    <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">Proposal</span></td>
-                    <td className="p-2.5 text-center font-bold">60%</td>
-                    <td className="p-2.5 text-right font-bold">₹1,25,00,000</td>
-                    <td className="p-2.5 text-right text-slate-600">Oct 14, 2025</td>
-                  </tr>
-                  <tr>
-                    <td className="p-2.5">
-                      <strong className="text-[#0B1727]">Apex HyperScale Networks</strong>
-                      <span className="text-[10px] text-slate-500 block">Global Infrastructure Monitoring</span>
-                    </td>
-                    <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">Won ✓</span></td>
-                    <td className="p-2.5 text-center font-bold text-emerald-700">100%</td>
-                    <td className="p-2.5 text-right font-bold text-emerald-700">₹62,00,000</td>
-                    <td className="p-2.5 text-right text-slate-600">Closed Won</td>
                   </tr>
                 </tbody>
               </table>
@@ -268,10 +243,10 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
                   Client Retention & Health Portfolio
                 </h3>
                 <p className="text-slate-600 leading-relaxed">
-                  • <strong>Total Retained Accounts:</strong> 24 Active Enterprise Retainers<br />
-                  • <strong>Healthy Status (&gt;75 Score):</strong> 21 Clients (87.5%)<br />
-                  • <strong>Attention / At-Risk:</strong> 3 Clients (Remediation active)<br />
-                  • <strong>Average Contract Value:</strong> ₹1.75L / Month per client
+                  • <strong>Total Retained Accounts:</strong> 0 Active Enterprise Retainers<br />
+                  • <strong>Healthy Status (&gt;75 Score):</strong> 0 Clients (0%)<br />
+                  • <strong>Attention / At-Risk:</strong> 0 Clients<br />
+                  • <strong>Average Contract Value:</strong> ₹0 / Month per client
                 </p>
               </div>
 
@@ -280,10 +255,10 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
                   Marketing Attribution & ROAS Telemetry
                 </h3>
                 <p className="text-slate-600 leading-relaxed">
-                  • <strong>Total Media Ad Spend:</strong> ₹18,50,000 across Google & Meta<br />
-                  • <strong>Attributed Revenue:</strong> ₹89,72,500 qualified deals<br />
-                  • <strong>Blended ROAS:</strong> 4.85x return on ad spend<br />
-                  • <strong>Cost Per Lead (CPL):</strong> ₹820 avg across B2B funnels
+                  • <strong>Total Media Ad Spend:</strong> ₹0 across channels<br />
+                  • <strong>Attributed Revenue:</strong> ₹0 qualified deals<br />
+                  • <strong>Blended ROAS:</strong> 0.00x return on ad spend<br />
+                  • <strong>Cost Per Lead (CPL):</strong> ₹0 avg
                 </p>
               </div>
             </div>
@@ -292,7 +267,7 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
             <div className="pt-4 border-t-2 border-slate-200 flex justify-between items-end text-xs">
               <div className="space-y-1 text-slate-500">
                 <p className="text-[10px]">
-                  <strong>Verification Hash:</strong> SHA256: 7f8a9e2d1c0b8f4e6a8d7c9b0e1f2a3b<br />
+                  <strong>Verification Hash:</strong> SHA256: 00000000000000000000000000000000<br />
                   <strong>Audit Environment:</strong> Production Node (OptiVir Sovereign Core)
                 </p>
                 <p className="text-[10px]">
@@ -304,11 +279,11 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
                 <p className="text-[11px] text-slate-500 mb-2">Verified & Authorized for Release</p>
                 <div className="h-8 flex items-center justify-end">
                   <span className="font-serif italic text-base text-[#0B1727] border-b border-slate-400 px-4">
-                    Marcus Vance
+                    OptiVir Admin
                   </span>
                 </div>
                 <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider mt-1">
-                  Marcus Vance — Managing Partner
+                  Executive Operations
                 </p>
               </div>
             </div>

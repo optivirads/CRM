@@ -82,8 +82,8 @@ END:VCALENDAR`;
   const [activitySearch, setActivitySearch] = useState('');
 
   // Form inputs
-  const [logContact, setLogContact] = useState('Arjun Nair');
-  const [logEntity, setLogEntity] = useState('Acme Technologies Pvt Ltd');
+  const [logContact, setLogContact] = useState('');
+  const [logEntity, setLogEntity] = useState('');
   const [logNotes, setLogNotes] = useState('');
   const [callDuration, setCallDuration] = useState('18 mins');
   const [callOutcome, setCallOutcome] = useState('Connected & Scope Confirmed');
@@ -95,78 +95,20 @@ END:VCALENDAR`;
   const [followupPriorityInput, setFollowupPriorityInput] = useState('High');
 
   // Activities Ledger Dataset
-  const [activitiesLedger, setActivitiesLedger] = useState([
-    {
-      id: 'act-1',
-      type: 'call',
-      title: 'Outbound Discovery Call with Marketing Director',
-      contact: 'Arjun Nair',
-      entity: 'Acme Technologies Pvt Ltd',
-      details: 'Confirmed Q4 budget allocation for Google Cloud Run CAPI. Next step is InfoSec BigQuery sign-off.',
-      duration: '18 mins',
-      outcome: 'Connected & Scope Confirmed',
-      author: 'Alex Morgan',
-      avatar: 'AM',
-      timestamp: 'Today, 10:45 AM',
-      color: 'text-blue-600 bg-blue-50 border-blue-200',
-    },
-    {
-      id: 'act-2',
-      type: 'meeting',
-      title: 'Q4 Technical Architecture Review & BigQuery Alignment',
-      contact: 'Elena Rostova (CTO)',
-      entity: 'Zenith Retail Global',
-      details: 'Review of GA4 server-side tracking container schemas and cross-domain attribution accuracy.',
-      duration: '45 mins',
-      outcome: 'Technical Sign-Off Given',
-      author: 'Elena Rostova',
-      avatar: 'ER',
-      timestamp: 'Today, 02:00 PM',
-      color: 'text-purple-600 bg-purple-50 border-purple-200',
-    },
-    {
-      id: 'act-3',
-      type: 'email',
-      title: 'Commercial SOW Quotation & Contract Review Pack',
-      contact: 'procurement@zenithretail.com',
-      entity: 'Zenith Retail Global Ltd',
-      details: 'Dispatched signed quote QUO-2026-088 for ₹24.0L/mo retainer. Awaiting countersignature.',
-      duration: 'Thread 4 msgs',
-      outcome: 'Delivered & Opened',
-      author: 'Sarah Chen',
-      avatar: 'SC',
-      timestamp: 'Yesterday, 04:30 PM',
-      color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-    },
-    {
-      id: 'act-4',
-      type: 'note',
-      title: 'Payment Terms Net 30 Request from Finance Team',
-      contact: 'Rahul Menon',
-      entity: 'Vertex Solutions Inc',
-      details: 'Client requested extending Net 15 to Net 30 for Q4 due to quarterly banking reconciliation cycle.',
-      duration: 'Internal Memo',
-      outcome: 'Approved by Alex Morgan',
-      author: 'Marcus Vance',
-      avatar: 'MV',
-      timestamp: 'Oct 22, 2026',
-      color: 'text-amber-600 bg-amber-50 border-amber-200',
-    },
-    {
-      id: 'act-5',
-      type: 'followup',
-      title: 'Send Revised PMax Google Ads Budget Sheet',
-      contact: 'Dr. Meera Sen',
-      entity: 'Nova Healthcare Labs',
-      details: 'Due Oct 27 before 10:00 AM. Requires sign-off from Head of Growth.',
-      duration: 'High Priority',
-      outcome: 'Pending Execution',
-      author: 'Alex Morgan',
-      avatar: 'AM',
-      timestamp: 'Oct 21, 2026',
-      color: 'text-rose-600 bg-rose-50 border-rose-200',
-    },
-  ]);
+  const [activitiesLedger, setActivitiesLedger] = useState<Array<{
+    id: string;
+    type: string;
+    title: string;
+    contact: string;
+    entity: string;
+    details: string;
+    duration: string;
+    outcome: string;
+    author: string;
+    avatar: string;
+    timestamp: string;
+    color: string;
+  }>>([]);
 
   // State Simulator
   const [simulatorState, setSimulatorState] = useState('1. Month Grid');
@@ -187,153 +129,41 @@ END:VCALENDAR`;
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventType, setNewEventType] = useState('meeting');
   const [newEventTime, setNewEventTime] = useState('10:00 AM');
-  const [newEventClient, setNewEventClient] = useState('Acme Technologies');
+  const [newEventClient, setNewEventClient] = useState('');
 
-  // Calendar Day Events for September 2026
-  const monthCells = [
+  // Calendar Day Cells for Month View
+  const monthCells: Array<{ day: number; isCurrentMonth: boolean; isToday?: boolean; events?: any[]; extraCount?: number }> = [
     { day: 31, isCurrentMonth: false },
-    {
-      day: 1,
-      isCurrentMonth: true,
-      events: [{ title: '09:30 AM Kickoff', type: 'meeting', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 2,
-      isCurrentMonth: true,
-      events: [{ title: 'Sprint 3 Retrospect', type: 'milestone', color: 'bg-purple-100 text-purple-800' }],
-    },
-    {
-      day: 3,
-      isCurrentMonth: true,
-      events: [{ title: 'All-Hands Ops Sync', type: 'meeting', color: 'bg-slate-100 text-slate-800' }],
-    },
-    {
-      day: 4,
-      isCurrentMonth: true,
-      events: [
-        { title: 'Video Ads Submission', type: 'task', color: 'bg-amber-100 text-amber-800' },
-        { title: 'Nexus Commercial', type: 'renewal', color: 'bg-blue-100 text-blue-800' },
-      ],
-    },
+    { day: 1, isCurrentMonth: true },
+    { day: 2, isCurrentMonth: true },
+    { day: 3, isCurrentMonth: true },
+    { day: 4, isCurrentMonth: true },
     { day: 5, isCurrentMonth: true },
     { day: 6, isCurrentMonth: true },
-
-    // Week 2
-    {
-      day: 7,
-      isCurrentMonth: true,
-      events: [{ title: '11:00 AM Client QBR', type: 'meeting', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 8,
-      isCurrentMonth: true,
-      events: [{ title: 'Landing Page V1', type: 'milestone', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 9,
-      isCurrentMonth: true,
-      events: [{ title: 'Audit Tag Provision', type: 'task', color: 'bg-amber-100 text-amber-800' }],
-    },
-    {
-      day: 10,
-      isCurrentMonth: true,
-      isToday: true,
-      events: [
-        { title: '10:00 AM • Acme ROAS Review', type: 'meeting', color: 'bg-blue-100 text-blue-800 font-bold' },
-        { title: '03:00 PM • GA4 Handover', type: 'task', color: 'bg-purple-100 text-purple-800 font-bold' },
-        { title: 'INV-2026-082 Due (₹75k)', type: 'invoice', color: 'bg-rose-100 text-rose-800 font-bold' },
-      ],
-      extraCount: 3,
-    },
-    {
-      day: 11,
-      isCurrentMonth: true,
-      events: [{ title: '02:00 PM • Zenith Sync', type: 'meeting', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 12,
-      isCurrentMonth: true,
-      events: [{ title: 'Maintenance Window', type: 'task', color: 'bg-amber-100 text-amber-800' }],
-    },
+    { day: 7, isCurrentMonth: true },
+    { day: 8, isCurrentMonth: true },
+    { day: 9, isCurrentMonth: true },
+    { day: 10, isCurrentMonth: true, isToday: true },
+    { day: 11, isCurrentMonth: true },
+    { day: 12, isCurrentMonth: true },
     { day: 13, isCurrentMonth: true },
-
-    // Week 3
-    {
-      day: 14,
-      isCurrentMonth: true,
-      events: [{ title: 'Sprint 5 Planning', type: 'milestone', color: 'bg-purple-100 text-purple-800' }],
-    },
-    {
-      day: 15,
-      isCurrentMonth: true,
-      events: [
-        { title: 'Q4 Retainer Signing', type: 'renewal', color: 'bg-emerald-100 text-emerald-800 font-bold' },
-        { title: '04:30 PM • Contract', type: 'meeting', color: 'bg-blue-100 text-blue-800' },
-      ],
-    },
-    {
-      day: 16,
-      isCurrentMonth: true,
-      events: [{ title: 'Google Ads Audit', type: 'task', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 17,
-      isCurrentMonth: true,
-      events: [{ title: 'Client Demo • Apex', type: 'meeting', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 18,
-      isCurrentMonth: true,
-      events: [{ title: '₹1.50L Retainer Billed', type: 'invoice', color: 'bg-rose-100 text-rose-800' }],
-    },
+    { day: 14, isCurrentMonth: true },
+    { day: 15, isCurrentMonth: true },
+    { day: 16, isCurrentMonth: true },
+    { day: 17, isCurrentMonth: true },
+    { day: 18, isCurrentMonth: true },
     { day: 19, isCurrentMonth: true },
     { day: 20, isCurrentMonth: true },
-
-    // Week 4
-    {
-      day: 21,
-      isCurrentMonth: true,
-      events: [{ title: 'Quarterly Budget Signoff', type: 'invoice', color: 'bg-slate-100 text-slate-800' }],
-    },
-    {
-      day: 22,
-      isCurrentMonth: true,
-      events: [{ title: 'Client Onboarding Kickoff', type: 'milestone', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 23,
-      isCurrentMonth: true,
-      events: [{ title: 'CRM Migration Milestone', type: 'milestone', color: 'bg-purple-100 text-purple-800' }],
-    },
-    {
-      day: 24,
-      isCurrentMonth: true,
-      events: [{ title: 'Meta Campaign Scale', type: 'task', color: 'bg-amber-100 text-amber-800' }],
-    },
-    {
-      day: 25,
-      isCurrentMonth: true,
-      events: [{ title: 'Nexus MSA Execution', type: 'renewal', color: 'bg-emerald-100 text-emerald-800' }],
-    },
+    { day: 21, isCurrentMonth: true },
+    { day: 22, isCurrentMonth: true },
+    { day: 23, isCurrentMonth: true },
+    { day: 24, isCurrentMonth: true },
+    { day: 25, isCurrentMonth: true },
     { day: 26, isCurrentMonth: true },
     { day: 27, isCurrentMonth: true },
-
-    // Week 5
-    {
-      day: 28,
-      isCurrentMonth: true,
-      events: [{ title: 'Monthly Lead Review', type: 'meeting', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 29,
-      isCurrentMonth: true,
-      events: [{ title: 'Q3 Final Financials', type: 'invoice', color: 'bg-blue-100 text-blue-800' }],
-    },
-    {
-      day: 30,
-      isCurrentMonth: true,
-      events: [{ title: 'Executive Summary Post', type: 'milestone', color: 'bg-purple-100 text-purple-800' }],
-    },
+    { day: 28, isCurrentMonth: true },
+    { day: 29, isCurrentMonth: true },
+    { day: 30, isCurrentMonth: true },
     { day: 1, isCurrentMonth: false },
     { day: 2, isCurrentMonth: false },
     { day: 3, isCurrentMonth: false },
@@ -508,21 +338,21 @@ END:VCALENDAR`;
 
         {activitiesSuiteMode === 'calendar' && (
         <>
-        {/* 3. 4 KPI Summary Cards (Exact match to Reference Image 5) */}
+        {/* 3. 4 KPI Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Today's Schedule */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="font-bold uppercase tracking-wider text-[11px]">TODAY&apos;S SCHEDULE</span>
               <span className="px-2 py-0.5 rounded bg-[#0A1628] text-white font-bold text-[10px]">
-                10 Sep
+                Today
               </span>
             </div>
             <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
-              06 <span className="text-xs font-semibold text-slate-500">Active Commitments</span>
+              0 <span className="text-xs font-semibold text-slate-500">Active Commitments</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
-              2 Meetings • 3 Milestones • 1 Invoice
+              0 Meetings • 0 Milestones • 0 Invoices
             </div>
           </div>
 
@@ -533,13 +363,13 @@ END:VCALENDAR`;
               <CalendarIcon className="w-4 h-4 text-slate-400" />
             </div>
             <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
-              19 <span className="text-xs font-semibold text-slate-500">Engagements</span>
+              0 <span className="text-xs font-semibold text-slate-500">Engagements</span>
             </div>
-            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1 flex items-center gap-1">
-              <span className="px-1.5 py-0.2 bg-rose-50 dark:bg-rose-950/40 rounded font-bold">
-                4 High Priority
+            <div className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1">
+              <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded font-bold">
+                0 High Priority
               </span>
-              <span>across 5 Enterprise Accounts</span>
+              <span>across 0 Accounts</span>
             </div>
           </div>
 
@@ -547,13 +377,13 @@ END:VCALENDAR`;
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="font-bold uppercase tracking-wider text-[11px]">DELIVERABLE DEADLINES</span>
-              <Flag className="w-4 h-4 text-rose-600" />
+              <Flag className="w-4 h-4 text-slate-400" />
             </div>
             <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
-              04 <span className="text-xs font-semibold text-slate-500">Pending Sprint 4</span>
+              0 <span className="text-xs font-semibold text-slate-500">Pending Deliverables</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 truncate">
-              GA4 Server-Side CAPI, Ad Creative B...
+              No overdue sprint deliverables
             </div>
           </div>
 
@@ -561,16 +391,16 @@ END:VCALENDAR`;
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="font-bold uppercase tracking-wider text-[11px]">FINANCIAL & RETAINERS</span>
-              <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold">
+              <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold">
                 ₹
               </div>
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">₹2.25L</span>
-              <span className="text-[11px] font-bold text-emerald-600">1 Renewal Due</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">₹0.00</span>
+              <span className="text-[11px] font-bold text-slate-500">0 Renewals Due</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 truncate">
-              Acme Tech (120d Q4 Retainer Milesto...)
+              No pending renewals or invoices
             </div>
           </div>
         </div>
@@ -1105,62 +935,76 @@ END:VCALENDAR`;
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {activitiesLedger
-                      .filter((act) => {
-                        if (activityFilter !== 'all' && act.type !== activityFilter) return false;
-                        if (activitySearch && !act.title.toLowerCase().includes(activitySearch.toLowerCase()) && !act.contact.toLowerCase().includes(activitySearch.toLowerCase())) return false;
-                        return true;
-                      })
-                      .map((act) => (
-                        <tr key={act.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3.5 pl-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${act.color}`}>
-                              {act.type === 'call' && <Phone className="w-3 h-3" />}
-                              {act.type === 'meeting' && <Video className="w-3 h-3" />}
-                              {act.type === 'email' && <Mail className="w-3 h-3" />}
-                              {act.type === 'note' && <FileText className="w-3 h-3" />}
-                              {act.type === 'followup' && <CheckSquare className="w-3 h-3" />}
-                              <span className="capitalize">{act.type}</span>
-                            </span>
-                          </td>
+                    {activitiesLedger.filter((act) => {
+                      if (activityFilter !== 'all' && act.type !== activityFilter) return false;
+                      if (activitySearch && !act.title.toLowerCase().includes(activitySearch.toLowerCase()) && !act.contact.toLowerCase().includes(activitySearch.toLowerCase())) return false;
+                      return true;
+                    }).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12 text-slate-400">
+                          <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm font-semibold">No activities logged</p>
+                          <p className="text-xs">Log interactions with clients and prospects using the buttons above.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      activitiesLedger
+                        .filter((act) => {
+                          if (activityFilter !== 'all' && act.type !== activityFilter) return false;
+                          if (activitySearch && !act.title.toLowerCase().includes(activitySearch.toLowerCase()) && !act.contact.toLowerCase().includes(activitySearch.toLowerCase())) return false;
+                          return true;
+                        })
+                        .map((act) => (
+                          <tr key={act.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                            <td className="p-3.5 pl-4">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${act.color}`}>
+                                {act.type === 'call' && <Phone className="w-3 h-3" />}
+                                {act.type === 'meeting' && <Video className="w-3 h-3" />}
+                                {act.type === 'email' && <Mail className="w-3 h-3" />}
+                                {act.type === 'note' && <FileText className="w-3 h-3" />}
+                                {act.type === 'followup' && <CheckSquare className="w-3 h-3" />}
+                                <span className="capitalize">{act.type}</span>
+                              </span>
+                            </td>
 
-                          <td className="p-3.5 font-bold text-slate-900 dark:text-white max-w-xs">
-                            {act.title}
-                          </td>
+                            <td className="p-3.5 font-bold text-slate-900 dark:text-white max-w-xs">
+                              {act.title}
+                            </td>
 
-                          <td className="p-3.5">
-                            <div className="font-semibold text-slate-900 dark:text-white">{act.contact}</div>
-                            <div className="text-[11px] text-slate-500">{act.entity}</div>
-                          </td>
+                            <td className="p-3.5">
+                              <div className="font-semibold text-slate-900 dark:text-white">{act.contact}</div>
+                              <div className="text-[11px] text-slate-500">{act.entity}</div>
+                            </td>
 
-                          <td className="p-3.5 text-slate-600 dark:text-slate-300 max-w-sm">
-                            <div className="font-semibold text-slate-800 dark:text-slate-200">{act.outcome}</div>
-                            <div className="text-[11px] text-slate-500 truncate">{act.details}</div>
-                          </td>
+                            <td className="p-3.5 text-slate-600 dark:text-slate-300 max-w-sm">
+                              <div className="font-semibold text-slate-800 dark:text-slate-200">{act.outcome}</div>
+                              <div className="text-[11px] text-slate-500 truncate">{act.details}</div>
+                            </td>
 
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[10px]">
-                                {act.avatar}
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[10px]">
+                                  {act.avatar}
+                                </div>
+                                <span className="text-slate-800 dark:text-slate-200 font-medium">{act.author}</span>
                               </div>
-                              <span className="text-slate-800 dark:text-slate-200 font-medium">{act.author}</span>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="p-3.5 text-slate-500 whitespace-nowrap">
-                            {act.timestamp}
-                          </td>
+                            <td className="p-3.5 text-slate-500 whitespace-nowrap">
+                              {act.timestamp}
+                            </td>
 
-                          <td className="p-3.5 pr-4 text-right">
-                            <button
-                              onClick={() => showToast(`Reviewing interaction: ${act.title} (${act.contact})`, 'info')}
-                              className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold text-[11px] transition cursor-pointer"
-                            >
-                              Details
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="p-3.5 pr-4 text-right">
+                              <button
+                                onClick={() => showToast(`Reviewing interaction: ${act.title} (${act.contact})`, 'info')}
+                                className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold text-[11px] transition cursor-pointer"
+                              >
+                                Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1187,37 +1031,45 @@ END:VCALENDAR`;
             </div>
 
             {/* Timeline Stream */}
-            <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-              {activitiesLedger.map((item) => (
-                <div key={item.id} className="relative group">
-                  {/* Dot */}
-                  <div className="absolute -left-6 top-1.5 w-3 h-3 rounded-full bg-[#B91C1C] ring-4 ring-white dark:ring-slate-900"></div>
+            {activitiesLedger.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm font-semibold">Timeline stream empty</p>
+                <p className="text-xs">No chronological actions or touchpoints recorded yet.</p>
+              </div>
+            ) : (
+              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                {activitiesLedger.map((item) => (
+                  <div key={item.id} className="relative group">
+                    {/* Dot */}
+                    <div className="absolute -left-6 top-1.5 w-3 h-3 rounded-full bg-[#B91C1C] ring-4 ring-white dark:ring-slate-900"></div>
 
-                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0E1A2E]/50 hover:bg-white dark:hover:bg-[#0E1A2E] transition shadow-2xs space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.color}`}>
-                          {item.type}
-                        </span>
-                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">{item.title}</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0E1A2E]/50 hover:bg-white dark:hover:bg-[#0E1A2E] transition shadow-2xs space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.color}`}>
+                            {item.type}
+                          </span>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-xs">{item.title}</h4>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono">{item.timestamp}</span>
                       </div>
-                      <span className="text-[11px] text-slate-400 font-mono">{item.timestamp}</span>
-                    </div>
 
-                    <p className="text-xs text-slate-600 dark:text-slate-300">{item.details}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">{item.details}</p>
 
-                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 gap-2">
-                      <div className="flex items-center gap-3">
-                        <span>Target: <strong className="text-slate-800 dark:text-slate-200">{item.contact}</strong> ({item.entity})</span>
-                        <span>•</span>
-                        <span>Recorded by: <strong>{item.author}</strong></span>
+                      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 gap-2">
+                        <div className="flex items-center gap-3">
+                          <span>Target: <strong className="text-slate-800 dark:text-slate-200">{item.contact}</strong> ({item.entity})</span>
+                          <span>•</span>
+                          <span>Recorded by: <strong>{item.author}</strong></span>
+                        </div>
+                        <span className="font-semibold text-[#B91C1C] dark:text-rose-400">{item.outcome}</span>
                       </div>
-                      <span className="font-semibold text-[#B91C1C] dark:text-rose-400">{item.outcome}</span>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

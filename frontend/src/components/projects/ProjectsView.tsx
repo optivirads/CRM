@@ -61,130 +61,7 @@ export const ProjectsView: React.FC = () => {
   const [newDeadline, setNewDeadline] = useState('30 Sep 2026');
 
   // Projects data matching Reference Image 3
-  const [projects, setProjects] = useState([
-    {
-      id: 'p1',
-      code: 'P-2026-089',
-      name: 'Acme Growth Campaign — Q3 Scale',
-      scopeType: 'Retainer Tier 1',
-      clientName: 'Acme Technologies',
-      clientAvatarText: 'AT',
-      clientAvatarBg: 'bg-[#0A1628]',
-      leadPM: 'Maya Joseph',
-      leadInitials: 'MJ',
-      status: 'Active',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-      health: 'Healthy (88)',
-      healthStatus: 'healthy',
-      progressPercent: 68,
-      sprint: 'Sprint 4/6',
-      budget: '₹4,50,000',
-      spent: '₹3.06L (68%)',
-      deadline: '30 Sep 2026',
-      deadlineSub: '22 days left',
-      deadlineUrgent: false,
-      tasksCompleted: 24,
-      tasksTotal: 36,
-    },
-    {
-      id: 'p2',
-      code: 'P-2026-094',
-      name: 'Website Revamp & CRO Architecture',
-      scopeType: 'Fixed Scope',
-      clientName: 'Acme Technologies',
-      clientAvatarText: 'AT',
-      clientAvatarBg: 'bg-[#0A1628]',
-      leadPM: 'Rahul Menon',
-      leadInitials: 'RM',
-      status: 'In Review',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-      health: 'Attention (52)',
-      healthStatus: 'attention',
-      progressPercent: 20,
-      sprint: 'Sprint 1/4',
-      budget: '₹2,20,000',
-      spent: '₹84,000 (38%)',
-      deadline: '20 Oct 2026',
-      deadlineSub: 'Stalled approval',
-      deadlineUrgent: true,
-      tasksCompleted: 6,
-      tasksTotal: 18,
-    },
-    {
-      id: 'p3',
-      code: 'P-2026-077',
-      name: 'Omnichannel Creative Studio & Reels',
-      scopeType: 'Retainer Ongoing',
-      clientName: 'Zenith Retail Global',
-      clientAvatarText: 'ZR',
-      clientAvatarBg: 'bg-[#0A1628]',
-      leadPM: 'Maya Joseph',
-      leadInitials: 'MJ',
-      status: 'Active',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-      health: 'Healthy (94)',
-      healthStatus: 'healthy',
-      progressPercent: 82,
-      sprint: 'Final Sprint',
-      budget: '₹5,20,000',
-      spent: '₹4.15L (79%)',
-      deadline: '15 Oct 2026',
-      deadlineSub: '37 days left',
-      deadlineUrgent: false,
-      tasksCompleted: 41,
-      tasksTotal: 48,
-    },
-    {
-      id: 'p4',
-      code: 'P-2026-105',
-      name: 'Healthcare Patient Portal Setup',
-      scopeType: 'Implementation',
-      clientName: 'Nova Healthcare',
-      clientAvatarText: 'NH',
-      clientAvatarBg: 'bg-[#0A1628]',
-      leadPM: 'Alex Morgan',
-      leadInitials: 'AM',
-      status: 'Planning',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-      health: 'Healthy (90)',
-      healthStatus: 'healthy',
-      progressPercent: 10,
-      sprint: 'Sprint 1/8',
-      budget: '₹3,80,000',
-      spent: '₹38,000 (10%)',
-      deadline: '15 Dec 2026',
-      deadlineSub: 'Kickoff stage',
-      deadlineUrgent: false,
-      tasksCompleted: 3,
-      tasksTotal: 22,
-    },
-    {
-      id: 'p5',
-      code: 'P-2026-061',
-      name: 'B2B SEO & Technical Migration',
-      scopeType: 'Critical Blocker',
-      isBlocker: true,
-      clientName: 'Vertex Solutions',
-      clientAvatarText: 'VS',
-      clientAvatarBg: 'bg-[#FEE2E2]',
-      clientAvatarTextColor: 'text-rose-600',
-      leadPM: 'Alex Morgan',
-      leadInitials: 'AM',
-      status: 'On Hold',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
-      health: 'At Risk (32)',
-      healthStatus: 'at_risk',
-      progressPercent: 35,
-      sprint: 'Blocked',
-      budget: '₹1,80,000',
-      spent: '₹1.25L (69%)',
-      deadline: '15 Sep 2026',
-      deadlineSub: 'Overdue 5d',
-      deadlineUrgent: true,
-      tasksCompleted: 8,
-      tasksTotal: 16,
-    },
-  ]);
+  const [projects, setProjects] = useState<any[]>([]);
 
   const toggleSelectAll = () => {
     if (selectedProjects.length === projects.length) {
@@ -312,7 +189,7 @@ export const ProjectsView: React.FC = () => {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Projects Cockpit</h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-                46 Active
+                {projects.length} Active
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -389,14 +266,14 @@ export const ProjectsView: React.FC = () => {
               </div>
             </div>
             <div className="flex items-baseline gap-1 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">46</span>
-              <span className="text-xs text-slate-500 font-medium">/ 58 portfolio</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">{projects.length}</span>
+              <span className="text-xs text-slate-500 font-medium">/ {projects.length} portfolio</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
               <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300">
-                +4 this month
+                0 this month
               </span>
-              <span>Across 28 brands</span>
+              <span>Across 0 brands</span>
             </div>
           </div>
 
@@ -409,14 +286,13 @@ export const ProjectsView: React.FC = () => {
               </div>
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">4</span>
+              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+                {projects.filter((p) => p.healthStatus === 'at_risk').length}
+              </span>
               <span className="text-xs text-slate-500">SLA warning</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 font-bold text-rose-600">
-                Action Req.
-              </span>
-              <span>2 pending approvals</span>
+              <span>0 pending approvals</span>
             </div>
           </div>
 
@@ -427,12 +303,10 @@ export const ProjectsView: React.FC = () => {
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">18</span>
-              <span className="text-xs text-slate-500">by Sep 30, 2026</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">0</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              <span>6 final sign-off ready</span>
+              <span>0 due soon</span>
             </div>
           </div>
 
@@ -443,15 +317,14 @@ export const ProjectsView: React.FC = () => {
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">7</span>
-              <span className="text-xs text-slate-500">100% QA pass</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">0</span>
             </div>
             <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-              ₹28.4L revenue recognized
+              ₹0 revenue recognized
             </div>
           </div>
 
-          {/* Contract Value (Dark Card with ₹ symbol, exact match to Image 3) */}
+          {/* Contract Value */}
           <div className="bg-[#0A1628] text-white p-4 rounded-xl border border-[#14233D] shadow-md relative overflow-hidden">
             <div className="flex items-center justify-between text-xs text-slate-300">
               <span className="font-medium">Contract Value</span>
@@ -459,10 +332,10 @@ export const ProjectsView: React.FC = () => {
                 ₹
               </div>
             </div>
-            <div className="text-2xl font-black tracking-tight mt-1.5">₹1.42 Cr</div>
+            <div className="text-2xl font-black tracking-tight mt-1.5">₹0</div>
             <div className="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
-              <span>Burned: <strong>₹86.4L</strong></span>
-              <span className="text-emerald-400 font-bold">60.8%</span>
+              <span>Burned: <strong>₹0</strong></span>
+              <span className="text-emerald-400 font-bold">0%</span>
             </div>
           </div>
         </div>
@@ -471,12 +344,12 @@ export const ProjectsView: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
-              { id: 'all', label: 'All Projects (46)' },
-              { id: 'my', label: 'My Projects (14)' },
-              { id: 'active', label: 'Active (38)' },
-              { id: 'at_risk', label: 'At Risk (4)', isAlert: true },
-              { id: 'due_soon', label: 'Due Soon (18)' },
-              { id: 'completed', label: 'Completed (7)' },
+              { id: 'all', label: `All Projects (${projects.length})` },
+              { id: 'my', label: 'My Projects (0)' },
+              { id: 'active', label: `Active (${projects.filter(p => p.status === 'Active').length})` },
+              { id: 'at_risk', label: `At Risk (${projects.filter(p => p.healthStatus === 'at_risk').length})`, isAlert: false },
+              { id: 'due_soon', label: 'Due Soon (0)' },
+              { id: 'completed', label: 'Completed (0)' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -704,7 +577,16 @@ export const ProjectsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredProjects.map((project) => {
+                  {filteredProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-12 text-center text-slate-500">
+                        <Briefcase className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                        <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No projects found</p>
+                        <p className="text-xs text-slate-400 mt-1">Create your first client delivery project using + Create Project.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProjects.map((project) => {
                     const isSelected = selectedProjects.includes(project.id);
                     return (
                       <tr
@@ -878,7 +760,7 @@ export const ProjectsView: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  }))}
                 </tbody>
               </table>
             </div>
@@ -887,8 +769,8 @@ export const ProjectsView: React.FC = () => {
             <div className="p-4 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-4">
                 <span>
-                  Showing <strong className="text-slate-800 dark:text-slate-200">1–5</strong> of{' '}
-                  <strong className="text-slate-800 dark:text-slate-200">46</strong> projects
+                  Showing <strong className="text-slate-800 dark:text-slate-200">0–{filteredProjects.length}</strong> of{' '}
+                  <strong className="text-slate-800 dark:text-slate-200">{projects.length}</strong> projects
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span>Rows:</span>

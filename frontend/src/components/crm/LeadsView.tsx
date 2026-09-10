@@ -44,242 +44,17 @@ import {
 } from 'lucide-react';
 import { LeadDetailView, LeadDetailData } from './LeadDetailView';
 
-// Curated initial enterprise leads matching Image 1, 3 & 4
-const INITIAL_LEADS: LeadDetailData[] = [
-  {
-    id: 'lead-1',
-    name: 'Arjun Nair',
-    initials: 'AN',
-    email: 'arjun.nair@acmetech.io',
-    phone: '+91 98450 11204',
-    location: 'Bengaluru, KA, India',
-    company: 'Acme Technologies',
-    companySubtitle: 'SaaS Enterprise • Series B',
-    designation: 'Vice President of Growth & Demand',
-    status: 'Qualified',
-    priority: 'High',
-    estimatedValue: '₹75,000 / mo',
-    owner: 'Alex Morgan',
-    ownerRole: 'Sr. Enterprise AE',
-    source: 'Website',
-    service: 'Performance Marketing',
-    createdDate: '05 Sep 2026',
-    lastContact: '08 Sep 2026 (2d ago)',
-    nextFollowUp: '10 Sep 2026 - 11:00 AM',
-    campaign: 'Google Search — Enterprise Leads (Q3)',
-    budget: '₹1.00L – ₹1.50L',
-    decisionAuthority: 'High (Sign-off)',
-    timeline: '< 30 Days',
-    painPoint: 'Customer Acquisition Cost (CAC) on Meta and Google Ads escalated by 38% in Q2 with declining pipeline conversion. The internal team is bottlenecked on dynamic creative optimization and attribution modeling across multi-touch B2B journeys.',
-    targetObjective: 'Scale enterprise SQL volume from 45/mo to 110/mo while compressing Cost-per-Opportunity by 24%. Requires custom Hubspot + OptiVir bi-directional data warehouse synchronization.',
-    fitScore: 82,
-    engagementScore: 38,
-    firmographicScore: 28,
-    velocityScore: 16,
-    tags: ['#B2B-SaaS', '#Koramangala-Hub', '#Fast-Close-Q3', '#Attribution-Upgrade', '#Budget-Approved']
-  },
-  {
-    id: 'lead-2',
-    name: 'Sara Thomas',
-    initials: 'ST',
-    email: 'sara@zenithretail.in',
-    phone: '+91 97112 88401',
-    location: 'Mumbai, MH, India',
-    company: 'Zenith Retail',
-    companySubtitle: 'D2C Fashion & Apparel',
-    designation: 'Head of Brand & D2C Marketing',
-    status: 'Contacted',
-    priority: 'High',
-    estimatedValue: '₹1,20,000 / mo',
-    owner: 'Elena Rostova',
-    ownerRole: 'Director of Growth',
-    source: 'Instagram',
-    service: 'Social Media Mgmt',
-    createdDate: '06 Sep 2026',
-    lastContact: '08 Sep 2026',
-    nextFollowUp: '11 Sep 2026 - 02:30 PM',
-    campaign: 'Instagram Meta Reels Funnel',
-    budget: '₹1.20L – ₹1.80L',
-    decisionAuthority: 'High (Sign-off)',
-    timeline: '< 15 Days',
-    painPoint: 'Creative fatigue on seasonal ad creatives resulting in ROAS drop from 4.2x to 2.1x.',
-    targetObjective: 'Produce 16 weekly high-converting vertical video concepts and stabilize blended ROAS above 3.8x.',
-    fitScore: 78,
-    engagementScore: 34,
-    firmographicScore: 26,
-    velocityScore: 18,
-    tags: ['#D2C-Fashion', '#Meta-Reels', '#Creative-Fatigue', '#High-Intent']
-  },
-  {
-    id: 'lead-3',
-    name: 'John Mathew',
-    initials: 'JM',
-    email: 'j.mathew@orionprop.com',
-    phone: '+91 99001 44520',
-    location: 'Hyderabad, TS, India',
-    company: 'Orion Properties',
-    companySubtitle: 'Real Estate Development',
-    designation: 'Managing Partner & CMO',
-    status: 'Proposal',
-    priority: 'High',
-    estimatedValue: '₹2,50,000 / mo',
-    owner: 'David Chen',
-    ownerRole: 'Enterprise VP',
-    source: 'Google Ads',
-    service: 'Performance Marketing',
-    createdDate: '02 Sep 2026',
-    lastContact: '07 Sep 2026',
-    nextFollowUp: '09 Sep 2026 - 04:00 PM',
-    campaign: 'Luxury Real Estate PPC Search',
-    budget: '₹2.50L – ₹3.50L',
-    decisionAuthority: 'Final Sign-off',
-    timeline: 'Immediate',
-    painPoint: 'CPL on high-ticket luxury villas exceeding ₹4,500 with low broker qualification rate.',
-    targetObjective: 'Deploy localized geo-fencing landing pages and bring qualified buyer lead cost under ₹2,200.',
-    fitScore: 89,
-    engagementScore: 39,
-    firmographicScore: 30,
-    velocityScore: 20,
-    tags: ['#Luxury-RealEstate', '#High-Ticket', '#Google-PPC', '#CFO-Aligned']
-  },
-  {
-    id: 'lead-4',
-    name: 'Meera Joseph',
-    initials: 'MJ',
-    email: 'meera@novahealth.org',
-    phone: '+91 98200 90112',
-    location: 'Chennai, TN, India',
-    company: 'Nova Healthcare',
-    companySubtitle: 'Diagnostics & Telehealth',
-    designation: 'Chief Growth Officer',
-    status: 'Discovery',
-    priority: 'Medium',
-    estimatedValue: '₹1,80,000 / mo',
-    owner: 'Alex Morgan',
-    ownerRole: 'Sr. Enterprise AE',
-    source: 'Referral',
-    service: 'Marketing Strategy',
-    createdDate: '04 Sep 2026',
-    lastContact: '08 Sep 2026',
-    nextFollowUp: '12 Sep 2026 - 10:00 AM',
-    campaign: 'Executive Industry Referral',
-    budget: '₹1.50L – ₹2.00L',
-    decisionAuthority: 'Committee Sign-off',
-    timeline: '< 45 Days',
-    painPoint: 'Disparate omnichannel reporting between offline diagnostics centers and online telehealth booking app.',
-    targetObjective: 'Implement unified GA4 + Looker Studio attribution reporting and boost telehealth bookings by 40%.',
-    fitScore: 74,
-    engagementScore: 30,
-    firmographicScore: 25,
-    velocityScore: 19,
-    tags: ['#Healthcare', '#Telehealth', '#Attribution-Audit']
-  },
-  {
-    id: 'lead-5',
-    name: 'Rahul Menon',
-    initials: 'RM',
-    email: 'r.menon@vertexsol.com',
-    phone: '+91 96540 22890',
-    location: 'Pune, MH, India',
-    company: 'Vertex Solutions',
-    companySubtitle: 'Cloud Infrastructure',
-    designation: 'Director of Demand Gen',
-    status: 'New Lead',
-    priority: 'Medium',
-    estimatedValue: '₹95,000 / mo',
-    owner: 'Elena Rostova',
-    ownerRole: 'Director of Growth',
-    source: 'LinkedIn',
-    service: 'SEO Optimization',
-    createdDate: '07 Sep 2026',
-    lastContact: '07 Sep 2026',
-    nextFollowUp: '10 Sep 2026 - 03:00 PM',
-    campaign: 'LinkedIn B2B Inbound',
-    budget: '₹90,000 – ₹1.20L',
-    decisionAuthority: 'Medium',
-    timeline: '< 30 Days',
-    painPoint: 'Core web vitals and crawl depth issues causing 35% decline in organic developer traffic.',
-    targetObjective: 'Technical site overhaul and comprehensive keyword cluster strategy to recover top 3 SERP ranks.',
-    fitScore: 71,
-    engagementScore: 28,
-    firmographicScore: 24,
-    velocityScore: 19,
-    tags: ['#Cloud-DevOps', '#Technical-SEO', '#B2B-Tech']
-  },
-  {
-    id: 'lead-6',
-    name: 'Priyanka Sen',
-    initials: 'PS',
-    email: 'p.sen@nexafin.co',
-    phone: '+91 98110 33411',
-    location: 'Gurugram, HR, India',
-    company: 'Nexa FinTech',
-    companySubtitle: 'Payments & Neo-Banking',
-    designation: 'Head of Product Marketing',
-    status: 'Qualified',
-    priority: 'High',
-    estimatedValue: '₹3,50,000 / mo',
-    owner: 'David Chen',
-    ownerRole: 'Enterprise VP',
-    source: 'Organic Search',
-    service: 'Website Development',
-    createdDate: '01 Sep 2026',
-    lastContact: '08 Sep 2026',
-    nextFollowUp: '09 Sep 2026 - 01:00 PM',
-    campaign: 'Organic Search Intent (High Conversion)',
-    budget: '₹3.00L – ₹4.50L',
-    decisionAuthority: 'High (Sign-off)',
-    timeline: '< 15 Days',
-    painPoint: 'Existing legacy landing pages convert at sub-1.2%, failing modern speed benchmarks.',
-    targetObjective: 'Rebuild high-converting Next.js enterprise marketing website with interactive pricing calculator.',
-    fitScore: 86,
-    engagementScore: 37,
-    firmographicScore: 29,
-    velocityScore: 20,
-    tags: ['#FinTech', '#NeoBank', '#NextJS-Build', '#Scale-Ready']
-  },
-  {
-    id: 'lead-7',
-    name: 'Vikram Malhotra',
-    initials: 'VM',
-    email: 'v.malhotra@apexlog.in',
-    phone: '+91 98334 77219',
-    location: 'Mumbai, MH, India',
-    company: 'Apex Logistics',
-    companySubtitle: 'Supply Chain 3PL',
-    designation: 'VP of Commercial Operations',
-    status: 'Proposal',
-    priority: 'High',
-    estimatedValue: '₹1,60,000 / mo',
-    owner: 'Alex Morgan',
-    ownerRole: 'Sr. Enterprise AE',
-    source: 'Referral',
-    service: 'Performance Marketing',
-    createdDate: '03 Sep 2026',
-    lastContact: '08 Sep 2026',
-    nextFollowUp: '11 Sep 2026 - 11:30 AM',
-    campaign: 'Referral - Enterprise Partner',
-    budget: '₹1.50L – ₹2.00L',
-    decisionAuthority: 'High (Sign-off)',
-    timeline: '< 20 Days',
-    painPoint: 'High customer churn in spot booking freight; needs dedicated account-based marketing funnel.',
-    targetObjective: 'Establish targeted ABM LinkedIn & Google campaigns for enterprise logistics contract acquisitions.',
-    fitScore: 80,
-    engagementScore: 35,
-    firmographicScore: 27,
-    velocityScore: 18,
-    tags: ['#Logistics', '#3PL', '#AccountBasedMarketing']
-  }
-];
+// Initial enterprise leads
+const INITIAL_LEADS: LeadDetailData[] = [];
 
 const FILTER_TABS = [
-  { id: 'All', label: 'All Leads', count: 248 },
-  { id: 'MyLeads', label: 'My Leads', count: 42 },
-  { id: 'New', label: 'New Leads', count: 64 },
-  { id: 'Hot', label: 'Hot Leads', count: 29, icon: Flame },
-  { id: 'NeedsFollowup', label: 'Needs Follow-up', count: 17 },
-  { id: 'Qualified', label: 'Qualified', count: 38 },
-  { id: 'Proposal', label: 'Proposal Shared', count: 22 }
+  { id: 'All', label: 'All Leads' },
+  { id: 'MyLeads', label: 'My Leads' },
+  { id: 'New', label: 'New Leads' },
+  { id: 'Hot', label: 'Hot Leads', icon: Flame },
+  { id: 'NeedsFollowup', label: 'Needs Follow-up' },
+  { id: 'Qualified', label: 'Qualified' },
+  { id: 'Proposal', label: 'Proposal Shared' }
 ];
 
 interface LeadsViewProps {
@@ -292,7 +67,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   const [leads, setLeads] = useState<LeadDetailData[]>(INITIAL_LEADS);
   const [selectedTab, setSelectedTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLeads, setSelectedLeads] = useState<string[]>(['lead-1', 'lead-2', 'lead-3']); // matching 3 selected leads in Image 1
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [selectedSourceFilter, setSelectedSourceFilter] = useState('All Sources');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All Active');
   const [selectedOwnerFilter, setSelectedOwnerFilter] = useState('Team (3)');
@@ -304,7 +79,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      showToast(`Imported "${files[0].name}" with 6 new inbound leads!`, 'success');
+      showToast(`Imported "${files[0].name}" successfully!`, 'success');
       e.target.value = '';
     }
   };
@@ -312,25 +87,25 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   // Active Lead Detail Inspection (Image 3 & 4)
   const [activeLeadDetail, setActiveLeadDetail] = useState<LeadDetailData | null>(null);
 
-  // Slide-over Drawer for Create Lead (Image 5)
+  // Slide-over Drawer for Create Lead
   const [showCreateDrawer, setShowCreateDrawer] = useState(false);
   const [newLeadForm, setNewLeadForm] = useState({
-    name: 'Arjun Nair',
-    jobTitle: 'VP of Marketing',
+    name: '',
+    jobTitle: '',
     source: 'Website',
-    campaign: 'Google Search — Enterprise Leads',
+    campaign: '',
     service: 'Performance Marketing',
-    priority: 'High' as 'Low' | 'Medium' | 'High' | 'Urgent',
-    email: 'arjun.nair@acmetech.com',
-    phone: '98450 11204',
+    priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
+    email: '',
+    phone: '',
     channel: 'Email' as 'Email' | 'Direct Phone' | 'Video Meeting',
-    company: 'Acme Technologies',
-    companyDomain: 'acmetech.com',
-    companyDetails: 'SaaS • 51-200 Employees • Bengaluru, IN',
-    pipelineValue: '75,000',
+    company: '',
+    companyDomain: '',
+    companyDetails: '',
+    pipelineValue: '',
     timeline: 'Within 30 Days',
-    strategicObjective: 'Scale qualified B2B lead generation via targeted Google Search and LinkedIn ads...',
-    painPoints: 'CAC escalating with attribution gaps across multi-touch channels.'
+    strategicObjective: '',
+    painPoints: ''
   });
 
   // Filter Leads
@@ -606,6 +381,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
       {/* ========================================================================= */}
       {/* 2. 5 PRIMARY KPI SUMMARY CARDS (Matching Image 1)                         */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* 2. 5 PRIMARY KPI SUMMARY CARDS (Matching Image 1)                         */}
+      {/* ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: TOTAL LEADS */}
         <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
@@ -615,12 +393,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">248</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">{leads.length}</span>
               <span className="text-xs font-semibold text-emerald-600 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> +14.2%
+                <TrendingUp className="w-3 h-3" /> Live
               </span>
             </div>
-            <span className="text-[10px] text-[#8492A6] mt-0.5 block">vs. last month (217)</span>
+            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Active prospects</span>
           </div>
         </div>
 
@@ -632,10 +410,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">64</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">
+                {leads.filter((l) => l.status === 'New Lead').length}
+              </span>
               <span className="text-xs font-semibold text-blue-600">Awaiting triage</span>
             </div>
-            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Avg triage: 18 mins</span>
+            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Inbound queue</span>
           </div>
         </div>
 
@@ -647,8 +427,10 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">38</span>
-              <span className="text-xs font-semibold text-emerald-600">15.3% CR</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">
+                {leads.filter((l) => l.status === 'Qualified').length}
+              </span>
+              <span className="text-xs font-semibold text-emerald-600">Qualified</span>
             </div>
             <span className="text-[10px] text-[#8492A6] mt-0.5 block">Pipeline handoff ready</span>
           </div>
@@ -662,12 +444,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">17</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
-                4 Overdue
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">
+                {leads.filter((l) => Boolean(l.nextFollowUp)).length}
               </span>
             </div>
-            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Urgent operational queue</span>
+            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Action required</span>
           </div>
         </div>
 
@@ -679,9 +460,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">₹42.8L</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">₹0</span>
             </div>
-            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Avg deal size: ₹85,000</span>
+            <span className="text-[10px] text-[#8492A6] mt-0.5 block">Active deal pipeline</span>
           </div>
         </div>
       </div>
@@ -691,28 +472,45 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
       {/* ========================================================================= */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#E2E6EC] dark:border-[#152238] pb-2">
         <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar w-full sm:w-auto">
-          {FILTER_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-                selectedTab === tab.id
-                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                  : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+          {FILTER_TABS.map((tab) => {
+            const tabCount =
+              tab.id === 'All'
+                ? leads.length
+                : tab.id === 'New'
+                ? leads.filter((l) => l.status === 'New Lead').length
+                : tab.id === 'Qualified'
+                ? leads.filter((l) => l.status === 'Qualified').length
+                : tab.id === 'Proposal'
+                ? leads.filter((l) => l.status === 'Proposal').length
+                : tab.id === 'Hot'
+                ? leads.filter((l) => l.priority === 'High').length
+                : tab.id === 'NeedsFollowup'
+                ? leads.filter((l) => Boolean(l.nextFollowUp)).length
+                : leads.filter((l) => l.owner === 'Alex Morgan').length;
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                   selectedTab === tab.id
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                    ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
+                    : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
                 }`}
               >
-                {tab.count}
-              </span>
-            </button>
-          ))}
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+                    selectedTab === tab.id
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                  }`}
+                >
+                  {tabCount}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* View Mode Toggle: Table vs Kanban */}
@@ -916,7 +714,16 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-            {filteredLeads.map((lead) => {
+            {filteredLeads.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-12 text-center text-slate-500">
+                  <Users2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                  <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No leads found</p>
+                  <p className="text-xs text-slate-400 mt-1">Create your first prospect lead using the Create Lead button.</p>
+                </td>
+              </tr>
+            ) : (
+              filteredLeads.map((lead) => {
               const isSelected = selectedLeads.includes(lead.id);
               return (
                 <tr
@@ -986,14 +793,14 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
                   </td>
                 </tr>
               );
-            })}
+            }))}
           </tbody>
         </table>
 
         {/* 6. Pagination Bar (Matching Image 1) */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">
           <div className="flex items-center gap-3">
-            <span>Showing 1-{filteredLeads.length} of 248 leads</span>
+            <span>Showing {filteredLeads.length > 0 ? 1 : 0}-{filteredLeads.length} of {filteredLeads.length} leads</span>
             <div className="flex items-center gap-1">
               <span>Rows per page:</span>
               <select

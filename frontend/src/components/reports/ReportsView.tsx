@@ -44,15 +44,15 @@ export const ReportsView: React.FC = () => {
   >('1. Reports Directory & Metrics');
 
   // Category Tabs
-  const [activeTab, setActiveTab] = useState('All Reports (148)');
+  const [activeTab, setActiveTab] = useState('All Reports (0)');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClient, setSelectedClient] = useState('All Clients (14)');
+  const [selectedClient, setSelectedClient] = useState('All Clients');
   const [selectedQuarter, setSelectedQuarter] = useState('FY26 Q3 (Current)');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
   const [selectedFormat, setSelectedFormat] = useState('All Formats');
 
   // Selection & Action states
-  const [selectedReports, setSelectedReports] = useState<string[]>(['REP-2026-104']);
+  const [selectedReports, setSelectedReports] = useState<string[]>([]);
   const [reportPage, setReportPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [showExecutiveModal, setShowExecutiveModal] = useState(false);
@@ -87,136 +87,44 @@ export const ReportsView: React.FC = () => {
   const kpis = [
     {
       label: 'Reports Generated',
-      value: '148',
+      value: '0',
       tag: 'FY26 Q3',
-      sub: '+18.4% MoM',
-      note: '99.4% compilation rate',
+      sub: '+0.0% MoM',
+      note: '0 compilation rate',
       icon: FileSpreadsheet,
       color: 'text-[#0B1727] dark:text-white'
     },
     {
       label: 'Automated Dispatches',
-      value: '32',
+      value: '0',
       tag: 'Active',
-      tagColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-      sub: 'Next: Acme QBR • Tomorrow 09:00 IST',
+      tagColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+      sub: 'No dispatches scheduled',
       icon: Send,
       color: 'text-[#0B1727] dark:text-white'
     },
     {
       label: 'Draft & In-Review',
-      value: '09',
+      value: '0',
       tag: 'Pending signoff',
-      tagColor: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
-      sub: '3 executive reviews due today',
+      tagColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+      sub: '0 executive reviews due',
       icon: Clock,
-      color: 'text-[#DC2626]'
+      color: 'text-slate-500'
     },
     {
       label: 'Client Engagement',
-      value: '41',
+      value: '0',
       tag: 'Downloads',
-      tagColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-      sub: 'Across 14 enterprise stakeholder portals',
+      tagColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+      sub: '0 enterprise stakeholder portals',
       icon: Activity,
       color: 'text-[#0B1727] dark:text-white'
     }
   ];
 
-  // 6 Reports matching Mockup 2
-  const reportsList = [
-    {
-      id: 'REP-2026-104',
-      name: 'Acme Enterprise Q3 Omnichannel ROAS & Growth Dossier',
-      sub: 'REP-2026-104 • PDF (14 pages, 4.2 MB)',
-      category: 'Marketing & Client',
-      categoryBadge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-      client: 'Acme Technologies Pvt Ltd',
-      horizon: 'FY26 Q3 (Jul - Sep)',
-      author: 'Marcus Vance',
-      authorRole: 'VP of Operations',
-      avatarColor: 'bg-indigo-600',
-      status: 'Ready',
-      statusType: 'ready',
-      statusBadge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-    },
-    {
-      id: 'REP-2026-103',
-      name: 'Zenith Retail Commercial Revenue & Pipeline Velocity Review',
-      sub: 'REP-2026-103 • Interactive Portal + PDF',
-      category: 'Sales & Mgmt',
-      categoryBadge: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',
-      client: 'Zenith Retail Global Ltd',
-      horizon: 'Aug 2026 MBR',
-      author: 'Alex Morgan',
-      authorRole: 'Chief Commercial Officer',
-      avatarColor: 'bg-amber-600',
-      status: 'Weekly Mon 09:00',
-      statusType: 'scheduled',
-      statusBadge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400'
-    },
-    {
-      id: 'REP-2026-102',
-      name: 'Nova Health Cloud Migration Delivery & SOW Burn-down Audit',
-      sub: 'REP-2026-102 • Compiling Telemetry Visuals',
-      category: 'Project Delivery',
-      categoryBadge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400',
-      client: 'Nova Healthcare Labs',
-      horizon: 'Sprint 14 - 16',
-      author: 'Rahul Menon',
-      authorRole: 'Delivery Lead',
-      avatarColor: 'bg-rose-600',
-      status: 'Generating (78%)',
-      statusType: 'generating',
-      statusBadge: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400'
-    },
-    {
-      id: 'REP-2026-101',
-      name: 'Vertex Solutions SaaS Discovery Funnel & Attribution Telemetry',
-      sub: '⚠️ GA4 API Token Revoked',
-      subError: true,
-      category: 'Marketing & Funnel',
-      categoryBadge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
-      client: 'Vertex Solutions Inc',
-      horizon: 'Last 60 Days',
-      author: 'Priya Iyer',
-      authorRole: 'Analytics Director',
-      avatarColor: 'bg-teal-600',
-      status: 'Failed Run',
-      statusType: 'failed',
-      statusBadge: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
-    },
-    {
-      id: 'REP-2026-100',
-      name: 'Apex Apparel Festive Ad Spend & Meta CAPI Margin Analysis',
-      sub: 'REP-2026-100 • PDF Dossier (18 pages)',
-      category: 'Financial & Ads',
-      categoryBadge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-      client: 'Apex Apparel D2C',
-      horizon: 'Festive Early-Access',
-      author: 'Maya Joseph',
-      authorRole: 'Media Buyer Lead',
-      avatarColor: 'bg-violet-600',
-      status: 'Ready',
-      statusType: 'ready',
-      statusBadge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-    },
-    {
-      id: 'REP-2026-098',
-      name: 'FY26 Half-Year Consolidated Executive Revenue & EBITDA Dossier',
-      sub: 'REP-2026-098 • Archived Audit Package',
-      category: 'Management & EBITDA',
-      categoryBadge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-      client: 'Internal Executive Board',
-      horizon: 'H1 FY26',
-      author: 'Marcus Vance',
-      authorRole: 'VP of Operations',
-      avatarColor: 'bg-indigo-600',
-      status: 'Archived',
-      statusType: 'archived',
-      statusBadge: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400'
-    }
-  ];
+  // Reports list
+  const reportsList: any[] = [];
 
   const filteredReports = reportsList.filter(r => {
     const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -445,13 +353,13 @@ export const ReportsView: React.FC = () => {
         {/* 3. Category Tabs */}
         <div className="border-b border-[#E2E6EC] dark:border-[#152238] flex items-center gap-2 overflow-x-auto pb-px">
           {[
-            'All Reports (148)',
-            'Client Commercial (42)',
-            'Marketing Performance (36)',
-            'Campaign Telemetry (28)',
-            'Sales Velocity (19)',
-            'Project Delivery (14)',
-            'Financial & EBITDA'
+            'All Reports (0)',
+            'Client Commercial (0)',
+            'Marketing Performance (0)',
+            'Campaign Telemetry (0)',
+            'Sales Velocity (0)',
+            'Project Delivery (0)',
+            'Financial & EBITDA (0)'
           ].map((tab) => (
             <button
               key={tab}
@@ -491,7 +399,7 @@ export const ReportsView: React.FC = () => {
               onChange={(e) => setSelectedClient(e.target.value)}
               className="bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg px-3 py-1.5 text-xs text-[#0B1727] dark:text-white font-medium"
             >
-              <option value="All Clients (14)">All Clients (14)</option>
+              <option value="All Clients">All Clients</option>
               <option value="Acme Technologies Pvt Ltd">Acme Technologies Pvt Ltd</option>
               <option value="Zenith Retail Global Ltd">Zenith Retail Global Ltd</option>
               <option value="Nova Healthcare Labs">Nova Healthcare Labs</option>
@@ -604,83 +512,93 @@ export const ReportsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {filteredReports.map((r) => {
-                  const isSelected = selectedReports.includes(r.id);
-                  return (
-                    <tr
-                      key={r.id}
-                      onClick={() => {
-                        toggleSelectReport(r.id);
-                        if (r.id === 'REP-2026-104') setShowExecutiveModal(true);
-                      }}
-                      className={`hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition cursor-pointer ${
-                        isSelected ? 'bg-blue-50/40 dark:bg-[#132745]/30' : ''
-                      }`}
-                    >
-                      <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectReport(r.id)}
-                          className="rounded border-slate-300 text-[#B91C1C] focus:ring-[#B91C1C]"
-                        />
-                      </td>
+                {filteredReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16 text-slate-400">
+                      <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-semibold">No reports generated</p>
+                      <p className="text-xs">Create a new report dossier or schedule an automated dispatch to get started.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredReports.map((r) => {
+                    const isSelected = selectedReports.includes(r.id);
+                    return (
+                      <tr
+                        key={r.id}
+                        onClick={() => {
+                          toggleSelectReport(r.id);
+                          if (r.id === 'REP-2026-104') setShowExecutiveModal(true);
+                        }}
+                        className={`hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition cursor-pointer ${
+                          isSelected ? 'bg-blue-50/40 dark:bg-[#132745]/30' : ''
+                        }`}
+                      >
+                        <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectReport(r.id)}
+                            className="rounded border-slate-300 text-[#B91C1C] focus:ring-[#B91C1C]"
+                          />
+                        </td>
 
-                      <td className="p-3.5">
-                        <div className="font-bold text-[#0B1727] dark:text-white flex items-center gap-1.5">
-                          <span>{r.name}</span>
-                          {r.id === 'REP-2026-104' && (
-                            <span className="text-[10px] text-emerald-600" title="Verified Audit Hash">🛡️</span>
-                          )}
-                        </div>
-                        <div className={`text-[10px] mt-0.5 ${
-                          r.subError ? 'text-[#DC2626] font-bold' : 'text-[#64748B] dark:text-[#94A3B8]'
-                        }`}>
-                          {r.sub}
-                        </div>
-                      </td>
-
-                      <td className="p-3.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${r.categoryBadge}`}>
-                          {r.category}
-                        </span>
-                      </td>
-
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
-                          <Building className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{r.client}</span>
-                        </div>
-                      </td>
-
-                      <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">
-                        {r.horizon}
-                      </td>
-
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0 ${r.avatarColor}`}>
-                            {r.author.split(' ').map(n => n[0]).join('')}
+                        <td className="p-3.5">
+                          <div className="font-bold text-[#0B1727] dark:text-white flex items-center gap-1.5">
+                            <span>{r.name}</span>
+                            {r.id === 'REP-2026-104' && (
+                              <span className="text-[10px] text-emerald-600" title="Verified Audit Hash">🛡️</span>
+                            )}
                           </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-white text-xs">{r.author}</div>
+                          <div className={`text-[10px] mt-0.5 ${
+                            r.subError ? 'text-[#DC2626] font-bold' : 'text-[#64748B] dark:text-[#94A3B8]'
+                          }`}>
+                            {r.sub}
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="p-3.5 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${r.statusBadge}`}>
-                          {r.statusType === 'ready' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>}
-                          {r.statusType === 'scheduled' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
-                          {r.statusType === 'generating' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>}
-                          {r.statusType === 'failed' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>}
-                          {r.statusType === 'archived' && <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>}
-                          {r.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="p-3.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${r.categoryBadge}`}>
+                            {r.category}
+                          </span>
+                        </td>
+
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                            <Building className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{r.client}</span>
+                          </div>
+                        </td>
+
+                        <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">
+                          {r.horizon}
+                        </td>
+
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0 ${r.avatarColor}`}>
+                              {r.author.split(' ').map((n: string) => n[0]).join('')}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-900 dark:text-white text-xs">{r.author}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${r.statusBadge}`}>
+                            {r.statusType === 'ready' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>}
+                            {r.statusType === 'scheduled' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
+                            {r.statusType === 'generating' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>}
+                            {r.statusType === 'failed' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>}
+                            {r.statusType === 'archived' && <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>}
+                            {r.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -698,7 +616,7 @@ export const ReportsView: React.FC = () => {
                 <option value={50}>50</option>
                 <option value={100}>100</option>
               </select>
-              <span className="ml-2">Showing {((reportPage - 1) * rowsPerPage) + 1}-{Math.min(reportPage * rowsPerPage, 148)} of 148 dossiers</span>
+              <span className="ml-2">Showing {filteredReports.length === 0 ? 0 : ((reportPage - 1) * rowsPerPage) + 1}-{Math.min(reportPage * rowsPerPage, filteredReports.length)} of {filteredReports.length} dossiers</span>
             </div>
 
             <div className="flex items-center gap-1 font-semibold">

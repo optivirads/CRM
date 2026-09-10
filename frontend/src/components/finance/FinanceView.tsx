@@ -73,256 +73,56 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
   const [newExpEntity, setNewExpEntity] = useState('Acme Technologies');
   const [uploadedReceiptName, setUploadedReceiptName] = useState<string | null>(null);
 
-  const [expensesList, setExpensesList] = useState([
-    {
-      id: 'EXP-2026-042',
-      date: '24 Oct 2026',
-      submitter: 'Sarah Chen',
-      avatarText: 'SC',
-      category: 'Paid Media / Ad Spend',
-      entity: 'Acme Technologies (CAPI)',
-      description: 'Google Ads Q4 Search PMax campaign ad balance refill',
-      amount: '₹4,50,000',
-      receiptName: 'google_ads_oct_refill.pdf',
-      receiptSize: '1.4 MB',
-      status: 'Pending Approval',
-      statusColor: 'text-amber-700 bg-amber-50 border-amber-200',
-    },
-    {
-      id: 'EXP-2026-041',
-      date: '23 Oct 2026',
-      submitter: 'David Ross',
-      avatarText: 'DR',
-      category: 'Cloud & Infrastructure',
-      entity: 'Internal Delivery',
-      description: 'AWS Production Cloud Run container & BigQuery streaming',
-      amount: '₹1,24,000',
-      receiptName: 'aws_invoice_oct2026.pdf',
-      receiptSize: '840 KB',
-      status: 'Pending Approval',
-      statusColor: 'text-amber-700 bg-amber-50 border-amber-200',
-    },
-    {
-      id: 'EXP-2026-040',
-      date: '22 Oct 2026',
-      submitter: 'Marcus Vance',
-      avatarText: 'MV',
-      category: 'Client Entertaining & Travel',
-      entity: 'Zenith Retail Global',
-      description: 'Executive dinner with Elena Rostova (CTO) & commercial leads',
-      amount: '₹18,500',
-      receiptName: 'restaurant_bill_zenith.jpg',
-      receiptSize: '2.1 MB',
-      status: 'Approved',
-      statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    },
-    {
-      id: 'EXP-2026-039',
-      date: '20 Oct 2026',
-      submitter: 'Elena Rostova',
-      avatarText: 'ER',
-      category: 'SaaS Software Subscriptions',
-      entity: 'Engineering Team',
-      description: 'Figma Enterprise 15 seats + HubSpot Marketing Hub',
-      amount: '₹88,000',
-      receiptName: 'figma_hubspot_bundle.pdf',
-      receiptSize: '620 KB',
-      status: 'Approved',
-      statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    },
-    {
-      id: 'EXP-2026-038',
-      date: '18 Oct 2026',
-      submitter: 'Priya Sharma',
-      avatarText: 'PS',
-      category: 'Contractor & Talent',
-      entity: 'Vertex Solutions Inc',
-      description: 'Senior Python Data Engineer (40h sprint on CAPI pipeline)',
-      amount: '₹1,10,000',
-      receiptName: 'contractor_timesheet_oct.pdf',
-      receiptSize: '1.8 MB',
-      status: 'Approved',
-      statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    }
-  ]);
+  interface ExpenseItem {
+    id: string;
+    date: string;
+    submitter: string;
+    avatarText: string;
+    category: string;
+    entity: string;
+    description: string;
+    amount: string;
+    receiptName: string;
+    receiptSize: string;
+    status: string;
+    statusColor: string;
+  }
 
-  // Invoices Dataset matching Reference Image 4
-  const [invoices, setInvoices] = useState([
-    {
-      id: 'inv-1',
-      invoiceNumber: 'INV-2026-089',
-      termBadge: 'Net 30',
-      clientName: 'Acme Technologies Pvt Ltd',
-      gstin: 'GSTIN: 27AAACA1234F1Z5',
-      refProposal: 'Ref: QUO-2026-089 (CAPI)',
-      dateIssued: '10 Sep 2026',
-      dateDue: 'Due 10 Oct 2026',
-      amountGstInc: '₹18,50,000',
-      amountPaid: '₹9,25,000',
-      balanceDue: '₹9,25,000',
-      status: 'Partially Paid',
-      statusColor: 'text-amber-700 bg-amber-50 border-amber-200',
-      isOverdue: false,
-    },
-    {
-      id: 'inv-2',
-      invoiceNumber: 'INV-2026-088',
-      termBadge: 'Net 15',
-      clientName: 'Zenith Retail Global Ltd',
-      gstin: 'GSTIN: 07AABCZ9876Q1ZB',
-      refProposal: 'Ref: QUO-2026-088 (Omnichannel)',
-      dateIssued: '01 Sep 2026',
-      dateDue: 'Due 15 Sep (In 5d)',
-      amountGstInc: '₹24,00,000',
-      amountPaid: '₹0',
-      balanceDue: '₹24,00,000',
-      status: 'Sent',
-      statusColor: 'text-blue-700 bg-blue-50 border-blue-200',
-      isOverdue: false,
-    },
-    {
-      id: 'inv-3',
-      invoiceNumber: 'INV-2026-084',
-      termBadge: 'Net 15',
-      clientName: 'Vertex Solutions Inc',
-      gstin: 'GSTIN: 29AABCV4433P1ZQ',
-      refProposal: 'Ref: QUO-2026-085 (SEO Engine)',
-      dateIssued: '15 Aug 2026',
-      dateDue: 'Paid on 28 Aug',
-      amountGstInc: '₹6,00,000',
-      amountPaid: '₹6,00,000',
-      balanceDue: '₹0',
-      status: 'Paid',
-      statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-      isOverdue: false,
-    },
-    {
-      id: 'inv-4',
-      invoiceNumber: 'INV-2026-078',
-      termBadge: '14d Late',
-      isOverdueBadge: true,
-      clientName: 'Nova Healthcare Labs',
-      gstin: 'GSTIN: 33AAACN5512L1ZZ',
-      refProposal: 'Ref: QUO-2026-078 (Cloud Revamp)',
-      dateIssued: '12 Jul 2026',
-      dateDue: 'Due 12 Aug 2026',
-      dateDueUrgent: true,
-      amountGstInc: '₹12,50,000',
-      amountPaid: '₹0',
-      balanceDue: '₹12,50,000',
-      status: 'Overdue',
-      statusColor: 'text-rose-700 bg-rose-50 border-rose-200',
-      isOverdue: true,
-    },
-    {
-      id: 'inv-5',
-      invoiceNumber: 'INV-2026-091',
-      termBadge: 'Draft',
-      clientName: 'Apex Apparel D2C',
-      gstin: 'GSTIN: 27AABCA7712M1Z0',
-      refProposal: 'Ref: QUO-2026-095 (Shopify Plus)',
-      dateIssued: '09 Sep 2026',
-      dateDue: 'Net 15',
-      amountGstInc: '₹7,25,000',
-      amountPaid: '₹0',
-      balanceDue: '₹7,25,000',
-      status: 'Draft',
-      statusColor: 'text-slate-700 bg-slate-100 border-slate-200',
-      isOverdue: false,
-    },
-    {
-      id: 'inv-6',
-      invoiceNumber: 'INV-2026-072',
-      termBadge: 'Net 30',
-      clientName: 'CloudScale Telematics',
-      gstin: 'GSTIN: 36AABCU8899F1ZV',
-      refProposal: 'Ref: QUO-2026-068 (Retainer)',
-      dateIssued: '01 Jun 2026',
-      dateDue: 'Paid 28 Jun',
-      amountGstInc: '₹4,50,000',
-      amountPaid: '₹4,50,000',
-      balanceDue: '₹0',
-      status: 'Paid',
-      statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-      isOverdue: false,
-    },
-  ]);
+  interface InvoiceItem {
+    id: string;
+    invoiceNumber: string;
+    termBadge: string;
+    isOverdueBadge?: boolean;
+    clientName: string;
+    gstin: string;
+    refProposal: string;
+    dateIssued: string;
+    dateDue: string;
+    dateDueUrgent?: boolean;
+    amountGstInc: string;
+    amountPaid: string;
+    balanceDue: string;
+    status: string;
+    statusColor: string;
+    isOverdue: boolean;
+  }
 
-  // Payments Dataset matching Reference Image 5
-  const paymentsList = [
-    {
-      id: 'PAY-2026-118',
-      clientName: 'Acme Technologies Pvt Ltd',
-      gstin: 'GSTIN: 27AAACA9812M1ZM',
-      linkedInvoice: 'INV-2026-089',
-      invoicePart: 'Part 1/2',
-      dateTimestamp: '10 Sep 2026 14:22 IST',
-      method: 'Bank Transfer (NEFT/RTGS)',
-      icon: 'bank',
-      amountReceived: '₹9,25,000',
-      amountColor: 'text-slate-900 dark:text-white',
-    },
-    {
-      id: 'PAY-2026-117',
-      clientName: 'Vertex Solutions Inc',
-      gstin: 'US Delaware Corp (Cross-Border)',
-      linkedInvoice: 'INV-2026-084',
-      invoicePart: 'Full',
-      dateTimestamp: '28 Aug 2026 11:05 IST',
-      method: 'Corporate Card (Razorpay)',
-      icon: 'card',
-      amountReceived: '₹6,00,000',
-      amountColor: 'text-slate-900 dark:text-white',
-    },
-    {
-      id: 'PAY-2026-116',
-      clientName: 'CloudScale Telematics',
-      gstin: 'GSTIN: 29AABCC4120N1ZK',
-      linkedInvoice: 'INV-2026-072',
-      invoicePart: 'Full',
-      dateTimestamp: '28 Jun 2026 16:40 IST',
-      method: 'Bank Transfer (IMPS)',
-      icon: 'bank',
-      amountReceived: '₹4,50,000',
-      amountColor: 'text-slate-900 dark:text-white',
-    },
-    {
-      id: 'PAY-2026-115',
-      clientName: 'Zenith Retail Global Ltd',
-      gstin: 'GSTIN: 07AAAZG1001P1ZN',
-      linkedInvoice: 'INV-2026-081',
-      invoicePart: 'Advance',
-      dateTimestamp: '22 Aug 2026 09:15 IST',
-      method: 'UPI Commercial (Axis VPA)',
-      icon: 'upi',
-      amountReceived: '₹5,00,000',
-      amountColor: 'text-slate-900 dark:text-white',
-    },
-    {
-      id: 'PAY-2026-114',
-      clientName: 'Nova Healthcare Labs',
-      gstin: 'GSTIN: 33AABCN7814L1Z2',
-      linkedInvoice: 'INV-2026-074',
-      invoicePart: 'Partial',
-      dateTimestamp: '15 Aug 2026 18:30 IST',
-      method: 'Bank Wire (Fedwire/SWIFT)',
-      icon: 'wire',
-      amountReceived: '₹8,00,000',
-      amountColor: 'text-slate-900 dark:text-white',
-    },
-    {
-      id: 'PAY-2026-113',
-      clientName: 'Apex Apparel D2C',
-      gstin: 'GSTIN: 06AABCA3319K1ZY',
-      linkedInvoice: 'INV-2026-065',
-      invoicePart: 'Adjustment',
-      dateTimestamp: '10 Aug 2026 12:10 IST',
-      method: 'NetBanking',
-      icon: 'bank',
-      amountReceived: '-₹45,000',
-      amountColor: 'text-rose-600 dark:text-rose-400 font-bold',
-    },
-  ];
+  interface PaymentItem {
+    id: string;
+    clientName: string;
+    gstin: string;
+    linkedInvoice: string;
+    invoicePart: string;
+    dateTimestamp: string;
+    method: string;
+    icon: string;
+    amountReceived: string;
+    amountColor: string;
+  }
+
+  const [expensesList, setExpensesList] = useState<ExpenseItem[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [paymentsList, setPaymentsList] = useState<PaymentItem[]>([]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
@@ -410,7 +210,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                     Finance & Invoices Ledger
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-                    42 Invoices • ₹2.84 Cr Billed
+                    {invoices.length} Invoices • ₹0.00 Billed
                   </span>
                   <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-emerald-600" />
@@ -424,7 +224,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
 
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => downloadClientPdf('invoice', { number: 'INV-2026-SUMMARY', client: 'OptiVir Master Client Ledger', total: 48250 })}
+                  onClick={() => downloadClientPdf('invoice', { number: 'INV-2026-SUMMARY', client: 'OptiVir Master Client Ledger', total: 0 })}
                   className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition"
                   title="Download Invoices Summary PDF"
                 >
@@ -432,7 +232,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>Download Invoices PDF</span>
                 </button>
                 <button
-                  onClick={() => downloadClientPdf('invoice', { number: 'AGING-REPORT-Q3', client: 'All Enterprise Clients', total: 6600000 })}
+                  onClick={() => downloadClientPdf('invoice', { number: 'AGING-REPORT-Q3', client: 'All Enterprise Clients', total: 0 })}
                   className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition"
                   title="Download Aging Receivables Report PDF"
                 >
@@ -450,7 +250,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
               </div>
             </div>
 
-            {/* 6 KPI Cards + 1 Dark KPI Card (Exact match to Reference Image 4) */}
+            {/* 6 KPI Cards + 1 Dark KPI Card */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
               {/* Total Billed */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -458,8 +258,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>TOTAL BILLED</span>
                   <Receipt className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹2.84 Cr</div>
-                <div className="text-[10px] text-blue-600 font-semibold mt-0.5">+18.4% YoY FY26</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
+                <div className="text-[10px] text-slate-400 font-semibold mt-0.5">0% YoY FY26</div>
               </div>
 
               {/* Collected */}
@@ -468,8 +268,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>COLLECTED</span>
                   <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹2.18 Cr</div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">76.7% reconciled</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
+                <div className="text-[10px] text-slate-400 font-semibold mt-0.5">0% reconciled</div>
               </div>
 
               {/* Outstanding */}
@@ -478,28 +278,28 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>OUTSTANDING</span>
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹66.00L</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Across 14 enterprise accounts</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Across 0 enterprise accounts</div>
               </div>
 
               {/* Overdue AR */}
-              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-rose-200 dark:border-rose-900/40 shadow-xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-rose-600 uppercase">
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                   <span>OVERDUE AR</span>
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-rose-600 mt-1">₹18.50L</div>
-                <div className="text-[10px] text-rose-600 font-medium mt-0.5">3 Invoices • Tier 2 Dunning</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
+                <div className="text-[10px] text-emerald-600 font-medium mt-0.5">0 Invoices • No Overdue</div>
               </div>
 
               {/* Due Sep 2026 */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
-                  <span>DUE SEP 2026</span>
+                  <span>DUE THIS MONTH</span>
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹32.40L</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">8 scheduled milestones</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">0 scheduled milestones</div>
               </div>
 
               {/* Opex & Payables */}
@@ -508,7 +308,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>OPEX & PAYABLES</span>
                   <CreditCard className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹48.20L</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">₹0</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Cloud infra + contractors</div>
               </div>
 
@@ -518,71 +318,58 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>NET MARGIN</span>
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
-                <div className="text-xl font-black text-white mt-1">₹1.69 Cr</div>
+                <div className="text-xl font-black text-white mt-1">₹0</div>
                 <div className="text-[10px] text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
-                  <span>Operating: 59.5%</span>
-                  <span className="bg-emerald-950 px-1 rounded border border-emerald-800 text-[9px]">Healthy</span>
+                  <span>Operating: 0%</span>
+                  <span className="bg-emerald-950 px-1 rounded border border-emerald-800 text-[9px]">Stable</span>
                 </div>
               </div>
             </div>
 
             {/* Critical AR Dunning Notice Banner */}
-            <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded bg-rose-600 text-white font-black flex items-center justify-center text-xs shrink-0">
-                  !
-                </span>
-                <div>
-                  <strong className="text-rose-900 dark:text-rose-200">Critical AR Dunning Notice: </strong>
-                  <span className="text-slate-700 dark:text-slate-300">
-                    Invoice <strong>INV-2026-078</strong> (Nova Healthcare Labs • ₹12.50L) is <strong>14 days overdue</strong>. Automated Dunning Tier-2 notice dispatched to Dr. R. Kapoor.
+            {invoices.filter((i) => i.isOverdue).length > 0 && (
+              <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 h-6 rounded bg-rose-600 text-white font-black flex items-center justify-center text-xs shrink-0">
+                    !
                   </span>
+                  <div>
+                    <strong className="text-rose-900 dark:text-rose-200">Critical AR Dunning Notice: </strong>
+                    <span className="text-slate-700 dark:text-slate-300">
+                      Overdue invoices detected. Automated Dunning notices dispatched.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => showToast('Dunning notice re-sent to billing team', 'info')}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs transition cursor-pointer"
+                  >
+                    Resend Notice
+                  </button>
+                  <button
+                    onClick={() => setShowRecordPaymentModal(true)}
+                    className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                  >
+                    Record Settlement
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => showToast('Dunning notice re-sent to billing team (Dr. R. Kapoor)', 'info')}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs transition cursor-pointer"
-                >
-                  Resend Notice
-                </button>
-                <button
-                  onClick={() => setShowRecordPaymentModal(true)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
-                >
-                  Record Settlement
-                </button>
-              </div>
-            </div>
+            )}
 
             {/* Reconciled Notification Ribbon */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  <strong>Payment Recd:</strong> ₹18.50L via NEFT from Acme Tech for INV-2026-081.
+                  <strong>Accounting Sync:</strong> Bank feed and automated reconciliation operational.
                 </span>
-                <button
-                  onClick={() => showToast('Opening NEFT receipt for INV-2026-081 (Acme Tech - ₹18.50L)...', 'info')}
-                  className="text-blue-600 hover:underline font-semibold text-[11px] cursor-pointer"
-                >
-                  View Receipt
-                </button>
               </div>
 
-              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-medium">
+              <div className="flex items-center gap-2 text-slate-500 font-medium">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>Upcoming 72h: 2 Invoices totaling ₹8.20L due shortly (Zenith Retail).</span>
-                <button
-                  onClick={() => {
-                    setInvoiceFilterView('due_week');
-                    showToast('Filtered invoices: Due Soon within 72h', 'info');
-                  }}
-                  className="text-slate-700 dark:text-slate-300 underline text-[11px] cursor-pointer"
-                >
-                  Filter Due Soon
-                </button>
+                <span>No overdue invoices requiring escalation.</span>
               </div>
             </div>
 
@@ -600,7 +387,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <Receipt className="w-3.5 h-3.5" />
                   <span>Invoices Ledger</span>
                   <span className="px-1.5 py-0.2 bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded text-[10px] font-bold">
-                    42
+                    {invoices.length}
                   </span>
                 </button>
 
@@ -611,7 +398,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <CreditCard className="w-3.5 h-3.5" />
                   <span>Payments Received</span>
                   <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px]">
-                    68
+                    {paymentsList.length}
                   </span>
                 </button>
 
@@ -621,7 +408,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>Expenses & Payables</span>
-                  <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded text-[10px]">24</span>
+                  <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded text-[10px]">{expensesList.length}</span>
                 </button>
 
                 <button
@@ -629,7 +416,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   className="flex items-center gap-1.5 px-4 py-2.5 font-semibold text-slate-500 hover:text-slate-900 whitespace-nowrap"
                 >
                   <span>Receivables & Aging</span>
-                  <span className="text-rose-600 font-bold">₹66.0L</span>
+                  <span className="text-slate-600 dark:text-slate-400 font-bold">₹0</span>
                 </button>
 
                 <button
@@ -660,9 +447,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
 
                 <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-2 md:pt-0 md:pl-3 flex-wrap text-xs">
                   <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 font-medium">
-                    <option>All Clients (14)</option>
-                    <option>Acme Technologies</option>
-                    <option>Zenith Retail Global</option>
+                    <option>All Clients</option>
                   </select>
 
                   <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 font-medium">
@@ -675,12 +460,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 font-medium">
                     <option>FY26 Q3 (Current)</option>
                     <option>FY26 Q2</option>
-                  </select>
-
-                  <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 font-medium">
-                    <option>All Managers</option>
-                    <option>Alex Morgan</option>
-                    <option>Maya Joseph</option>
                   </select>
 
                   <button
@@ -699,11 +478,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
               <div className="flex items-center gap-2 text-xs">
                 <span className="font-bold text-slate-500 uppercase text-[10px]">VIEWS:</span>
                 {[
-                  { id: 'all', label: 'All Invoices (42)' },
-                  { id: 'unpaid', label: 'Unpaid & Overdue (14)' },
-                  { id: 'due_week', label: 'Due This Week (5)' },
-                  { id: 'paid', label: 'Fully Paid (26)' },
-                  { id: 'drafts', label: 'Drafts (2)' },
+                  { id: 'all', label: `All Invoices (${invoices.length})` },
+                  { id: 'unpaid', label: 'Unpaid & Overdue (0)' },
+                  { id: 'due_week', label: 'Due This Week (0)' },
+                  { id: 'paid', label: 'Fully Paid (0)' },
+                  { id: 'drafts', label: 'Drafts (0)' },
                 ].map((v) => (
                   <button
                     key={v.id}
@@ -739,104 +518,114 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {invoices.map((inv) => (
-                      <tr
-                        key={inv.id}
-                        onClick={() => {
-                          setSelectedInvoiceForModal({
-                            id: inv.id,
-                            invoice_number: inv.invoiceNumber,
-                            client_name: inv.clientName,
-                            client_gstin: inv.gstin,
-                            invoice_date: inv.dateIssued,
-                            due_date: inv.dateDue,
-                            total: 177000,
-                            status: inv.status
-                          });
-                        }}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer"
-                      >
-                        <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" className="rounded border-slate-300 text-rose-600" />
-                        </td>
-
-                        <td className="p-3.5">
-                          <div>
-                            <div className={`font-bold ${inv.isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-                              {inv.invoiceNumber}
-                            </div>
-                            <span
-                              className={`px-1.5 py-0.2 rounded text-[10px] font-bold mt-0.5 inline-block ${
-                                inv.isOverdueBadge
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                              }`}
-                            >
-                              {inv.termBadge}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="p-3.5">
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-white">{inv.clientName}</div>
-                            <div className="text-[11px] text-slate-500">{inv.gstin} • {inv.refProposal}</div>
-                          </div>
-                        </td>
-
-                        <td className="p-3.5">
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-200">{inv.dateIssued}</div>
-                            <div className={`text-[11px] ${inv.dateDueUrgent ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
-                              {inv.dateDue}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="p-3.5 font-bold text-slate-900 dark:text-white">
-                          {inv.amountGstInc}
-                        </td>
-
-                        <td className="p-3.5 text-slate-700 dark:text-slate-300">
-                          {inv.amountPaid}
-                        </td>
-
-                        <td className="p-3.5">
-                          <span className={`font-bold ${inv.balanceDue !== '₹0' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
-                            {inv.balanceDue}
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 pr-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${inv.statusColor}`}>
-                              ● {inv.status}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                downloadClientPdf('invoice', {
-                                  number: inv.invoiceNumber,
-                                  client: inv.clientName,
-                                  total: 177000,
-                                  gstin: inv.gstin
-                                });
-                              }}
-                              className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-[#B91C1C] transition"
-                              title={`Download ${inv.invoiceNumber} PDF`}
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                    {invoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-12 text-center text-slate-500">
+                          <Receipt className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                          <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No invoices found</div>
+                          <div className="text-xs text-slate-400 mt-1">Create an invoice to start tracking billing and commercial receivables.</div>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      invoices.map((inv) => (
+                        <tr
+                          key={inv.id}
+                          onClick={() => {
+                            setSelectedInvoiceForModal({
+                              id: inv.id,
+                              invoice_number: inv.invoiceNumber,
+                              client_name: inv.clientName,
+                              client_gstin: inv.gstin,
+                              invoice_date: inv.dateIssued,
+                              due_date: inv.dateDue,
+                              total: 177000,
+                              status: inv.status
+                            });
+                          }}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer"
+                        >
+                          <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" className="rounded border-slate-300 text-rose-600" />
+                          </td>
+
+                          <td className="p-3.5">
+                            <div>
+                              <div className={`font-bold ${inv.isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                                {inv.invoiceNumber}
+                              </div>
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-bold mt-0.5 inline-block ${
+                                  inv.isOverdueBadge
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                }`}
+                              >
+                                {inv.termBadge}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5">
+                            <div>
+                              <div className="font-bold text-slate-900 dark:text-white">{inv.clientName}</div>
+                              <div className="text-[11px] text-slate-500">{inv.gstin} • {inv.refProposal}</div>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5">
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-200">{inv.dateIssued}</div>
+                              <div className={`text-[11px] ${inv.dateDueUrgent ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                                {inv.dateDue}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5 font-bold text-slate-900 dark:text-white">
+                            {inv.amountGstInc}
+                          </td>
+
+                          <td className="p-3.5 text-slate-700 dark:text-slate-300">
+                            {inv.amountPaid}
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className={`font-bold ${inv.balanceDue !== '₹0' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                              {inv.balanceDue}
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 pr-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${inv.statusColor}`}>
+                                ● {inv.status}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadClientPdf('invoice', {
+                                    number: inv.invoiceNumber,
+                                    client: inv.clientName,
+                                    total: 177000,
+                                    gstin: inv.gstin
+                                  });
+                                }}
+                                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-[#B91C1C] transition"
+                                title={`Download ${inv.invoiceNumber} PDF`}
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
 
               <div className="p-3 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-                <span>Showing <strong>6 of 42</strong> invoices • Page {invoicePage} of 7</span>
+                <span>Showing <strong>{invoices.length > 0 ? 1 : 0} of {invoices.length}</strong> invoices • Page {invoicePage} of 1</span>
                 <div className="flex items-center gap-1">
                   <button 
                     onClick={() => setInvoicePage((p) => Math.max(1, p - 1))}
@@ -995,7 +784,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
               </div>
             </div>
 
-            {/* 4 KPI Cards (Exact match to Reference Image 5) */}
+            {/* 4 KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Received This Month */}
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -1003,10 +792,10 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span className="font-medium">Received This Month</span>
                   <Receipt className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹42.85L</div>
-                <div className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold">+14.2% MoM</span>
-                  <span>38 verified receipts</span>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
+                <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">0% MoM</span>
+                  <span>0 verified receipts</span>
                 </div>
               </div>
 
@@ -1014,25 +803,23 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-medium">Pending Clearance</span>
-                  <Clock className="w-4 h-4 text-amber-500" />
+                  <Clock className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹6.50L</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-bold">3 NEFT / Wire pending</span>
-                  <span>Avg. clear 4.2h</span>
+                  <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">0 pending</span>
                 </div>
               </div>
 
               {/* Overdue Inbound Invoices */}
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-rose-200 dark:border-rose-900/40 shadow-xs">
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-medium text-rose-600">Overdue Inbound Invoices</span>
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Overdue Inbound Invoices</span>
+                  <AlertTriangle className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-rose-600 mt-1.5">₹18.50L</div>
-                <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 font-bold">3 Invoices overdue</span>
-                  <span>Follow-up SLA active</span>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
+                <div className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1.5">
+                  <span>No invoices overdue</span>
                 </div>
               </div>
 
@@ -1042,10 +829,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span className="font-medium">Refunded / Adjustments</span>
                   <ArrowDownLeft className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹45,000</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-semibold">1 Dispute resolution</span>
-                  <span>Credit note issued</span>
+                  <span>0 adjustments</span>
                 </div>
               </div>
             </div>
@@ -1054,11 +840,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { id: 'all', label: 'All Payments (68)' },
-                  { id: 'bank', label: 'Bank Transfer (32)' },
-                  { id: 'upi', label: 'UPI / Fast (21)' },
-                  { id: 'card', label: 'Corporate Card (11)' },
-                  { id: 'pending', label: 'Pending Clearance (4)' },
+                  { id: 'all', label: `All Payments (${paymentsList.length})` },
+                  { id: 'bank', label: 'Bank Transfer (0)' },
+                  { id: 'upi', label: 'UPI / Fast (0)' },
+                  { id: 'card', label: 'Corporate Card (0)' },
+                  { id: 'pending', label: 'Pending Clearance (0)' },
                 ].map((m) => (
                   <button
                     key={m.id}
@@ -1097,8 +883,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
               <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-2 md:pt-0 md:pl-3 flex-wrap">
                 <select className="bg-slate-50 dark:bg-slate-800 border rounded-lg px-2.5 py-1.5 font-medium">
                   <option>All Clients & Entities</option>
-                  <option>Acme Technologies</option>
-                  <option>Vertex Solutions</option>
                 </select>
 
                 <select className="bg-slate-50 dark:bg-slate-800 border rounded-lg px-2.5 py-1.5 font-medium">
@@ -1114,11 +898,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                 </select>
 
                 <button
-                  onClick={() => showToast('Payments filters: Current FY26 Q3 bank & gateway transactions', 'info')}
+                  onClick={() => showToast('Payments filters reset', 'info')}
                   className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border rounded-lg font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Filters (2)</span>
+                  <span>Filters</span>
                 </button>
               </div>
             </div>
@@ -1138,78 +922,83 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {paymentsList.map((pay) => (
-                      <tr key={pay.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                        <td className="p-3.5 pl-4 font-bold text-rose-600 dark:text-rose-400">
-                          {pay.id}
-                        </td>
-
-                        <td className="p-3.5">
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-white">{pay.clientName}</div>
-                            <div className="text-[11px] text-slate-500">{pay.gstin}</div>
-                          </div>
-                        </td>
-
-                        <td className="p-3.5">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold">
-                            <span>{pay.linkedInvoice}</span>
-                            <span className="px-1 py-0.2 bg-white dark:bg-slate-700 rounded text-[9px] font-bold">
-                              {pay.invoicePart}
-                            </span>
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 text-slate-700 dark:text-slate-300">
-                          {pay.dateTimestamp}
-                        </td>
-
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
-                            {pay.icon === 'bank' && <Building2 className="w-3.5 h-3.5 text-blue-600" />}
-                            {pay.icon === 'card' && <CreditCard className="w-3.5 h-3.5 text-purple-600" />}
-                            {pay.icon === 'upi' && <Zap className="w-3.5 h-3.5 text-emerald-600" />}
-                            {pay.icon === 'wire' && <ArrowDownLeft className="w-3.5 h-3.5 text-blue-600" />}
-                            <span>{pay.method}</span>
-                          </div>
-                        </td>
-
-                        <td className={`p-3.5 pr-4 text-right font-bold text-sm ${pay.amountColor}`}>
-                          {pay.amountReceived}
+                    {paymentsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-12 text-center text-slate-500">
+                          <CreditCard className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                          <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No payment records found</div>
+                          <div className="text-xs text-slate-400 mt-1">Record a payment or connect a payment gateway to view collections.</div>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paymentsList.map((pay) => (
+                        <tr key={pay.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3.5 pl-4 font-bold text-rose-600 dark:text-rose-400">
+                            {pay.id}
+                          </td>
+
+                          <td className="p-3.5">
+                            <div>
+                              <div className="font-bold text-slate-900 dark:text-white">{pay.clientName}</div>
+                              <div className="text-[11px] text-slate-500">{pay.gstin}</div>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold">
+                              <span>{pay.linkedInvoice}</span>
+                              <span className="px-1 py-0.2 bg-white dark:bg-slate-700 rounded text-[9px] font-bold">
+                                {pay.invoicePart}
+                              </span>
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 text-slate-700 dark:text-slate-300">
+                            {pay.dateTimestamp}
+                          </td>
+
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                              {pay.icon === 'bank' && <Building2 className="w-3.5 h-3.5 text-blue-600" />}
+                              {pay.icon === 'card' && <CreditCard className="w-3.5 h-3.5 text-purple-600" />}
+                              {pay.icon === 'upi' && <Zap className="w-3.5 h-3.5 text-emerald-600" />}
+                              {pay.icon === 'wire' && <ArrowDownLeft className="w-3.5 h-3.5 text-blue-600" />}
+                              <span>{pay.method}</span>
+                            </div>
+                          </td>
+
+                          <td className={`p-3.5 pr-4 text-right font-bold text-sm ${pay.amountColor}`}>
+                            {pay.amountReceived}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
 
               <div className="p-3 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-                <span>Showing <strong>1–6</strong> of <strong>68</strong> reconciled payment records (FY26 Total: ₹1.82 Cr) • Page {paymentPage} of 3</span>
+                <span>Showing <strong>{paymentsList.length > 0 ? 1 : 0}</strong> of <strong>{paymentsList.length}</strong> reconciled payment records • Page 1 of 1</span>
                 <div className="flex items-center gap-1">
                   <button 
-                    onClick={() => setPaymentPage((p) => Math.max(1, p - 1))}
-                    disabled={paymentPage === 1}
-                    className="px-2.5 py-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer"
+                    onClick={() => setPaymentPage(1)}
+                    disabled
+                    className="px-2.5 py-1 text-slate-400 disabled:opacity-30 cursor-pointer"
                   >
                     Prev
                   </button>
-                  {[1, 2, 3].map((p) => (
+                  {[1].map((p) => (
                     <button
                       key={p}
                       onClick={() => setPaymentPage(p)}
-                      className={`px-2.5 py-1 rounded transition cursor-pointer ${
-                        paymentPage === p
-                          ? 'font-bold bg-[#B91C1C] text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-                      }`}
+                      className="px-2.5 py-1 rounded transition font-bold bg-[#B91C1C] text-white shadow-2xs"
                     >
                       {p}
                     </button>
                   ))}
                   <button 
-                    onClick={() => setPaymentPage((p) => Math.min(3, p + 1))}
-                    disabled={paymentPage === 3}
-                    className="px-2.5 py-1 text-slate-600 hover:text-slate-900 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer"
+                    disabled
+                    className="px-2.5 py-1 text-slate-400 disabled:opacity-30 cursor-pointer"
                   >
                     Next
                   </button>
@@ -1285,8 +1074,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                     Expenses &amp; Disbursements Ledger
                   </h1>
-                  <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold">
-                    2 Pending Sign-Off
+                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
+                    {expensesList.filter(e => e.status === 'Pending Approval').length} Pending Sign-Off
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -1334,46 +1123,42 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span className="font-medium">Total Monthly Burn</span>
                   <DollarSign className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹18,40,000</div>
-                <div className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold">-16.3% Under Budget</span>
-                  <span>Cap: ₹22.0L</span>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
+                <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">Under Budget</span>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40 shadow-xs">
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-medium text-amber-700 dark:text-amber-300">Pending Manager Approvals</span>
-                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Pending Manager Approvals</span>
+                  <Clock className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-amber-600 mt-1.5">₹5,74,000</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-bold">2 Awaiting Alex Morgan</span>
-                  <span>Google Ads &amp; AWS</span>
+                  <span>0 awaiting sign-off</span>
                 </div>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-medium">Client Media Ad Spend</span>
-                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <TrendingUp className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹12,20,000</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 font-bold">100% Pass-Through</span>
-                  <span>Billed to clients</span>
+                  <span>0 Pass-Through</span>
                 </div>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-medium">Vendor &amp; SaaS Tools</span>
-                  <Receipt className="w-4 h-4 text-purple-500" />
+                  <Receipt className="w-4 h-4 text-slate-400" />
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹3,35,000</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">₹0</div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 font-bold">15 Active Tools</span>
-                  <span>Figma, AWS, HubSpot</span>
+                  <span>0 Active Tools</span>
                 </div>
               </div>
             </div>
@@ -1391,9 +1176,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
 
               <div className="flex items-center gap-1 overflow-x-auto">
                 {[
-                  { id: 'all', label: 'All Expenses (5)' },
-                  { id: 'pending', label: 'Pending Approval (2)' },
-                  { id: 'approved', label: 'Approved (3)' },
+                  { id: 'all', label: `All Expenses (${expensesList.length})` },
+                  { id: 'pending', label: 'Pending Approval (0)' },
+                  { id: 'approved', label: 'Approved (0)' },
                 ].map((f) => (
                   <button
                     key={f.id}
@@ -1427,17 +1212,26 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {expensesList
-                      .filter((exp) => {
-                        if (expenseFilter === 'pending') return exp.status === 'Pending Approval';
-                        if (expenseFilter === 'approved') return exp.status === 'Approved';
-                        return true;
-                      })
-                      .map((exp) => (
-                        <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3.5 pl-4 font-mono font-bold text-slate-900 dark:text-white">
-                            {exp.id}
-                          </td>
+                    {expensesList.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-12 text-center text-slate-500">
+                          <FileText className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                          <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No operational expenses recorded</div>
+                          <div className="text-xs text-slate-400 mt-1">Submit an expense with receipts for managerial approval and ledger tracking.</div>
+                        </td>
+                      </tr>
+                    ) : (
+                      expensesList
+                        .filter((exp) => {
+                          if (expenseFilter === 'pending') return exp.status === 'Pending Approval';
+                          if (expenseFilter === 'approved') return exp.status === 'Approved';
+                          return true;
+                        })
+                        .map((exp) => (
+                          <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                            <td className="p-3.5 pl-4 font-mono font-bold text-slate-900 dark:text-white">
+                              {exp.id}
+                            </td>
 
                           <td className="p-3.5">
                             <div className="flex items-center gap-2">
@@ -1520,7 +1314,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                             )}
                           </td>
                         </tr>
-                      ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

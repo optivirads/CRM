@@ -85,68 +85,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
   const [showGenerateDeliverableModal, setShowGenerateDeliverableModal] = useState(false);
 
   // Deliverables State & Presets
-  const [deliverables, setDeliverables] = useState<ClientDeliverable[]>([
-    {
-      id: 'DELIV-2026-081',
-      title: 'Q3 Executive Performance & ROAS Dossier',
-      category: 'Performance Report',
-      scope: 'Full-funnel attribution audit • Blended 3.83x ROAS • INR 2.48 Cr Attributed Revenue',
-      lead: 'Maya Joseph',
-      dueDate: 'Oct 15, 2026',
-      status: 'Ready for Client',
-      fileType: 'pdf',
-      downloadType: 'report',
-      downloadParams: { client: 'Acme Technologies', title: 'Q3 Executive Performance Attribution Dossier' }
-    },
-    {
-      id: 'DELIV-2026-082',
-      title: 'Omnichannel Performance Creative Pack (Batch #4)',
-      category: 'Creative Ad Pack',
-      scope: '12 High-converting static/carousel banners + 4 Motion Reels (9:16) + Copy angles',
-      lead: 'Alex Morgan',
-      dueDate: 'Oct 18, 2026',
-      status: 'Ready for Client',
-      fileType: 'pdf',
-      downloadType: 'proposal',
-      downloadParams: { client: 'Acme Technologies', title: 'Creative Performance Ad Pack Specifications' }
-    },
-    {
-      id: 'DELIV-2026-083',
-      title: 'Meta CAPI & Server-Side GTM Infrastructure Audit',
-      category: 'Technical & SEO',
-      scope: 'AWS Cloud Run container telemetry, SHA-256 event match score 96.4% verification',
-      lead: 'Rahul Menon',
-      dueDate: 'Oct 20, 2026',
-      status: 'Client Approved',
-      fileType: 'pdf',
-      downloadType: 'contract',
-      downloadParams: { client: 'Acme Technologies', id: 'TECH-AUDIT-CAPI-2026' }
-    },
-    {
-      id: 'DELIV-2026-084',
-      title: 'Sprint 24 Milestone Delivery Certificate & Tax Invoice',
-      category: 'SOW Milestone',
-      scope: 'Verified sprint delivery acceptance certificate + GST tax invoice (INV-2026-089)',
-      lead: 'Alex Morgan',
-      dueDate: 'Oct 25, 2026',
-      status: 'Ready for Client',
-      fileType: 'pdf',
-      downloadType: 'invoice',
-      downloadParams: { number: 'INV-2026-089', client: 'Acme Technologies', total: 177000 }
-    },
-    {
-      id: 'DELIV-2026-085',
-      title: 'Q4 Growth Retainer & Meta Advantage+ Expansion Roadmap',
-      category: 'Strategy',
-      scope: 'Strategic scaling roadmap, audience cluster refresh & INR 75L quarterly budget model',
-      lead: 'Sarah Jenkins',
-      dueDate: 'Nov 01, 2026',
-      status: 'In Production',
-      fileType: 'pdf',
-      downloadType: 'proposal',
-      downloadParams: { client: 'Acme Technologies', title: 'Q4 Growth Strategy & Expansion Plan' }
-    }
-  ]);
+  const [deliverables, setDeliverables] = useState<ClientDeliverable[]>([]);
 
   // Modal Generator Form State
   const [newDelivCategory, setNewDelivCategory] = useState<ClientDeliverable['category']>('Creative Ad Pack');
@@ -162,88 +101,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({ clientId, onBackTo
   // Live Running Campaigns Telemetry (Google Ads & Meta Ads)
   const [campaignPlatformFilter, setCampaignPlatformFilter] = useState<'ALL' | 'GOOGLE' | 'META'>('ALL');
   const [campaignSearchQuery, setCampaignSearchQuery] = useState('');
-  const acmeCampaigns = [
-    {
-      id: 'CAMP-META-001',
-      name: 'Acme - Scale B2B Lead Gen - Advantage+ & CBO',
-      platform: 'Meta Ads' as const,
-      channel: 'Instagram & Facebook (Feed & Reels)',
-      status: 'ACTIVE',
-      objective: 'Lead Generation',
-      monthlyBudget: 350000,
-      spendMtd: 284000,
-      leads: 676,
-      cpl: 420,
-      ctr: 2.84,
-      cpc: 22.40,
-      impressions: 485000,
-      clicks: 12678,
-      attributedRev: 1420000,
-      roas: 5.00,
-      targetAudience: 'B2B Decision Makers (IT & SaaS Founders, CTOs, Tier 1 Metros)',
-      lastSynced: '14m ago',
-    },
-    {
-      id: 'CAMP-GOOG-002',
-      name: 'Acme - High-Intent Enterprise Search (Exact & Phrase)',
-      platform: 'Google Ads' as const,
-      channel: 'Google Search & Partner Network',
-      status: 'ACTIVE',
-      objective: 'High-Intent Enterprise Pipeline',
-      monthlyBudget: 400000,
-      spendMtd: 312000,
-      leads: 400,
-      cpl: 780,
-      ctr: 5.12,
-      cpc: 64.50,
-      impressions: 94200,
-      clicks: 4837,
-      attributedRev: 1560000,
-      roas: 5.00,
-      targetAudience: 'Exact Match: "enterprise crm migration", "sales pipeline platform India"',
-      lastSynced: '8m ago',
-    },
-    {
-      id: 'CAMP-META-003',
-      name: 'Acme - Retargeting & Mid-Funnel Case Studies',
-      platform: 'Meta Ads' as const,
-      channel: 'Feed, In-Stream & Stories',
-      status: 'ACTIVE',
-      objective: 'Conversion / Demo Bookings',
-      monthlyBudget: 150000,
-      spendMtd: 118000,
-      leads: 380,
-      cpl: 310,
-      ctr: 3.42,
-      cpc: 18.60,
-      impressions: 210000,
-      clicks: 6344,
-      attributedRev: 640000,
-      roas: 5.42,
-      targetAudience: '90-Day Web Visitors + Lead Magnet Downloaders + Lookalike 1%',
-      lastSynced: '18m ago',
-    },
-    {
-      id: 'CAMP-GOOG-004',
-      name: 'Acme - Performance Max & YouTube Demand Gen',
-      platform: 'Google Ads' as const,
-      channel: 'PMax, YouTube Bumper Ads, Gmail',
-      status: 'ACTIVE',
-      objective: 'Omnichannel Enterprise Brand & Pipeline',
-      monthlyBudget: 200000,
-      spendMtd: 162000,
-      leads: 300,
-      cpl: 540,
-      ctr: 1.95,
-      cpc: 15.20,
-      impressions: 546000,
-      clicks: 10657,
-      attributedRev: 580000,
-      roas: 3.58,
-      targetAudience: 'In-Market Software Buyers, Custom Intent audiences & Competitor terms',
-      lastSynced: '22m ago',
-    },
-  ];
+  const acmeCampaigns: any[] = [];
 
   const showToast = (msg: string, type: ToastType = 'success') => {
     setToastMessage(msg);

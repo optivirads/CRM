@@ -66,94 +66,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   // Selected proposals in table
   const [selectedProposals, setSelectedProposals] = useState<string[]>(['p1']);
 
-  // Proposals Table Data matching Reference Image 1
-  const proposalsList = [
-    {
-      id: 'p1',
-      code: 'PROP-2026-089',
-      name: 'Enterprise Growth Retainer & Meta CAPI Architecture (Q4-2026)',
-      slaTag: '12-Month Performance SLA',
-      lineItemsCount: '3 Line Items',
-      clientName: 'Acme Technologies Pvt Ltd',
-      contactPerson: 'Arjun Nair (Decision Maker)',
-      opportunityName: 'Acme Growth ₹18.5L',
-      ownerName: 'Alex Morgan',
-      ownerInitials: 'AM',
-      ownerBg: 'bg-[#0A1628]',
-      contractValue: '₹18,50,000',
-      contractType: '/ yr + GST',
-      version: 'v2.1',
-      status: 'In Negotiation',
-    },
-    {
-      id: 'p2',
-      code: 'PROP-2026-074',
-      name: 'Omnichannel Creative Studio & Brand Performance Retainer',
-      slaTag: 'Brand Creative & Production',
-      lineItemsCount: '4 SOW Phases',
-      clientName: 'Zenith Retail Global Ltd',
-      contactPerson: 'Vikram Singhania (VP Marketing)',
-      opportunityName: 'Zenith Q4 Scale Deal',
-      ownerName: 'Maya Joseph',
-      ownerInitials: 'MJ',
-      ownerBg: 'bg-[#B91C1C]',
-      contractValue: '₹24,00,000',
-      contractType: '/ yr recurring',
-      version: 'v1.0',
-      status: 'Sent',
-    },
-    {
-      id: 'p3',
-      code: 'PROP-2026-091',
-      name: 'HIPAA Compliant Patient Portal & Cloud Infrastructure Revamp',
-      slaTag: 'AWS Architecture & Next.js',
-      lineItemsCount: 'Fixed Milestone',
-      clientName: 'Nova Healthcare Labs',
-      contactPerson: 'Dr. R. Kapoor (CTO)',
-      opportunityName: 'Nova Digital Core',
-      ownerName: 'Rahul Menon',
-      ownerInitials: 'RM',
-      ownerBg: 'bg-slate-700',
-      contractValue: '₹38,00,000',
-      contractType: 'Milestone fixed',
-      version: 'v1.3',
-      status: 'Awaiting Response',
-    },
-    {
-      id: 'p4',
-      code: 'PROP-2026-085',
-      name: 'B2B Technical SEO, Core Web Vitals & Content Engine',
-      slaTag: 'Organic Search',
-      lineItemsCount: '6-Month Audit & Sprint',
-      clientName: 'Vertex Solutions Inc',
-      contactPerson: 'Kavita Rao (Growth Lead)',
-      opportunityName: 'Vertex SEO Scale',
-      ownerName: 'Alex Morgan',
-      ownerInitials: 'AM',
-      ownerBg: 'bg-[#0A1628]',
-      contractValue: '₹6,00,000',
-      contractType: 'Fixed retainer',
-      version: 'v1.0',
-      status: 'Draft',
-    },
-    {
-      id: 'p5',
-      code: 'PROP-2026-095',
-      name: 'Full Funnel CRO & Shopify Plus Headless Migration',
-      slaTag: 'Engineering & UX',
-      lineItemsCount: 'Technical Draft',
-      clientName: 'Apex Apparel D2C',
-      contactPerson: 'Marcus Brody (Co-Founder)',
-      opportunityName: 'Apex Headless',
-      ownerName: 'Maya Joseph',
-      ownerInitials: 'MJ',
-      ownerBg: 'bg-[#B91C1C]',
-      contractValue: '₹14,50,000',
-      contractType: 'Scope estimate',
-      version: 'v2.0',
-      status: 'In Negotiation',
-    },
-  ];
+  // Proposals Table Data
+  const proposalsList: any[] = [];
 
   // Document Outline Sections
   const [outlineSections, setOutlineSections] = useState([
@@ -235,7 +149,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Proposals</h1>
                   <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-                    <span>38 Total • 14 Active Negotiations</span>
+                    <span>{proposalsList.length} Total • 0 Active Negotiations</span>
                   </span>
                   <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] font-bold">
                     Q3/Q4-FY26
@@ -272,7 +186,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
               </div>
             </div>
 
-            {/* 7 KPI Summary Cards in a Single Row (Exact match to Reference Image 1) */}
+            {/* 7 KPI Summary Cards in a Single Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
               {/* Draft */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -281,7 +195,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  04 <span className="text-xs text-slate-400 font-normal">₹14.2L</span>
+                  0 <span className="text-xs text-slate-400 font-normal">₹0</span>
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Scope drafting stage</div>
               </div>
@@ -293,7 +207,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <Send className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  08 <span className="text-xs text-slate-400 font-normal">₹36.5L</span>
+                  0 <span className="text-xs text-slate-400 font-normal">₹0</span>
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Awaiting client open</div>
               </div>
@@ -305,9 +219,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <Eye className="w-3.5 h-3.5 text-blue-500" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  06 <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-950/40 px-1 py-0.2 rounded">Telemetry Live</span>
+                  0 <span className="text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">0m reading time</span>
                 </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">14m avg reading time</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Telemetry tracking</div>
               </div>
 
               {/* Negotiation */}
@@ -317,7 +231,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <Edit3 className="w-3.5 h-3.5 text-rose-600" />
                 </div>
                 <div className="text-xl font-bold text-rose-600 mt-1">
-                  05 <span className="text-xs text-slate-500 font-normal">₹42.8L</span>
+                  0 <span className="text-xs text-slate-500 font-normal">₹0</span>
                 </div>
                 <div className="text-[10px] text-rose-600 font-medium mt-0.5">Active redlining</div>
               </div>
@@ -329,9 +243,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  12 <span className="text-xs text-slate-500 font-normal">₹78.4L</span>
+                  0 <span className="text-xs text-slate-500 font-normal">₹0</span>
                 </div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">68.2% win rate</div>
+                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">0% win rate</div>
               </div>
 
               {/* Rejected */}
@@ -341,7 +255,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <X className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  02 <span className="text-xs text-slate-400 font-normal">₹8.5L</span>
+                  0 <span className="text-xs text-slate-400 font-normal">₹0</span>
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Debrief logged</div>
               </div>
@@ -353,9 +267,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  01 <span className="text-xs text-slate-400 font-normal">₹3.2L</span>
+                  0 <span className="text-xs text-slate-400 font-normal">₹0</span>
                 </div>
-                <div className="text-[10px] text-rose-600 font-medium mt-0.5">48h grace period</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">48h grace period</div>
               </div>
             </div>
 
@@ -363,11 +277,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
                 {[
-                  { id: 'all', label: 'All Proposals (38)' },
-                  { id: 'my', label: 'My Proposals (14)' },
-                  { id: 'awaiting', label: 'Awaiting Response (14)' },
-                  { id: 'negotiation', label: '● In Negotiation (5)', isAlert: true },
-                  { id: 'accepted', label: 'Accepted (12)' },
+                  { id: 'all', label: `All Proposals (${proposalsList.length})` },
+                  { id: 'my', label: 'My Proposals (0)' },
+                  { id: 'awaiting', label: 'Awaiting Response (0)' },
+                  { id: 'negotiation', label: '● In Negotiation (0)', isAlert: false },
+                  { id: 'accepted', label: 'Accepted (0)' },
                 ].map((t) => (
                   <button
                     key={t.id}
@@ -456,7 +370,16 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {proposalsList.map((p) => (
+                    {proposalsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-12 text-center text-slate-500">
+                          <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                          <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No proposals found</p>
+                          <p className="text-xs text-slate-400 mt-1">Create a proposal or quotation to send to a client.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      proposalsList.map((p) => (
                       <tr
                         key={p.id}
                         onClick={() => setSimulatorState('detail')}
@@ -533,7 +456,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
@@ -544,7 +467,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <select className="bg-white dark:bg-slate-900 border rounded px-1.5 py-0.5 text-xs">
                     <option>25</option>
                   </select>
-                  <span>1–5 of 38 Proposals Total</span>
+                  <span>Showing {proposalsList.length} of {proposalsList.length} Proposals Total</span>
                 </div>
 
                 <div className="flex items-center gap-2">

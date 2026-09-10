@@ -50,11 +50,11 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   >('1. Full Center (Active)');
 
   // Main Page Filter Tabs
-  const [mainTab, setMainTab] = useState('All (34)');
+  const [mainTab, setMainTab] = useState('All (0)');
 
   // Floating Panel Visibility & Drawer State
   const [showFloatingPanel, setShowFloatingPanel] = useState(true);
-  const [drawerTab, setDrawerTab] = useState<'All (34)' | 'Unread (7)' | 'Action Required (4)'>('All (34)');
+  const [drawerTab, setDrawerTab] = useState<'All (0)' | 'Unread (0)' | 'Action Required (0)'>('All (0)');
   const [drawerEmptyState, setDrawerEmptyState] = useState(false);
 
   // Modals & Preferences
@@ -68,103 +68,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   };
 
   // Notification items state for Left Table
-  const [tableNotifications, setTableNotifications] = useState([
-    {
-      id: 'tab-1',
-      type: 'CRITICAL FINANCE',
-      typeColor: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-400 border border-rose-200',
-      dotColor: 'bg-[#DC2626]',
-      subject: 'Invoice INV-2026-078 is 14 Days Overdue',
-      reference: 'Amount: ₹12,50,000 • Late fees accruing per MSA clause 4.2',
-      tag: 'Finance (5)',
-      urgent: true
-    },
-    {
-      id: 'tab-2',
-      type: 'COMMERCIAL WIN',
-      typeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
-      dotColor: 'bg-[#DC2626]',
-      subject: 'Proposal Accepted & Signed: Acme CAPI Expansion',
-      reference: 'Signed by David Miller • ₹42,00,000 ARR • Requires onboarding kickoff',
-      tag: 'Commercial & Sales (6)',
-      urgent: true
-    },
-    {
-      id: 'tab-3',
-      type: 'TASK ESCALATION',
-      typeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
-      dotColor: 'bg-[#DC2626]',
-      subject: 'Task Overdue: Complete HIPAA Compliance Sign-off',
-      reference: 'Assignee: Rahul Menon • Impacting Sprint 16 Deployment Gate',
-      tag: 'Projects (4)',
-      urgent: true
-    },
-    {
-      id: 'tab-4',
-      type: 'SYSTEM SYNC',
-      typeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
-      dotColor: 'bg-slate-300 dark:bg-slate-600',
-      subject: 'Scheduled Corporate ICICI Banking Sync Completed',
-      reference: '68 items reconciled successfully. No delta exceptions detected.',
-      badge: 'Treasury Pipeline',
-      time: 'Yesterday',
-      statusText: 'Archived',
-      tag: 'Finance (5)',
-      urgent: false
-    }
-  ]);
+  const [tableNotifications, setTableNotifications] = useState<any[]>([]);
 
   // Notification items state for Floating Drawer (Matching Image 1 right panel)
-  const [drawerNotifications, setDrawerNotifications] = useState([
-    {
-      id: 'd-1',
-      title: 'Invoice INV-2026-078 is 14 Days Overdue',
-      desc: 'Nova Healthcare Labs • Outstanding ₹12,50,000. Late penalty pending.',
-      code: 'INV-2026-078',
-      time: '12m ago',
-      unread: true,
-      category: 'Action Required (4)',
-      iconBg: 'bg-rose-100 text-rose-600 dark:bg-rose-950/50',
-      actionPrimary: { label: 'View Invoice', nav: 'finance' },
-      actionSecondary: { label: 'Mark Read' }
-    },
-    {
-      id: 'd-2',
-      title: 'Proposal Accepted & Signed: Acme CAPI Expansion',
-      desc: 'David Miller finalized proposal. Total ACV: ₹42,00,000/yr.',
-      code: 'Acme Corp',
-      time: '38m ago',
-      unread: true,
-      category: 'Commercial & Sales (6)',
-      iconBg: 'bg-blue-100 text-blue-600 dark:bg-blue-950/50',
-      actionPrimary: { label: 'Generate Contract' },
-      actionSecondary: { label: 'Open', nav: 'proposals' }
-    },
-    {
-      id: 'd-3',
-      title: 'Task Overdue: Complete HIPAA Compliance Sign-off',
-      desc: 'Assigned to Rahul Menon • 24h past deadline.',
-      code: 'Sprint 16',
-      time: '1h 12m ago',
-      unread: true,
-      category: 'Action Required (4)',
-      iconBg: 'bg-rose-100 text-rose-600 dark:bg-rose-950/50',
-      actionPrimary: { label: 'Reschedule' },
-      actionSecondary: { label: 'Mark Complete' }
-    },
-    {
-      id: 'd-4',
-      title: 'Proposal Viewed: Zenith Omnichannel Q4 Strategy',
-      desc: 'Ananya Sharma spent 3m 40s reviewing the commercial matrix.',
-      code: 'Zenith Media',
-      time: '2h 45m ago',
-      unread: true,
-      category: 'Commercial & Sales (6)',
-      iconBg: 'bg-slate-100 text-slate-600 dark:bg-slate-800',
-      actionPrimary: { label: 'Follow Up', red: true },
-      actionSecondary: { label: 'Open', nav: 'proposals' }
-    }
-  ]);
+  const [drawerNotifications, setDrawerNotifications] = useState<any[]>([]);
 
   const toggleReadDrawerItem = (id: string) => {
     setDrawerNotifications(prev =>
@@ -178,8 +85,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   };
 
   const filteredDrawerNotifications = drawerNotifications.filter(n => {
-    if (drawerTab === 'Unread (7)') return n.unread;
-    if (drawerTab === 'Action Required (4)') return n.category === 'Action Required (4)';
+    if (drawerTab === 'Unread (0)') return n.unread;
+    if (drawerTab === 'Action Required (0)') return n.category === 'Action Required (0)';
     return true;
   });
 
@@ -297,15 +204,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             </div>
 
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">07</span>
-              <span className="text-xs font-bold text-[#DC2626]">
-                +3 since 09:15 AM
+              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">00</span>
+              <span className="text-xs font-bold text-slate-500">
+                +0 since 09:15 AM
               </span>
             </div>
 
             <div className="mt-2 text-[11px] flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
               <span className="text-slate-500">Requires immediate triage</span>
-              <span className="font-bold text-[#DC2626]">3 High Priority</span>
+              <span className="font-bold text-slate-500">0 High Priority</span>
             </div>
           </div>
 
@@ -319,15 +226,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             </div>
 
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">04</span>
+              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">00</span>
               <span className="text-xs text-slate-500">
                 Pending Signature/Settle
               </span>
             </div>
 
             <div className="mt-2 text-[11px] flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">1 Overdue Invoice • 2 Milestones</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">4 Escalate</span>
+              <span className="text-slate-500">0 Overdue Invoice • 0 Milestones</span>
+              <span className="font-bold text-slate-500">0 Escalate</span>
             </div>
           </div>
 
@@ -356,12 +263,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         {/* 3. Main Filter Strip */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#E2E6EC] dark:border-[#152238]">
           {[
-            'All (34)',
-            'Unread (7)',
-            'Action Required (4)',
-            'Finance (5)',
-            'Commercial & Sales (6)',
-            'Projects (4)'
+            'All (0)',
+            'Unread (0)',
+            'Action Required (0)',
+            'Finance (0)',
+            'Commercial & Sales (0)',
+            'Projects (0)'
           ].map((tab) => (
             <button
               key={tab}
@@ -394,46 +301,56 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {tableNotifications.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
-                    <td className="p-3.5 text-center">
-                      <span className={`inline-block w-2 h-2 rounded-full ${row.dotColor}`}></span>
-                    </td>
-
-                    <td className="p-3.5 w-56">
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold tracking-wider ${row.typeColor}`}>
-                        {row.type}
-                      </span>
-                    </td>
-
-                    <td className="p-3.5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                        <div>
-                          <div className="font-bold text-[#0B1727] dark:text-white text-xs">
-                            {row.subject}
-                          </div>
-                          <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5">
-                            {row.reference}
-                          </div>
-                        </div>
-
-                        {row.badge && (
-                          <div className="flex items-center gap-3 shrink-0 text-xs">
-                            <span className="text-rose-600 font-semibold">{row.badge}</span>
-                            <span className="text-slate-400">{row.time}</span>
-                            <span className="text-slate-400 font-medium">{row.statusText}</span>
-                          </div>
-                        )}
-                      </div>
+                {tableNotifications.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="text-center py-16 text-slate-400">
+                      <Bell className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-semibold">You're all caught up!</p>
+                      <p className="text-xs">No pending notifications or system escalations.</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  tableNotifications.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-block w-2 h-2 rounded-full ${row.dotColor}`}></span>
+                      </td>
+
+                      <td className="p-3.5 w-56">
+                        <span className={`px-2.5 py-1 rounded text-[10px] font-bold tracking-wider ${row.typeColor}`}>
+                          {row.type}
+                        </span>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <div className="font-bold text-[#0B1727] dark:text-white text-xs">
+                              {row.subject}
+                            </div>
+                            <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+                              {row.reference}
+                            </div>
+                          </div>
+
+                          {row.badge && (
+                            <div className="flex items-center gap-3 shrink-0 text-xs">
+                              <span className="text-rose-600 font-semibold">{row.badge}</span>
+                              <span className="text-slate-400">{row.time}</span>
+                              <span className="text-slate-400 font-medium">{row.statusText}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center text-xs text-[#64748B] dark:text-[#94A3B8] gap-3">
-            <span>Showing {notifPage === 1 ? '1 - 4' : '5 - 8'} of 34 enterprise notifications</span>
+            <span>Showing {tableNotifications.length === 0 ? '0' : notifPage === 1 ? '1 - 4' : '5 - 8'} of {tableNotifications.length} enterprise notifications</span>
             <div className="flex items-center gap-1 font-semibold">
               <button
                 onClick={() => setNotifPage(p => Math.max(1, p - 1))}
@@ -501,7 +418,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 <Bell className="w-4 h-4 text-white" />
                 <span className="font-bold text-xs">Notifications</span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[#DC2626] text-white">
-                  7 unread
+                  {drawerNotifications.filter(n => n.unread).length} unread
                 </span>
               </div>
 
@@ -520,10 +437,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
             {/* Drawer Sub-tabs */}
             <div className="bg-slate-100 dark:bg-[#0A101C] p-1.5 flex gap-1 text-[11px] border-b border-slate-200 dark:border-slate-800">
-              {(['All (34)', 'Unread (7)', 'Action Required (4)'] as const).map((t) => (
+              {(['All (0)', 'Unread (0)', 'Action Required (0)'] as const).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setDrawerTab(t)}
+                  onClick={() => setDrawerTab(t as any)}
                   className={`flex-1 py-1 rounded-md font-semibold text-center transition ${
                     drawerTab === t
                       ? 'bg-white dark:bg-[#111E34] text-[#0B1727] dark:text-white shadow-xs'
@@ -537,7 +454,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
             {/* Drawer Content */}
             <div className="max-h-[460px] overflow-y-auto p-3 space-y-3 custom-scrollbar text-xs">
-              {drawerEmptyState ? (
+              {drawerEmptyState || filteredDrawerNotifications.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
                   <p className="font-bold text-slate-900 dark:text-white text-xs">You're completely caught up!</p>
@@ -547,7 +464,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 <>
                   <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
                     <span>TODAY</span>
-                    <span>7 updates</span>
+                    <span>{filteredDrawerNotifications.length} updates</span>
                   </div>
 
                   {filteredDrawerNotifications.map((item) => (

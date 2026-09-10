@@ -47,7 +47,7 @@ export const DocumentsView: React.FC = () => {
   >('1. Documents Directory & Metrics');
 
   // Category Tabs
-  const [activeCategory, setActiveCategory] = useState('All Documents (348)');
+  const [activeCategory, setActiveCategory] = useState('All Documents (0)');
   const [viewBy, setViewBy] = useState<'Category' | 'Client' | 'Project'>('Category');
   const [displayMode, setDisplayMode] = useState<'list' | 'grid'>('list');
 
@@ -58,7 +58,7 @@ export const DocumentsView: React.FC = () => {
   const [selectedAuthor, setSelectedAuthor] = useState('All Authors');
 
   // Selection state
-  const [selectedDocs, setSelectedDocs] = useState<string[]>(['DOC-2026-089-MSA']);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [docPage, setDocPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
@@ -85,147 +85,48 @@ export const DocumentsView: React.FC = () => {
   const kpis = [
     {
       title: 'Total Documents',
-      value: '348 Assets',
-      sub: '1.84 GB of 50 GB Vault',
-      badge: '+14.2% MoM',
+      value: '0 Assets',
+      sub: '0 GB of 50 GB Vault',
+      badge: '+0.0% MoM',
       badgeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400',
-      progress: 3.7,
+      progress: 0,
       barColor: 'bg-blue-600',
       icon: FileText
     },
     {
       title: 'Legal & Contracts',
-      value: '42 Executed',
-      sub: '100% Valid & Stamped',
-      badge: '3 renewals <30d',
-      badgeColor: 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400',
-      progress: 100,
+      value: '0 Executed',
+      sub: '0 Valid & Stamped',
+      badge: '0 renewals',
+      badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+      progress: 0,
       barColor: 'bg-emerald-500',
       icon: ShieldCheck
     },
     {
       title: 'Pending CRM Link',
-      value: '05 Unlinked',
-      sub: 'Awaiting record binding',
-      badge: 'Needs Attention',
-      badgeColor: 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400',
-      progress: 15,
+      value: '0 Unlinked',
+      sub: 'All records bound',
+      badge: 'Healthy',
+      badgeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400',
+      progress: 0,
       barColor: 'bg-orange-500',
       icon: Unlink
     },
     {
       title: 'Downloads & Views',
-      value: '1,240 Views',
-      sub: '14 Active Client Portals',
-      badge: '99.98% SLA',
+      value: '0 Views',
+      sub: '0 Active Client Portals',
+      badge: '100% SLA',
       badgeColor: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-400',
-      progress: 85,
+      progress: 0,
       barColor: 'bg-cyan-500',
       icon: Eye
     }
   ];
 
-  // 7 Documents matching Mockup 3
-  const documentsList = [
-    {
-      id: 'DOC-2026-089-MSA',
-      name: 'Acme_Technologies_Master_Services_Agreement_v3.pdf',
-      version: 'v3.2 Final',
-      format: 'pdf',
-      category: 'Contract & Legal',
-      categoryBadge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400',
-      client: 'Acme Technologies Pvt Ltd',
-      clientCode: 'CLT-2026-001',
-      record: 'Acme 360° • PROP-089',
-      recordType: 'deal',
-      size: '2.4 MB',
-      updated: '2 hours ago'
-    },
-    {
-      id: 'DOC-2026-074-PROP',
-      name: 'Zenith_Retail_Omnichannel_Growth_Commercial_Proposal_Final.pdf',
-      version: 'v1.0 Signed',
-      format: 'pdf',
-      category: 'Proposal',
-      categoryBadge: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400',
-      client: 'Zenith Retail Global Ltd',
-      clientCode: 'CLT-2026-014',
-      record: 'PROP-2026-074 • QUO-088',
-      recordType: 'deal',
-      size: '4.8 MB',
-      updated: 'Yesterday'
-    },
-    {
-      id: 'DOC-2026-102-REP',
-      name: 'Nova_Healthcare_Cloud_HIPAA_Compliance_Audit_Report.pdf',
-      version: 'v2.1 Certified',
-      format: 'pdf',
-      category: 'Exec Report',
-      categoryBadge: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400',
-      client: 'Nova Healthcare Labs',
-      clientCode: 'CLT-2026-031',
-      record: 'Cloud Migration • REP-102',
-      recordType: 'project',
-      size: '12.1 MB',
-      updated: '3 days ago'
-    },
-    {
-      id: 'DOC-2026-084-INV',
-      name: 'Vertex_Solutions_Tax_Invoice_INV-2026-084_Receipt.pdf',
-      version: 'Settled',
-      format: 'pdf',
-      category: 'Invoice & Billing',
-      categoryBadge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400',
-      client: 'Vertex Solutions Inc',
-      clientCode: 'CLT-2026-008',
-      record: 'INV-2026-084 • PAY-117',
-      recordType: 'finance',
-      size: '640 KB',
-      updated: 'Sep 18, 2026'
-    },
-    {
-      id: 'DOC-2026-095-AST',
-      name: 'Apex_Festive_Campaign_Creative_Master_Pack.zip',
-      version: 'Master Archive',
-      format: 'zip',
-      category: 'Brand Assets',
-      categoryBadge: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400',
-      client: 'Apex Apparel D2C',
-      clientCode: 'CLT-2026-022',
-      record: 'Festival Launch • PRJ-882',
-      recordType: 'project',
-      size: '184.2 MB',
-      updated: 'Sep 15, 2026'
-    },
-    {
-      id: 'DOC-2026-068-SOW',
-      name: 'CloudScale_Telematics_Statement_of_Work_Addendum_1.docx',
-      version: 'Draft v1.4',
-      format: 'docx',
-      category: 'Contracts',
-      categoryBadge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400',
-      client: 'CloudScale Telematics',
-      clientCode: 'CLT-2026-019',
-      record: 'CloudScale • QUO-068',
-      recordType: 'deal',
-      size: '1.2 MB',
-      updated: 'Sep 12, 2026'
-    },
-    {
-      id: 'DOC-2026-041-RAW',
-      name: 'Raw_Telemetry_Conversion_Dump_Q3.csv',
-      version: 'Raw Stream',
-      format: 'csv',
-      category: 'Other / Dump',
-      categoryBadge: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300',
-      client: 'Vertex Solutions Inc',
-      clientCode: 'CLT-2026-008',
-      record: 'Unlinked - Click to Bind Entity',
-      recordType: 'unlinked',
-      size: '42.8 MB',
-      updated: 'Sep 08, 2026'
-    }
-  ];
+  // Documents List
+  const documentsList: any[] = [];
 
   const filteredDocs = documentsList.filter(d => {
     const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -396,12 +297,12 @@ export const DocumentsView: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#E2E6EC] dark:border-[#152238] gap-3 pb-px">
           <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
             {[
-              'All Documents (348)',
-              'Contracts & MSAs (42)',
-              'Proposals (38)',
-              'Quotations (34)',
-              'Invoices & Billing (58)',
-              'Executive Reports (46)'
+              'All Documents (0)',
+              'Contracts & MSAs (0)',
+              'Proposals (0)',
+              'Quotations (0)',
+              'Invoices & Billing (0)',
+              'Executive Reports (0)'
             ].map((tab) => (
               <button
                 key={tab}
@@ -588,96 +489,106 @@ export const DocumentsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {filteredDocs.map((doc) => {
-                  const isSelected = selectedDocs.includes(doc.id);
-                  return (
-                    <tr
-                      key={doc.id}
-                      onClick={() => {
-                        toggleSelectDoc(doc.id);
-                        if (doc.id === 'DOC-2026-089-MSA') setShowPreviewDrawer(true);
-                      }}
-                      className={`hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition cursor-pointer ${
-                        isSelected ? 'bg-blue-50/40 dark:bg-[#132745]/30' : ''
-                      }`}
-                    >
-                      <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectDoc(doc.id)}
-                          className="rounded border-slate-300 text-[#B91C1C] focus:ring-[#B91C1C]"
-                        />
-                      </td>
+                {filteredDocs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-16 text-slate-400">
+                      <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-semibold">No documents found</p>
+                      <p className="text-xs">Upload new contracts, proposals, or assets to get started.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDocs.map((doc) => {
+                    const isSelected = selectedDocs.includes(doc.id);
+                    return (
+                      <tr
+                        key={doc.id}
+                        onClick={() => {
+                          toggleSelectDoc(doc.id);
+                          if (doc.id === 'DOC-2026-089-MSA') setShowPreviewDrawer(true);
+                        }}
+                        className={`hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition cursor-pointer ${
+                          isSelected ? 'bg-blue-50/40 dark:bg-[#132745]/30' : ''
+                        }`}
+                      >
+                        <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectDoc(doc.id)}
+                            className="rounded border-slate-300 text-[#B91C1C] focus:ring-[#B91C1C]"
+                          />
+                        </td>
 
-                      {/* File name with format icon */}
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`p-1.5 rounded-lg shrink-0 ${
-                            doc.format === 'pdf' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' :
-                            doc.format === 'docx' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' :
-                            doc.format === 'zip' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' :
-                            'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                          }`}>
-                            <FileText className="w-4 h-4" />
-                          </div>
-
-                          <div>
-                            <div className="font-bold text-[#0B1727] dark:text-white">
-                              {doc.name}
+                        {/* File name with format icon */}
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-1.5 rounded-lg shrink-0 ${
+                              doc.format === 'pdf' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' :
+                              doc.format === 'docx' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' :
+                              doc.format === 'zip' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' :
+                              'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                            }`}>
+                              <FileText className="w-4 h-4" />
                             </div>
-                            <div className="text-[10px] text-[#64748B] dark:text-[#94A3B8] flex items-center gap-2 mt-0.5">
-                              <span>{doc.id}</span>
-                              <span>•</span>
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">{doc.version}</span>
-                              <span>•</span>
-                              <span>{doc.size}</span>
+
+                            <div>
+                              <div className="font-bold text-[#0B1727] dark:text-white">
+                                {doc.name}
+                              </div>
+                              <div className="text-[10px] text-[#64748B] dark:text-[#94A3B8] flex items-center gap-2 mt-0.5">
+                                <span>{doc.id}</span>
+                                <span>•</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">{doc.version}</span>
+                                <span>•</span>
+                                <span>{doc.size}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Category */}
-                      <td className="p-3.5">
-                        <span className={`px-2.5 py-1 rounded text-[10px] font-semibold border inline-flex items-center gap-1 ${doc.categoryBadge}`}>
-                          <Tag className="w-3 h-3" />
-                          {doc.category}
-                        </span>
-                      </td>
+                        {/* Category */}
+                        <td className="p-3.5">
+                          <span className={`px-2.5 py-1 rounded text-[10px] font-semibold border inline-flex items-center gap-1 ${doc.categoryBadge}`}>
+                            <Tag className="w-3 h-3" />
+                            {doc.category}
+                          </span>
+                        </td>
 
-                      {/* Client Entity */}
-                      <td className="p-3.5">
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {doc.client}
-                        </div>
-                        <div className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
-                          {doc.clientCode}
-                        </div>
-                      </td>
-
-                      {/* Related CRM Record */}
-                      <td className="p-3.5">
-                        {doc.recordType === 'unlinked' ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowRelinkModal(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 font-bold text-[11px] hover:bg-amber-100 transition"
-                          >
-                            <Unlink className="w-3.5 h-3.5 text-amber-600" />
-                            <span>{doc.record}</span>
-                          </button>
-                        ) : (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-[#111E34] text-slate-800 dark:text-slate-200 font-medium text-[11px] border border-slate-200 dark:border-slate-800">
-                            <Link2 className="w-3 h-3 text-blue-600" />
-                            <span>{doc.record}</span>
+                        {/* Client Entity */}
+                        <td className="p-3.5">
+                          <div className="font-semibold text-slate-900 dark:text-white">
+                            {doc.client}
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                          <div className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
+                            {doc.clientCode}
+                          </div>
+                        </td>
+
+                        {/* Related CRM Record */}
+                        <td className="p-3.5">
+                          {doc.recordType === 'unlinked' ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowRelinkModal(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 font-bold text-[11px] hover:bg-amber-100 transition"
+                            >
+                              <Unlink className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{doc.record}</span>
+                            </button>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-[#111E34] text-slate-800 dark:text-slate-200 font-medium text-[11px] border border-slate-200 dark:border-slate-800">
+                              <Link2 className="w-3 h-3 text-blue-600" />
+                              <span>{doc.record}</span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -685,7 +596,7 @@ export const DocumentsView: React.FC = () => {
           {/* Pagination Footer */}
           <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center text-xs text-[#64748B] dark:text-[#94A3B8] gap-3">
             <div className="flex items-center gap-2">
-              <span>Showing <strong>{((docPage - 1) * rowsPerPage) + 1} - {Math.min(docPage * rowsPerPage, 348)}</strong> of <strong>348</strong> documents</span>
+              <span>Showing <strong>{filteredDocs.length === 0 ? 0 : ((docPage - 1) * rowsPerPage) + 1} - {Math.min(docPage * rowsPerPage, filteredDocs.length)}</strong> of <strong>{filteredDocs.length}</strong> documents</span>
               <span className="ml-2">Per page:</span>
               <select
                 value={rowsPerPage}

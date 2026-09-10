@@ -52,155 +52,16 @@ interface OpportunityRow {
   lastActivity: string;
 }
 
-const INITIAL_OPPORTUNITIES: OpportunityRow[] = [
-  {
-    id: 'op-1',
-    companyName: 'Acme Technologies',
-    serviceTitle: 'Performance Marketing',
-    serviceSubtitle: 'Performance Marketing • Retainer',
-    companyInitials: 'AT',
-    companyBg: 'bg-[#0B1727]',
-    primaryContact: 'Arjun Nair',
-    stage: 'Qualified',
-    value: '₹75,000/mo',
-    probability: '40%',
-    hasProbDot: true,
-    weighted: '₹30,000',
-    expectedClose: '30 Sep 2026',
-    ownerInitials: 'AM',
-    ownerName: 'Alex M.',
-    ownerBg: 'bg-[#0B1727]',
-    source: 'Website',
-    lastActivity: 'Today, 10:20 AM'
-  },
-  {
-    id: 'op-2',
-    companyName: 'Acme Technologies',
-    serviceTitle: 'SEO Retainer',
-    serviceSubtitle: 'Organic Search SEO • Retainer',
-    companyInitials: 'AT',
-    companyBg: 'bg-[#0B1727]',
-    primaryContact: 'Arjun Nair',
-    stage: 'Discovery',
-    value: '₹45,000/mo',
-    probability: '25%',
-    isProbUrgent: true,
-    weighted: '₹11,250',
-    expectedClose: '15 Oct 2026',
-    ownerInitials: 'AM',
-    ownerName: 'Alex M.',
-    ownerBg: 'bg-[#0B1727]',
-    source: 'Referral',
-    lastActivity: 'Yesterday'
-  },
-  {
-    id: 'op-3',
-    companyName: 'Zenith Retail',
-    serviceTitle: 'Social Media Retainer',
-    serviceSubtitle: 'Social Media Growth • Enterprise',
-    companyInitials: 'ZR',
-    companyBg: 'bg-[#0B1727]',
-    primaryContact: 'Sara Thomas',
-    stage: 'Proposal',
-    value: '₹2,40,000',
-    probability: '70%',
-    weighted: '₹1,68,000',
-    expectedClose: '25 Sep 2026',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya J.',
-    ownerBg: 'bg-[#991B1B]',
-    source: 'Instagram',
-    lastActivity: 'Today, 08:30 AM'
-  },
-  {
-    id: 'op-4',
-    companyName: 'Nova Healthcare',
-    serviceTitle: 'Omnichannel Growth',
-    serviceSubtitle: 'Performance Marketing • Full Scale',
-    companyInitials: 'NH',
-    companyBg: 'bg-[#1E293B]',
-    primaryContact: 'Meera Joseph',
-    stage: 'Negotiation',
-    value: '₹8,50,000',
-    probability: '85%',
-    isProbUrgent: true,
-    weighted: '₹7,22,500',
-    expectedClose: '20 Sep 2026',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya J.',
-    ownerBg: 'bg-[#991B1B]',
-    source: 'Referral',
-    lastActivity: 'Today, 11:15 AM'
-  },
-  {
-    id: 'op-5',
-    companyName: 'Vertex Solutions',
-    serviceTitle: 'Technical SEO',
-    serviceSubtitle: 'Enterprise SEO • Audit',
-    companyInitials: 'VS',
-    companyBg: 'bg-red-100 text-red-700',
-    primaryContact: 'Rahul Menon',
-    stage: 'At Risk',
-    value: '₹2,40,000',
-    probability: '30%',
-    isProbUrgent: true,
-    weighted: '₹72,000',
-    expectedClose: '15 Nov 2026',
-    ownerInitials: 'AM',
-    ownerName: 'Alex M.',
-    ownerBg: 'bg-[#0B1727]',
-    source: 'LinkedIn',
-    lastActivity: '2 days ago'
-  },
-  {
-    id: 'op-6',
-    companyName: 'Nexa FinTech',
-    serviceTitle: 'Performance Paid Retainer',
-    serviceSubtitle: 'FinTech Acquisition • Q3 Contract',
-    companyInitials: 'NF',
-    companyBg: 'bg-[#1E293B]',
-    primaryContact: 'Priyanka Sen',
-    stage: 'Won',
-    value: '₹6,20,000',
-    probability: '100%',
-    isProbUrgent: true,
-    weighted: '₹6,20,000',
-    expectedClose: 'Closed 04 Sep',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya J.',
-    ownerBg: 'bg-[#991B1B]',
-    source: 'Website',
-    lastActivity: '4 days ago'
-  },
-  {
-    id: 'op-7',
-    companyName: 'Apex Logistics',
-    serviceTitle: 'Rebrand',
-    serviceSubtitle: 'Branding & Identity • Terminated',
-    companyInitials: 'AL',
-    companyBg: 'bg-[#1E293B]',
-    primaryContact: 'Vikram Malhotra',
-    stage: 'Lost',
-    value: '₹3,50,000',
-    probability: '0%',
-    weighted: '₹0',
-    expectedClose: 'Closed 01 Sep',
-    ownerInitials: 'AM',
-    ownerName: 'Alex M.',
-    ownerBg: 'bg-[#0B1727]',
-    source: 'Event',
-    lastActivity: '8 days ago'
-  }
-];
+const INITIAL_OPPORTUNITIES: OpportunityRow[] = [];
 
 const FILTER_TABS = [
-  { id: 'all', label: 'All Opportunities', count: '84' },
-  { id: 'my', label: 'My Opportunities', count: '28' },
-  { id: 'open', label: 'Open Opportunities', count: '62' },
-  { id: 'closing', label: 'Closing This Month', count: '19' },
-  { id: 'high', label: 'High Value', count: '14' },
-  { id: 'proposal', label: 'Proposal', count: '18' },
-  { id: 'negotiation', label: 'Negotiation', count: '9' }
+  { id: 'all', label: 'All Opportunities' },
+  { id: 'my', label: 'My Opportunities' },
+  { id: 'open', label: 'Open Opportunities' },
+  { id: 'closing', label: 'Closing This Month' },
+  { id: 'high', label: 'High Value' },
+  { id: 'proposal', label: 'Proposal' },
+  { id: 'negotiation', label: 'Negotiation' }
 ];
 
 interface OpportunitiesViewProps {
@@ -214,7 +75,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
   const [activeTab, setActiveTab] = useState('all');
   const [simulatorStep, setSimulatorStep] = useState('1. Opportunities List');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOps, setSelectedOps] = useState<string[]>(['op-1', 'op-2']);
+  const [selectedOps, setSelectedOps] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -407,7 +268,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             <span>&gt;</span>
             <span className="font-semibold text-[#0B1727] dark:text-white">Opportunities</span>
             <span className="px-2 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300">
-              84 total
+              {opportunities.length} total
             </span>
           </div>
           <h1 className="text-2xl font-bold text-[#0B1727] dark:text-white tracking-tight mt-1">
@@ -462,8 +323,8 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             <Layers className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">84</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Across 6 active stages</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">{opportunities.length}</span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Active stages</span>
           </div>
         </div>
 
@@ -474,7 +335,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             <span className="text-xs font-bold text-slate-500">₹</span>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹68.4L</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹0</span>
             <span className="text-[11px] text-[#8492A6] block mt-0.5">Total unweighted volume</span>
           </div>
         </div>
@@ -486,8 +347,8 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             <Scale className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹29.7L</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Probability adjusted (avg 43%)</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹0</span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Probability adjusted</span>
           </div>
         </div>
 
@@ -498,9 +359,9 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             <Clock className="w-4 h-4 text-[#DC2626]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#DC2626]">₹12.8L</span>
-            <span className="text-[11px] text-red-600 dark:text-red-400 font-semibold block mt-0.5">
-              19 deals targeting Sep 2026
+            <span className="text-2xl font-bold text-[#DC2626]">₹0</span>
+            <span className="text-[11px] text-slate-500 block mt-0.5">
+              0 deals targeting close
             </span>
           </div>
         </div>
@@ -513,10 +374,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹8.4L</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">
-                +18.2% vs target
-              </span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">₹0</span>
             </div>
           </div>
         </div>
@@ -526,19 +384,41 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
       {/* 4. FILTER TABS ROW (Matching Image 3 & 4)                                */}
       {/* ========================================================================= */}
       <div className="flex items-center gap-1.5 border-b border-[#E2E6EC] dark:border-[#152238] pb-2 overflow-x-auto custom-scrollbar">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-              activeTab === tab.id
-                ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
-            }`}
-          >
-            <span>{tab.label} ({tab.count})</span>
-          </button>
-        ))}
+        {FILTER_TABS.map((tab) => {
+          const count =
+            tab.id === 'all'
+              ? opportunities.length
+              : tab.id === 'open'
+              ? opportunities.filter((o) => o.stage !== 'Won' && o.stage !== 'Lost').length
+              : tab.id === 'proposal'
+              ? opportunities.filter((o) => o.stage === 'Proposal').length
+              : tab.id === 'negotiation'
+              ? opportunities.filter((o) => o.stage === 'Negotiation').length
+              : opportunities.filter((o) => o.ownerName.includes('Alex')).length;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                activeTab === tab.id
+                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
+                  : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+                  activeTab === tab.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ========================================================================= */}
@@ -713,7 +593,16 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-            {filteredOpportunities.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage).map((op) => {
+            {filteredOpportunities.length === 0 ? (
+              <tr>
+                <td colSpan={12} className="p-12 text-center text-slate-500">
+                  <Layers className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                  <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No opportunities found</p>
+                  <p className="text-xs text-slate-400 mt-1">Create an opportunity to track potential deals.</p>
+                </td>
+              </tr>
+            ) : (
+              filteredOpportunities.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage).map((op) => {
               const isSelected = selectedOps.includes(op.id);
               return (
                 <tr
@@ -784,25 +673,25 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
                       {op.expectedClose}
                     </span>
                   </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-full ${op.ownerBg} text-white text-[9px] font-bold flex items-center justify-center`}>
-                        {op.ownerInitials}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-full ${op.ownerBg} text-white text-[9px] font-bold flex items-center justify-center`}>
+                          {op.ownerInitials}
+                        </div>
+                        <span className="font-medium text-xs">
+                          {op.ownerName}
+                        </span>
                       </div>
-                      <span className="font-medium text-xs">
-                        {op.ownerName}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-slate-600 dark:text-slate-400">
-                    {op.source}
-                  </td>
-                  <td className="p-4 text-slate-500 text-[11px]">
-                    {op.lastActivity}
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                    <td className="p-4 text-slate-600 dark:text-slate-400">
+                      {op.source}
+                    </td>
+                    <td className="p-4 text-slate-500 text-[11px]">
+                      {op.lastActivity}
+                    </td>
+                  </tr>
+                );
+              }))}
           </tbody>
         </table>
 

@@ -73,316 +73,151 @@ export const MarketingView: React.FC = () => {
     setTimeout(() => setActionNotice(null), 3500);
   };
 
-  // 5 Algorithmic Anomaly Detection Alerts
-  const anomalyAlerts = [
-    {
-      id: 'al-1',
-      severity: 'CRITICAL',
-      tag: 'Pacing Alert',
-      title: 'ROAS Below Target: 1.8x vs 3.5x target over 7d in "SaaS Mid-Market Retargeting"',
-      actions: ['Investigate', 'Adjust Bid'],
-      color: 'border-[#DC2626] bg-[#FEF2F2] dark:bg-[#3B1219]/40 text-[#DC2626]',
-      badgeColor: 'bg-[#DC2626] text-white',
-      client: 'Vertex Solutions Inc',
-      details: 'Conversion rate dropped 48% WoW following landing page restructure. Ad spend continued pacing at ₹25k/day without reaching target CPA threshold.'
-    },
-    {
-      id: 'al-2',
-      severity: 'EFFICIENCY',
-      tag: 'Meta Health',
-      title: 'CPA Spike: CPA rose +44% above top 3 factor target norm in Google Search Top Tier',
-      actions: ['Tune Keywords'],
-      color: 'border-[#D97706] bg-[#FFFBEB] dark:bg-[#3B2912]/40 text-[#D97706]',
-      badgeColor: 'bg-[#D97706] text-white',
-      client: 'Nova Healthcare Labs',
-      details: 'Competitor bidding on high-intent terms elevated CPC by +38%. 4 negative keyword suggestions detected to eliminate non-commercial query bleed.'
-    },
-    {
-      id: 'al-3',
-      severity: 'PACING',
-      tag: 'Apex Apparel',
-      title: 'Budget Overrun: Project headroom projected to exceed budget by 22% in 4 days',
-      actions: ['Cap Budget'],
-      color: 'border-[#EA580C] bg-[#FFF7ED] dark:bg-[#3B1F12]/40 text-[#EA580C]',
-      badgeColor: 'bg-[#EA580C] text-white',
-      client: 'Apex Apparel D2C',
-      details: 'Festive early-access campaign automated scale trigger reached 128% allocation velocity. Daily cap adjustment recommended to maintain end-of-month runway.'
-    },
-    {
-      id: 'al-4',
-      severity: 'RELEASE',
-      tag: 'Zenith Retail',
-      title: 'Lead Dip: Omnichannel Brand Lead flow -19% WoW. Volume decline detected',
-      actions: ['Diagnostics'],
-      color: 'border-[#2563EB] bg-[#EFF6FF] dark:bg-[#12233B]/40 text-[#2563EB]',
-      badgeColor: 'bg-[#2563EB] text-white',
-      client: 'Zenith Retail Global Ltd',
-      details: 'Meta CAPI server-side event match quality dropped to 6.2/10. Re-verifying pixel deduplication keys across Shopify headless storefront.'
-    },
-    {
-      id: 'al-5',
-      severity: 'OPTIMAL',
-      tag: 'Acme Tech',
-      title: 'Top Performer: Enterprise CAPI delivered 4.6x ROAS (+31% over target) + ₹1.4L Rev',
-      actions: ['Scale +25%'],
-      color: 'border-[#059669] bg-[#ECFDF5] dark:bg-[#0E3524]/40 text-[#059669]',
-      badgeColor: 'bg-[#059669] text-white',
-      client: 'Acme Technologies Pvt Ltd',
-      details: 'Lookalike 1% CXO audiences on LinkedIn & Google PMax yielded 14 enterprise conversions at an exceptionally low CPA of ₹7,840.'
-    }
-  ];
+  interface AnomalyAlert {
+    id: string;
+    severity: string;
+    tag: string;
+    title: string;
+    actions: string[];
+    color: string;
+    badgeColor: string;
+    client: string;
+    details: string;
+  }
+
+  interface PlatformMetric {
+    name: string;
+    sub: string;
+    icon: string;
+    spend: string;
+    leads: string;
+    conversions: string;
+    revenue: string;
+    cpl: string;
+    cpa: string;
+    roas: string;
+    share: string;
+    status: string;
+    statusColor: string;
+  }
+
+  interface CampaignItem {
+    id: string;
+    name: string;
+    platform: string;
+    client: string;
+    pod: string;
+    spend: string;
+    leads: string;
+    conversions: string;
+    revenue: string;
+    roas: string;
+    trend: string;
+    status: string;
+    statusColor: string;
+  }
+
+  const anomalyAlerts: AnomalyAlert[] = [];
 
   // 10 KPI Cards
   const kpiMetrics = [
     {
       label: 'TOTAL SPEND',
-      value: '₹64.80L',
-      sub: 'Budget: ₹70.00L (92.5% Pacing)',
-      status: '🟢 Optimal Pace',
-      statusColor: 'text-[#16A34A]',
+      value: '₹0',
+      sub: 'Budget: ₹0 (0% Pacing)',
+      status: '⚪ No Active Spend',
+      statusColor: 'text-slate-400',
       icon: DollarSign,
       highlight: false
     },
     {
       label: 'IMPRESSIONS',
-      value: '42.8M',
-      sub: '+14.2% vs previous quarter',
-      status: '🟢 +2.1M MoM Surge',
-      statusColor: 'text-[#16A34A]',
+      value: '0',
+      sub: '0 vs previous quarter',
+      status: '⚪ Awaiting Data',
+      statusColor: 'text-slate-400',
       icon: Eye,
       highlight: false
     },
     {
       label: 'UNIQUE REACH',
-      value: '18.4M',
-      sub: 'Frequency: 2.33 / user',
-      status: '🟢 Stability Maintained',
-      statusColor: 'text-[#16A34A]',
+      value: '0',
+      sub: 'Frequency: 0.00 / user',
+      status: '⚪ Awaiting Data',
+      statusColor: 'text-slate-400',
       icon: Users,
       highlight: false
     },
     {
       label: 'TOTAL CLICKS',
-      value: '894.2K',
-      sub: 'Avg CPC: ₹7.24 (vs ₹7.80)',
-      status: '🟢 -7.1% CPC Reduction',
-      statusColor: 'text-[#16A34A]',
+      value: '0',
+      sub: 'Avg CPC: ₹0',
+      status: '⚪ Awaiting Data',
+      statusColor: 'text-slate-400',
       icon: MousePointer,
       highlight: false
     },
     {
       label: 'CTR (CLICK-THROUGH RATE)',
-      value: '2.09%',
+      value: '0.00%',
       sub: 'Industry Avg: 1.75%',
-      status: '🟢 +34 bps vs benchmark',
-      statusColor: 'text-[#16A34A]',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: Target,
       highlight: false
     },
     {
       label: 'COST PER LEAD (CPL)',
-      value: '₹1,344',
-      sub: 'Target ceiling: ₹1,500',
-      status: '🟢 -10.4% Below Cap',
-      statusColor: 'text-[#16A34A]',
+      value: '₹0',
+      sub: 'Target ceiling: ₹0',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: ArrowDownRight,
       highlight: false
     },
     {
       label: 'COST PER ACQUISITION (CPA)',
-      value: '₹10,588',
-      sub: 'Target ceiling: ₹12,000',
-      status: '🟢 -11.7% Below Cap',
-      statusColor: 'text-[#16A34A]',
+      value: '₹0',
+      sub: 'Target ceiling: ₹0',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: ArrowDownRight,
       highlight: false
     },
     {
       label: 'ATTRIBUTED REVENUE',
-      value: '₹2.48 Cr',
+      value: '₹0',
       sub: 'Net closed from MQLs',
-      status: '🟢 +24.8% YoY',
-      statusColor: 'text-[#16A34A]',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: TrendingUp,
       highlight: false
     },
     {
       label: 'BLENDED ROAS',
-      value: '3.83x',
+      value: '0.00x',
       sub: 'Commercial target: 3.50x',
-      status: '🟢 +0.33x vs Target',
-      statusColor: 'text-[#B91C1C]',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: Sparkles,
-      highlight: true // Pink/Red border
+      highlight: false
     },
     {
       label: 'ENGAGEMENT RATE',
-      value: '4.72%',
+      value: '0.00%',
       sub: 'Benchmark floor: 3.8%',
-      status: '🟢 +0.92% Delta',
-      statusColor: 'text-[#16A34A]',
+      status: '⚪ Baseline',
+      statusColor: 'text-slate-400',
       icon: Activity,
       highlight: false
     }
   ];
 
   // Omnichannel Platform Financial Matrix Data
-  const platformsData = [
-    {
-      name: 'Google Ads',
-      sub: 'Search, Shopping, PMax',
-      icon: '🌐',
-      spend: '₹29,18,000',
-      leads: '2,140',
-      conversions: '244',
-      revenue: '₹1,23,54,000',
-      cpl: '₹1,363',
-      cpa: '₹9,958',
-      roas: '4.24x',
-      share: '45.0%',
-      status: 'Optimal',
-      statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
-    },
-    {
-      name: 'Meta Ads Manager',
-      sub: 'Instagram Reels, FB Feed, CAPI',
-      icon: '📱',
-      spend: '₹21,74,000',
-      leads: '1,650',
-      conversions: '188',
-      revenue: '₹84,21,400',
-      cpl: '₹1,318',
-      cpa: '₹11,564',
-      roas: '3.89x',
-      share: '33.5%',
-      status: 'Target Zone',
-      statusColor: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800'
-    },
-    {
-      name: 'LinkedIn Campaign Manager',
-      sub: 'Lead Gen Forms, Sponsored InMail',
-      icon: '💼',
-      spend: '₹11,36,000',
-      leads: '842',
-      conversions: '78',
-      revenue: '₹36,74,000',
-      cpl: '₹1,349',
-      cpa: '₹14,564',
-      roas: '3.22x',
-      share: '17.6%',
-      status: 'Target Zone',
-      statusColor: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800'
-    },
-    {
-      name: 'DV360 Programmatic',
-      sub: 'Rich Media, CTV, Audio',
-      icon: '📺',
-      spend: '₹1,58,000',
-      leads: '145',
-      conversions: '11',
-      revenue: '₹4,48,000',
-      cpl: '₹1,089',
-      cpa: '₹14,364',
-      roas: '2.84x',
-      share: '2.5%',
-      status: 'Monitor <3.0x',
-      statusColor: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800'
-    },
-    {
-      name: 'Microsoft Advertising',
-      sub: 'Bing Desktop B2B Search',
-      icon: '🖥️',
-      spend: '₹1,24,000',
-      leads: '43',
-      conversions: '7',
-      revenue: '₹3,68,000',
-      cpl: '₹2,884',
-      cpa: '₹17,714',
-      roas: '2.97x',
-      share: '1.9%',
-      status: 'Monitor <3.0x',
-      statusColor: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800'
-    }
-  ];
+  const platformsData: PlatformMetric[] = [];
 
   // Client Campaign Performance Ledger Data
-  const campaignsList = [
-    {
-      id: 'c-1',
-      name: 'Apex Enterprise CAPI Growth',
-      platform: 'Meta Ads (FB/IG Reels) • CAPI Server-Side',
-      client: 'Apex Apparel D2C',
-      pod: 'Growth Pod CMM-01',
-      spend: '₹5,42,000',
-      leads: '410',
-      conversions: '112',
-      revenue: '₹24,40,000',
-      roas: '4.50x',
-      trend: 'up',
-      status: 'Optimal',
-      statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-    },
-    {
-      id: 'c-2',
-      name: 'Zenith Omnichannel Leads Q3',
-      platform: 'Google Ads (Search + PMax) • High-Intent',
-      client: 'Zenith Retail Global Ltd',
-      pod: 'Global Growth Wing',
-      spend: '₹4,20,000',
-      leads: '1,210',
-      conversions: '114',
-      revenue: '₹14,50,000',
-      roas: '3.45x',
-      trend: 'flat',
-      status: 'On Track',
-      statusColor: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400'
-    },
-    {
-      id: 'c-3',
-      name: 'Nova - CXO Intent Retargeting',
-      platform: 'LinkedIn Ads + Demandbase ABM Filter',
-      client: 'Nova Healthcare Labs',
-      pod: 'Falcon Commercial',
-      spend: '₹6,60,000',
-      leads: '240',
-      conversions: '44',
-      revenue: '₹21,76,000',
-      roas: '3.30x',
-      trend: 'down-amber',
-      status: 'At Risk',
-      statusColor: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400'
-    },
-    {
-      id: 'c-4',
-      name: 'Vertex SaaS Discovery Funnel',
-      platform: 'Google Search • Broad Match High CPC',
-      client: 'Vertex Solutions Inc',
-      pod: 'Enterprise Pod',
-      spend: '₹7,40,000',
-      leads: '890',
-      conversions: '31',
-      revenue: '₹7,12,000',
-      roas: '1.80x',
-      trend: 'down-red',
-      status: 'Underperforming',
-      statusColor: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
-    },
-    {
-      id: 'c-5',
-      name: 'Apex Festive Early Launch',
-      platform: 'Meta Ads + Google Shopping Carousel',
-      client: 'Apex Apparel D2C',
-      pod: 'Growth Pod CMM-01',
-      spend: '₹8,60,000',
-      leads: '1,120',
-      conversions: '142',
-      revenue: '₹37,42,000',
-      roas: '3.90x',
-      trend: 'up',
-      status: 'Overpacing (+22%)',
-      statusColor: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400'
-    }
-  ];
+  const [campaignsList, setCampaignsList] = useState<CampaignItem[]>([]);
 
   const filteredCampaigns = campaignsList.filter(c =>
     c.name.toLowerCase().includes(campaignSearch.toLowerCase()) ||
@@ -619,45 +454,53 @@ export const MarketingView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            {anomalyAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={`p-3.5 rounded-xl border ${alert.color} flex flex-col justify-between space-y-3 transition hover:shadow-md cursor-pointer`}
-                onClick={() => setActiveAlertDetail(alert)}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-wider uppercase ${alert.badgeColor}`}>
-                      {alert.severity}
-                    </span>
-                    <span className="text-[10px] font-bold text-[#64748B] dark:text-slate-300">
-                      {alert.tag}
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-bold leading-snug line-clamp-3 text-[#0B1727] dark:text-slate-100">
-                    {alert.title}
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-black/5 dark:border-white/10 flex items-center justify-between text-[11px]">
-                  <div className="flex items-center gap-1 font-bold">
-                    {alert.actions.map((act, i) => (
-                      <span
-                        key={act}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          triggerAction(`Triggered: ${act} for ${alert.client}`);
-                        }}
-                        className="hover:underline cursor-pointer"
-                      >
-                        {act} {i < alert.actions.length - 1 && '• '}
-                      </span>
-                    ))}
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </div>
+            {anomalyAlerts.length === 0 ? (
+              <div className="col-span-full p-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 bg-white dark:bg-[#0B1424]">
+                <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+                <div className="font-semibold text-slate-700 dark:text-slate-300">No active anomaly alerts</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">All campaigns are performing within algorithmic thresholds.</div>
               </div>
-            ))}
+            ) : (
+              anomalyAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`p-3.5 rounded-xl border ${alert.color} flex flex-col justify-between space-y-3 transition hover:shadow-md cursor-pointer`}
+                  onClick={() => setActiveAlertDetail(alert)}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-wider uppercase ${alert.badgeColor}`}>
+                        {alert.severity}
+                      </span>
+                      <span className="text-[10px] font-bold text-[#64748B] dark:text-slate-300">
+                        {alert.tag}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-bold leading-snug line-clamp-3 text-[#0B1727] dark:text-slate-100">
+                      {alert.title}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-black/5 dark:border-white/10 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1 font-bold">
+                      {alert.actions.map((act, i) => (
+                        <span
+                          key={act}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerAction(`Triggered: ${act} for ${alert.client}`);
+                          }}
+                          className="hover:underline cursor-pointer"
+                        >
+                          {act} {i < alert.actions.length - 1 && '• '}
+                        </span>
+                      ))}
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -1089,54 +932,66 @@ export const MarketingView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {platformsData.map((plat) => (
-                  <tr key={plat.name} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
-                    <td className="p-3.5 font-bold">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{plat.icon}</span>
-                        <div>
-                          <div className="text-slate-900 dark:text-white font-bold">{plat.name}</div>
-                          <div className="text-[10px] text-slate-500 font-normal">{plat.sub}</div>
-                        </div>
-                      </div>
+                {platformsData.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-12 text-center text-slate-500">
+                      <BarChart3 className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                      <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No advertising platform data connected</div>
+                      <div className="text-xs text-slate-400 mt-1">Connect Meta, Google Ads, or LinkedIn APIs to view real-time attribution and unit economics.</div>
                     </td>
-                    <td className="p-3.5 text-right font-medium">{plat.spend}</td>
-                    <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.leads}</td>
-                    <td className="p-3.5 text-right font-semibold text-slate-900 dark:text-white">{plat.conversions}</td>
-                    <td className="p-3.5 text-right font-bold text-slate-900 dark:text-white">{plat.revenue}</td>
-                    <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.cpl}</td>
-                    <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.cpa}</td>
-                    <td className="p-3.5 text-right font-bold text-[#0B1727] dark:text-emerald-400">{plat.roas}</td>
-                    <td className="p-3.5 text-right text-slate-500">{plat.share}</td>
+                  </tr>
+                ) : (
+                  platformsData.map((plat) => (
+                    <tr key={plat.name} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
+                      <td className="p-3.5 font-bold">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{plat.icon}</span>
+                          <div>
+                            <div className="text-slate-900 dark:text-white font-bold">{plat.name}</div>
+                            <div className="text-[10px] text-slate-500 font-normal">{plat.sub}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-right font-medium">{plat.spend}</td>
+                      <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.leads}</td>
+                      <td className="p-3.5 text-right font-semibold text-slate-900 dark:text-white">{plat.conversions}</td>
+                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-white">{plat.revenue}</td>
+                      <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.cpl}</td>
+                      <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{plat.cpa}</td>
+                      <td className="p-3.5 text-right font-bold text-[#0B1727] dark:text-emerald-400">{plat.roas}</td>
+                      <td className="p-3.5 text-right text-slate-500">{plat.share}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${plat.statusColor}`}>
+                          {plat.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {/* Total Blended Portfolio Summary Row */}
+              {platformsData.length > 0 && (
+                <tfoot className="bg-[#F1F5F9] dark:bg-[#0A101C] font-bold border-t-2 border-[#E2E6EC] dark:border-[#1E293B]">
+                  <tr>
+                    <td className="p-3.5 text-slate-900 dark:text-white">
+                      Total / Blended Portfolio
+                    </td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">₹0</td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">0</td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">0</td>
+                    <td className="p-3.5 text-right text-[#DC2626] font-extrabold text-sm">₹0</td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">₹0</td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">₹0</td>
+                    <td className="p-3.5 text-right text-[#DC2626] font-extrabold">0.00x</td>
+                    <td className="p-3.5 text-right text-slate-900 dark:text-white">0.0%</td>
                     <td className="p-3.5 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${plat.statusColor}`}>
-                        {plat.status}
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-300">
+                        Baseline
                       </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              {/* Total Blended Portfolio Summary Row */}
-              <tfoot className="bg-[#F1F5F9] dark:bg-[#0A101C] font-bold border-t-2 border-[#E2E6EC] dark:border-[#1E293B]">
-                <tr>
-                  <td className="p-3.5 text-slate-900 dark:text-white">
-                    Total / Blended Portfolio
-                  </td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">₹64,80,000</td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">4,820</td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">528</td>
-                  <td className="p-3.5 text-right text-[#DC2626] font-extrabold text-sm">₹2,48,25,400</td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">₹1,344</td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">₹10,588</td>
-                  <td className="p-3.5 text-right text-[#DC2626] font-extrabold">3.83x</td>
-                  <td className="p-3.5 text-right text-slate-900 dark:text-white">100.0%</td>
-                  <td className="p-3.5 text-center">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300">
-                      Healthy Return
-                    </span>
-                  </td>
-                </tr>
-              </tfoot>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -1190,55 +1045,65 @@ export const MarketingView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {filteredCampaigns.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
-                    <td className="p-3.5 font-bold">
-                      <div className="text-[#0B1727] dark:text-white font-bold">{c.name}</div>
-                      <div className="text-[10px] text-slate-500 font-normal">{c.platform}</div>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="text-slate-800 dark:text-slate-200 font-medium">{c.client}</div>
-                      <div className="text-[10px] text-slate-400">{c.pod}</div>
-                    </td>
-                    <td className="p-3.5 text-right font-medium">{c.spend}</td>
-                    <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{c.leads}</td>
-                    <td className="p-3.5 text-right font-semibold text-slate-900 dark:text-white">{c.conversions}</td>
-                    <td className={`p-3.5 text-right font-bold ${
-                      c.trend === 'down-red' ? 'text-[#DC2626]' : 'text-slate-900 dark:text-white'
-                    }`}>
-                      {c.revenue}
-                    </td>
-                    <td className={`p-3.5 text-right font-bold ${
-                      c.trend === 'down-red' ? 'text-[#DC2626]' : 'text-slate-900 dark:text-white'
-                    }`}>
-                      {c.roas}
-                    </td>
-                    <td className="p-3.5 text-center">
-                      {/* Mini Sparkline SVG */}
-                      <div className="inline-block w-16 h-4">
-                        <svg className="w-full h-full" viewBox="0 0 60 16">
-                          {c.trend === 'up' && (
-                            <path d="M 2 12 L 18 10 L 32 6 L 46 8 L 58 2" fill="none" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" />
-                          )}
-                          {c.trend === 'flat' && (
-                            <path d="M 2 8 L 18 8 L 32 9 L 46 7 L 58 8" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" />
-                          )}
-                          {c.trend === 'down-amber' && (
-                            <path d="M 2 4 L 18 6 L 32 9 L 46 11 L 58 13" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" />
-                          )}
-                          {c.trend === 'down-red' && (
-                            <path d="M 2 3 L 18 5 L 32 8 L 46 13 L 58 15" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" />
-                          )}
-                        </svg>
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${c.statusColor}`}>
-                        {c.status}
-                      </span>
+                {filteredCampaigns.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-12 text-center text-slate-500">
+                      <Target className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                      <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No campaigns found</div>
+                      <div className="text-xs text-slate-400 mt-1">Launch a new marketing campaign or sync external ad accounts.</div>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredCampaigns.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
+                      <td className="p-3.5 font-bold">
+                        <div className="text-[#0B1727] dark:text-white font-bold">{c.name}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{c.platform}</div>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="text-slate-800 dark:text-slate-200 font-medium">{c.client}</div>
+                        <div className="text-[10px] text-slate-400">{c.pod}</div>
+                      </td>
+                      <td className="p-3.5 text-right font-medium">{c.spend}</td>
+                      <td className="p-3.5 text-right text-slate-600 dark:text-slate-300">{c.leads}</td>
+                      <td className="p-3.5 text-right font-semibold text-slate-900 dark:text-white">{c.conversions}</td>
+                      <td className={`p-3.5 text-right font-bold ${
+                        c.trend === 'down-red' ? 'text-[#DC2626]' : 'text-slate-900 dark:text-white'
+                      }`}>
+                        {c.revenue}
+                      </td>
+                      <td className={`p-3.5 text-right font-bold ${
+                        c.trend === 'down-red' ? 'text-[#DC2626]' : 'text-slate-900 dark:text-white'
+                      }`}>
+                        {c.roas}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {/* Mini Sparkline SVG */}
+                        <div className="inline-block w-16 h-4">
+                          <svg className="w-full h-full" viewBox="0 0 60 16">
+                            {c.trend === 'up' && (
+                              <path d="M 2 12 L 18 10 L 32 6 L 46 8 L 58 2" fill="none" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" />
+                            )}
+                            {c.trend === 'flat' && (
+                              <path d="M 2 8 L 18 8 L 32 9 L 46 7 L 58 8" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" />
+                            )}
+                            {c.trend === 'down-amber' && (
+                              <path d="M 2 4 L 18 6 L 32 9 L 46 11 L 58 13" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" />
+                            )}
+                            {c.trend === 'down-red' && (
+                              <path d="M 2 3 L 18 5 L 32 8 L 46 13 L 58 15" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" />
+                            )}
+                          </svg>
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${c.statusColor}`}>
+                          {c.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
