@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getActualStorageEstimate, StorageEstimateData } from '@/lib/storage-estimate';
 import {
   Settings,
   Shield,
@@ -71,6 +72,19 @@ export const SettingsView: React.FC = () => {
 
   // Toast / Save notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Actual Storage Space State (StorageManager API)
+  const [storageData, setStorageData] = useState<StorageEstimateData>({
+    usage: 0,
+    quota: 0,
+    formattedUsage: '0.0 MB',
+    formattedQuota: 'Loading...',
+    percent: 0
+  });
+
+  useEffect(() => {
+    getActualStorageEstimate().then(setStorageData);
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -317,11 +331,15 @@ export const SettingsView: React.FC = () => {
 
               <div className="space-y-1 text-xs">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-slate-400">Storage Index</span>
-                  <span className="font-semibold text-slate-200 text-[11px]">0.0 GB / 500 GB</span>
+                  <span className="text-slate-400">Actual Storage Space</span>
+                  <span className="font-semibold text-slate-200 text-[11px]">{storageData.formattedUsage} / {storageData.formattedQuota}</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '0%' }}></div>
+                  <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.max(storageData.percent, 0.5)}%` }}></div>
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
+                  <span>Actual Usage: {storageData.percent}%</span>
+                  <span>Browser &amp; OS Storage Quota</span>
                 </div>
               </div>
             </div>
