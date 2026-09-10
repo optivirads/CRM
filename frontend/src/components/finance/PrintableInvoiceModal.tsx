@@ -35,22 +35,22 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
 
   const handleDownloadPDF = () => {
     const params = new URLSearchParams({
-      number: invoice.invoice_number || 'INV-2026-089',
-      client: invoice.client_name || 'Acme Global Technologies Inc.',
-      total: String(invoice.total || 177000),
-      email: invoice.client_email || 'billing@acmeglobal.com',
-      gstin: invoice.client_gstin || '27AAACA1234A1Z1'
+      number: invoice.invoice_number || 'INV-001',
+      client: invoice.client_name || 'Client',
+      total: String(invoice.total || 0),
+      email: invoice.client_email || '',
+      gstin: invoice.client_gstin || ''
     });
     const downloadUrl = `/api/pdf/invoice?${params.toString()}`;
     const a = document.createElement('a');
     a.href = downloadUrl;
-    a.download = `Invoice-${invoice.invoice_number || 'INV-2026-089'}.pdf`;
+    a.download = `Invoice-${invoice.invoice_number || 'INV-001'}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  const totalNum = Number(invoice.total) || 177000;
+  const totalNum = Number(invoice.total) || 0;
   const paid = Number(invoice.paid_amount || 0);
   const balanceDue = Math.max(0, Math.round(totalNum - paid));
   const isPaidInFull = balanceDue === 0 || paid >= totalNum;
@@ -63,43 +63,8 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
   const sgst = Math.round(calculatedSubtotal * 0.09);
   const grandTotal = calculatedSubtotal + cgst + sgst;
 
-  // Digital Marketing Agency Line Items
-  const items = invoice.items && invoice.items.length > 0
-    ? invoice.items
-    : [
-        {
-          description: 'Search Engine Optimization (SEO) & Technical Visibility Retainer',
-          subtext: 'Core Web Vitals optimization, technical crawl audit, keyword authority cluster mapping, and organic ranking maintenance.',
-          sac_code: '998361',
-          quantity: 1,
-          rate: Math.round(calculatedSubtotal * 0.35),
-          amount: Math.round(calculatedSubtotal * 0.35)
-        },
-        {
-          description: 'Performance Paid Media Management (Google & Meta Ads PPC)',
-          subtext: 'End-to-end campaign architecture, bid management, audience segmentation, ROAS optimization, and ad copy variations.',
-          sac_code: '998361',
-          quantity: 1,
-          rate: Math.round(calculatedSubtotal * 0.35),
-          amount: Math.round(calculatedSubtotal * 0.35)
-        },
-        {
-          description: 'Social Media Content Creation & High-Converting Ad Creatives',
-          subtext: 'Design of 12 branded graphic banners, 4 short-form video concepts, monthly content calendar, and platform publishing.',
-          sac_code: '998361',
-          quantity: 1,
-          rate: Math.round(calculatedSubtotal * 0.20),
-          amount: Math.round(calculatedSubtotal * 0.20)
-        },
-        {
-          description: 'Web Analytics (GA4/GTM), Conversion Tracking & Executive Reporting',
-          subtext: 'Server-side tag management, custom conversion events, Looker Studio attribution dashboard, and bi-weekly strategic review.',
-          sac_code: '998311',
-          quantity: 1,
-          rate: calculatedSubtotal - (Math.round(calculatedSubtotal * 0.35) * 2 + Math.round(calculatedSubtotal * 0.20)),
-          amount: calculatedSubtotal - (Math.round(calculatedSubtotal * 0.35) * 2 + Math.round(calculatedSubtotal * 0.20))
-        }
-      ];
+  // Invoice Line Items
+  const items = invoice.items && invoice.items.length > 0 ? invoice.items : [];
 
   const amountInWords = numberToIndianWords(grandTotal);
 
@@ -257,21 +222,29 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {items.map((it: any, idx: number) => (
-                    <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50/60' : ''}>
-                      <td className="py-3 px-3 text-slate-500 font-bold">{idx + 1}</td>
-                      <td className="py-3 px-3">
-                        <p className="font-bold text-[#0B1727]">{it.description}</p>
-                        {it.subtext && (
-                          <p className="text-[10px] text-slate-500 leading-snug mt-0.5">{it.subtext}</p>
-                        )}
+                  {items.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        No line items on this invoice.
                       </td>
-                      <td className="py-3 px-3 text-center text-slate-600 font-mono text-[11px]">{it.sac_code || '998361'}</td>
-                      <td className="py-3 px-3 text-center text-slate-700 font-semibold">{it.quantity || 1} Month</td>
-                      <td className="py-3 px-3 text-right font-medium text-slate-700">₹{Number(it.rate).toLocaleString('en-IN')}</td>
-                      <td className="py-3 px-3 text-right font-bold text-[#0B1727]">₹{Number(it.amount).toLocaleString('en-IN')}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    items.map((it: any, idx: number) => (
+                      <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50/60' : ''}>
+                        <td className="py-3 px-3 text-slate-500 font-bold">{idx + 1}</td>
+                        <td className="py-3 px-3">
+                          <p className="font-bold text-[#0B1727]">{it.description}</p>
+                          {it.subtext && (
+                            <p className="text-[10px] text-slate-500 leading-snug mt-0.5">{it.subtext}</p>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center text-slate-600 font-mono text-[11px]">{it.sac_code || '998361'}</td>
+                        <td className="py-3 px-3 text-center text-slate-700 font-semibold">{it.quantity || 1} Month</td>
+                        <td className="py-3 px-3 text-right font-medium text-slate-700">₹{Number(it.rate).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-bold text-[#0B1727]">₹{Number(it.amount).toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

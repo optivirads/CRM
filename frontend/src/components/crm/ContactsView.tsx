@@ -49,129 +49,16 @@ interface ContactItem {
   ownerColor: string;
 }
 
-const INITIAL_CONTACTS: ContactItem[] = [
-  {
-    id: 'ct-1',
-    name: 'Arjun Nair',
-    initials: 'AN',
-    isVerified: true,
-    roleTag: 'Decision Maker',
-    company: 'Acme Technologies',
-    companySize: '51–200 emp',
-    jobTitle: 'Marketing Director',
-    email: 'arjun.nair@example.com',
-    phone: '+91 98765 43210',
-    type: 'Prospect',
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerColor: 'bg-[#0B1727]'
-  },
-  {
-    id: 'ct-2',
-    name: 'Sara Thomas',
-    initials: 'ST',
-    isVerified: true,
-    roleTag: 'C-Suite Key',
-    company: 'Zenith Retail',
-    companySize: '500+ emp',
-    jobTitle: 'Founder & CEO',
-    email: 'sara.thomas@example.com',
-    phone: '+91 98470 12345',
-    type: 'Client',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerColor: 'bg-[#991B1B]'
-  },
-  {
-    id: 'ct-3',
-    name: 'John Mathew',
-    initials: 'JM',
-    isVerified: false,
-    roleTag: 'Sales Head',
-    company: 'Orion Properties',
-    companySize: '100–300 emp',
-    jobTitle: 'Head of Sales',
-    email: 'john.mathew@example.com',
-    phone: '+91 98950 54321',
-    type: 'Prospect',
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerColor: 'bg-[#0B1727]'
-  },
-  {
-    id: 'ct-4',
-    name: 'Meera Joseph',
-    initials: 'MJ',
-    isVerified: false,
-    roleTag: 'Exec Sponsor',
-    company: 'Nova Healthcare',
-    companySize: '1,200 emp',
-    jobTitle: 'Managing Director',
-    email: 'meera.joseph@example.com',
-    phone: '+91 98460 98765',
-    type: 'Client',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerColor: 'bg-[#991B1B]'
-  },
-  {
-    id: 'ct-5',
-    name: 'Rahul Menon',
-    initials: 'RM',
-    isVerified: false,
-    roleTag: 'Operational Lead',
-    company: 'Vertex Solutions',
-    companySize: '25 emp',
-    jobTitle: 'Marketing Manager',
-    email: 'rahul.menon@example.com',
-    phone: '+91 97470 45678',
-    type: 'Prospect',
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerColor: 'bg-[#0B1727]'
-  },
-  {
-    id: 'ct-6',
-    name: 'Priyanka Sen',
-    initials: 'PS',
-    isVerified: true,
-    roleTag: 'Champion',
-    company: 'Nexa FinTech',
-    companySize: '350 emp',
-    jobTitle: 'VP Product & Growth',
-    email: 'p.sen@nexafin.co',
-    phone: '+91 98110 33411',
-    type: 'Client',
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerColor: 'bg-[#991B1B]'
-  },
-  {
-    id: 'ct-7',
-    name: 'Vikram Malhotra',
-    initials: 'VM',
-    isVerified: false,
-    roleTag: 'Executive Partner',
-    company: 'Apex Logistics',
-    companySize: '2,500 emp',
-    jobTitle: 'Chief Commercial Officer',
-    email: 'v.malhotra@apexlog.in',
-    phone: '+91 98334 77219',
-    type: 'Partner',
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerColor: 'bg-[#0B1727]'
-  }
-];
+const INITIAL_CONTACTS: ContactItem[] = [];
 
 const FILTER_TABS = [
-  { id: 'all', label: 'All Contacts', count: '1,248' },
-  { id: 'my', label: 'My Contacts', count: '342' },
-  { id: 'decision', label: 'Decision Makers', count: '214' },
-  { id: 'clients', label: 'Clients', count: '410' },
-  { id: 'prospects', label: 'Prospects', count: '685' },
-  { id: 'followup', label: 'Needs Follow-up', count: '18', hasDot: true },
-  { id: 'recent', label: 'Recently Added', count: '46' }
+  { id: 'all', label: 'All Contacts' },
+  { id: 'my', label: 'My Contacts' },
+  { id: 'decision', label: 'Decision Makers' },
+  { id: 'clients', label: 'Clients' },
+  { id: 'prospects', label: 'Prospects' },
+  { id: 'followup', label: 'Needs Follow-up', hasDot: true },
+  { id: 'recent', label: 'Recently Added' }
 ];
 
 interface ContactsViewProps {
@@ -185,7 +72,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('all');
   const [simulatorStep, setSimulatorStep] = useState('1. Contacts List');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedContacts, setSelectedContacts] = useState<string[]>(['ct-1', 'ct-2', 'ct-3']);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -303,7 +190,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
               Contacts
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300 border border-[#E2E6EC] dark:border-[#152238]">
-              1,248 total
+              {contacts.length} total
             </span>
           </div>
           <p className="text-xs text-red-700 dark:text-red-400 font-medium mt-1">
@@ -359,8 +246,8 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">1,248</span>
-              <span className="text-[11px] font-semibold text-emerald-600">+11.8% vs last month</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">{contacts.length}</span>
+              <span className="text-[11px] font-semibold text-emerald-600">Live roster</span>
             </div>
           </div>
         </div>
@@ -368,12 +255,14 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
         {/* Card 2 */}
         <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">Active Contacts</span>
+            <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">Clients</span>
             <TrendingUp className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">982</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Active outreach &amp; pipeline</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">
+              {contacts.filter((c) => c.type === 'Client').length}
+            </span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Active client accounts</span>
           </div>
         </div>
 
@@ -384,20 +273,24 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
             <ShieldCheck className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">214</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">VP, C-Suite &amp; Unit Heads</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">
+              {contacts.filter((c) => c.roleTag === 'Decision Maker' || c.roleTag === 'C-Suite Key').length}
+            </span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Key Stakeholders</span>
           </div>
         </div>
 
         {/* Card 4 */}
         <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">Recently Added</span>
+            <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">Prospects</span>
             <History className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">46</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Past 14 business days</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">
+              {contacts.filter((c) => c.type === 'Prospect').length}
+            </span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Inbound pipeline</span>
           </div>
         </div>
 
@@ -409,12 +302,9 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">18</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
-                5 Overdue
-              </span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-white">0</span>
             </div>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Requires schedule triage</span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Clear queue</span>
           </div>
         </div>
       </div>
@@ -423,29 +313,42 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
       {/* 4. FILTER TABS ROW (Matching Image 1)                                    */}
       {/* ========================================================================= */}
       <div className="flex items-center gap-1.5 border-b border-[#E2E6EC] dark:border-[#152238] pb-2 overflow-x-auto custom-scrollbar">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-              activeTab === tab.id
-                ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
-            }`}
-          >
-            {tab.hasDot && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
-            <span>{tab.label}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+        {FILTER_TABS.map((tab) => {
+          const count =
+            tab.id === 'all'
+              ? contacts.length
+              : tab.id === 'clients'
+              ? contacts.filter((c) => c.type === 'Client').length
+              : tab.id === 'prospects'
+              ? contacts.filter((c) => c.type === 'Prospect').length
+              : tab.id === 'decision'
+              ? contacts.filter((c) => c.roleTag === 'Decision Maker' || c.roleTag === 'C-Suite Key').length
+              : contacts.filter((c) => c.ownerName === 'Alex Morgan').length;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                 activeTab === tab.id
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
+                  : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
               }`}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              {tab.hasDot && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+                  activeTab === tab.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ========================================================================= */}
@@ -619,107 +522,114 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-            {filteredContacts.map((ct) => {
-              const isSelected = selectedContacts.includes(ct.id);
-              return (
-                <tr
-                  key={ct.id}
-                  onClick={() => {
-                    if (onNavigate) onNavigate('leads');
-                  }}
-                  className={`hover:bg-[#F8FAFC] dark:hover:bg-[#111E34] cursor-pointer transition ${
-                    isSelected ? 'bg-red-50/20 dark:bg-[#DC2626]/5' : ''
-                  }`}
-                >
-                  {/* Checkbox */}
-                  <td className="p-4 text-center" onClick={(e) => toggleSelect(ct.id, e)}>
-                    {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-[#DC2626] fill-current" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-400" />
-                    )}
-                  </td>
+            {filteredContacts.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="p-12 text-center text-slate-500">
+                  <Users2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                  <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No contacts found</p>
+                  <p className="text-xs text-slate-400 mt-1">Add your first client or prospect contact.</p>
+                </td>
+              </tr>
+            ) : (
+              filteredContacts.map((ct) => {
+                const isSelected = selectedContacts.includes(ct.id);
+                return (
+                  <tr
+                    key={ct.id}
+                    onClick={() => {
+                      if (onNavigate) onNavigate('leads');
+                    }}
+                    className={`hover:bg-[#F8FAFC] dark:hover:bg-[#111E34] cursor-pointer transition ${
+                      isSelected ? 'bg-red-50/20 dark:bg-[#DC2626]/5' : ''
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <td className="p-4 text-center" onClick={(e) => toggleSelect(ct.id, e)}>
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-[#DC2626] fill-current" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400" />
+                      )}
+                    </td>
 
-                  {/* Contact Info */}
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-[#0B1727] dark:bg-[#1E293B] text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                        {ct.initials}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-[#0B1727] dark:text-white hover:text-[#DC2626]">
-                            {ct.name}
-                          </span>
-                          {ct.isVerified && (
-                            <Check className="w-3.5 h-3.5 text-slate-400 stroke-[2.5]" />
-                          )}
+                    {/* Contact Info */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-[#0B1727] dark:bg-[#1E293B] text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                          {ct.initials}
                         </div>
-                        <span className="text-[11px] text-[#8492A6] block mt-0.5">{ct.roleTag}</span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[#0B1727] dark:text-white hover:text-[#DC2626]">
+                              {ct.name}
+                            </span>
+                            {ct.isVerified && (
+                              <Check className="w-3.5 h-3.5 text-slate-400 stroke-[2.5]" />
+                            )}
+                          </div>
+                          <span className="text-[11px] text-[#8492A6] block mt-0.5">{ct.roleTag}</span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Company */}
-                  <td className="p-4">
-                    <p className="font-semibold text-[#0B1727] dark:text-white">{ct.company}</p>
-                    <p className="text-[11px] text-[#8492A6]">{ct.companySize}</p>
-                  </td>
+                    {/* Company */}
+                    <td className="p-4">
+                      <p className="font-semibold text-[#0B1727] dark:text-white">{ct.company}</p>
+                      <p className="text-[11px] text-[#8492A6]">{ct.companySize}</p>
+                    </td>
 
-                  {/* Job Title (Styled Crimson) */}
-                  <td className="p-4">
-                    <span className="font-semibold text-[#B91C1C] dark:text-red-400">
-                      {ct.jobTitle}
-                    </span>
-                  </td>
-
-                  {/* Email */}
-                  <td className="p-4">
-                    <a
-                      href={`mailto:${ct.email}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-red-700 dark:text-red-400 hover:underline"
-                    >
-                      <Mail className="w-3.5 h-3.5 text-red-600" />
-                      <span>{ct.email}</span>
-                    </a>
-                  </td>
-
-                  {/* Phone */}
-                  <td className="p-4">
-                    <span className="font-medium text-red-700 dark:text-red-400">
-                      {ct.phone}
-                    </span>
-                  </td>
-
-                  {/* Type Pill */}
-                  <td className="p-4">
-                    <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300 border border-[#E2E6EC] dark:border-[#152238]">
-                      {ct.type}
-                    </span>
-                  </td>
-
-                  {/* Owner */}
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full ${ct.ownerColor} text-white font-bold text-[10px] flex items-center justify-center shrink-0`}>
-                        {ct.ownerInitials}
-                      </div>
-                      <span className="font-medium text-red-800 dark:text-red-300 text-xs">
-                        {ct.ownerName}
+                    {/* Job Title (Styled Crimson) */}
+                    <td className="p-4">
+                      <span className="font-semibold text-rose-800 dark:text-rose-400">
+                        {ct.jobTitle}
                       </span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+
+                    {/* Email */}
+                    <td className="p-4 text-[#5A6A80] dark:text-[#94A3B8]">
+                      <div className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{ct.email}</span>
+                      </div>
+                    </td>
+
+                    {/* Phone */}
+                    <td className="p-4 text-[#5A6A80] dark:text-[#94A3B8]">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{ct.phone}</span>
+                      </div>
+                    </td>
+
+                    {/* Type Badge */}
+                    <td className="p-4">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300 border border-[#E2E6EC] dark:border-[#152238]">
+                        {ct.type}
+                      </span>
+                    </td>
+
+                    {/* Owner */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-full ${ct.ownerColor} text-white font-bold text-[10px] flex items-center justify-center shrink-0`}>
+                          {ct.ownerInitials}
+                        </div>
+                        <span className="font-medium text-red-800 dark:text-red-300 text-xs">
+                          {ct.ownerName}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
 
         {/* Pagination Bar */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">
           <div className="flex items-center gap-3">
-            <span>Showing 1-7 of 1,248 contacts</span>
+            <span>Showing {filteredContacts.length > 0 ? 1 : 0}-{filteredContacts.length} of {filteredContacts.length} contacts</span>
             <div className="flex items-center gap-1">
               <span>Rows per page:</span>
               <select

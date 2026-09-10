@@ -72,134 +72,32 @@ export interface AdCampaign {
   lastSync: string;
 }
 
-export const DEFAULT_AD_CAMPAIGNS: AdCampaign[] = [
-  {
-    id: 'CAMP-META-01',
-    clientId: 'c1',
-    clientName: 'Acme Technologies',
-    platform: 'Meta Ads',
-    name: 'Acme — Advantage+ Conversions (Scale Q3)',
-    objective: 'Lead Generation & SQLs',
-    status: 'Running',
-    dailyBudget: 7000,
-    spentMtd: 210000,
-    impressions: 420000,
-    clicks: 11340,
-    ctr: 2.7,
-    cpc: 18.5,
-    cpl: 420,
-    conversions: 500,
-    attributedRevenue: 1050000,
-    roas: 5.0,
-    audiences: ['Advantage+ Audience', 'B2B Decision Makers 1-3% LAL', 'High-Intent 30d Retargeting'],
-    lastSync: '10 mins ago'
-  },
-  {
-    id: 'CAMP-GOOG-01',
-    clientId: 'c1',
-    clientName: 'Acme Technologies',
-    platform: 'Google Ads',
-    name: 'Acme — Search High-Intent B2B Enterprise',
-    objective: 'Search Target CPA Bidding',
-    status: 'Optimized',
-    dailyBudget: 5000,
-    spentMtd: 150000,
-    impressions: 128000,
-    clicks: 6400,
-    ctr: 5.0,
-    cpc: 23.4,
-    cpl: 550,
-    conversions: 272,
-    attributedRevenue: 720000,
-    roas: 4.8,
-    audiences: ['Exact Match Brand & Competitors', 'In-Market Enterprise IT'],
-    lastSync: '10 mins ago'
-  },
-  {
-    id: 'CAMP-META-02',
-    clientId: 'c1',
-    clientName: 'Acme Technologies',
-    platform: 'Meta Ads',
-    name: 'Acme — Retargeting Reels & Dynamic Creative',
-    objective: 'Website Conversions',
-    status: 'Learning',
-    dailyBudget: 2000,
-    spentMtd: 60000,
-    impressions: 94000,
-    clicks: 2820,
-    ctr: 3.0,
-    cpc: 21.2,
-    cpl: 480,
-    conversions: 125,
-    attributedRevenue: 246000,
-    roas: 4.1,
-    audiences: ['30-Day Video Viewers 75%+', 'Landing Page Visitors 14d'],
-    lastSync: '15 mins ago'
-  },
-  {
-    id: 'CAMP-GOOG-02',
-    clientId: 'c2',
-    clientName: 'Zenith Retail Global',
-    platform: 'Google Ads',
-    name: 'Zenith — Performance Max (PMax) Omnichannel',
-    objective: 'Omnichannel Purchases & ROAS',
-    status: 'Running',
-    dailyBudget: 3500,
-    spentMtd: 105000,
-    impressions: 195000,
-    clicks: 7800,
-    ctr: 4.0,
-    cpc: 13.5,
-    cpl: 350,
-    conversions: 300,
-    attributedRevenue: 441000,
-    roas: 4.2,
-    audiences: ['In-Market Apparel & Footwear', 'Customer Match 2026'],
-    lastSync: '12 mins ago'
-  },
-  {
-    id: 'CAMP-META-03',
-    clientId: 'c2',
-    clientName: 'Zenith Retail Global',
-    platform: 'Meta Ads',
-    name: 'Zenith — Dynamic Product Catalog Retargeting',
-    objective: 'Catalog Sales (DPA)',
-    status: 'Optimized',
-    dailyBudget: 2500,
-    spentMtd: 75000,
-    impressions: 110000,
-    clicks: 4400,
-    ctr: 4.0,
-    cpc: 17.0,
-    cpl: 390,
-    conversions: 192,
-    attributedRevenue: 345000,
-    roas: 4.6,
-    audiences: ['Viewed or Added to Cart But Not Purchased 7d'],
-    lastSync: '18 mins ago'
-  },
-  {
-    id: 'CAMP-META-04',
-    clientId: 'c3',
-    clientName: 'Nova Healthcare Labs',
-    platform: 'Meta Ads',
-    name: 'Nova — Preventative Health Checkup Leads',
-    objective: 'Instant Lead Forms',
-    status: 'Running',
-    dailyBudget: 1500,
-    spentMtd: 45000,
-    impressions: 68000,
-    clicks: 2040,
-    ctr: 3.0,
-    cpc: 22.0,
-    cpl: 450,
-    conversions: 100,
-    attributedRevenue: 180000,
-    roas: 4.0,
-    audiences: ['Health & Wellness Interest 30-55', 'Metro Lookalikes 2%'],
-    lastSync: '25 mins ago'
-  }
-];
+export const DEFAULT_AD_CAMPAIGNS: AdCampaign[] = [];
+
+export interface ClientAccount {
+  id: string;
+  name: string;
+  domain: string;
+  avatarBg: string;
+  avatarText: string;
+  avatarTextColor?: string;
+  industry: string;
+  primaryContact: string;
+  contactRole: string;
+  accountManager: string;
+  amInitials: string;
+  amBg: string;
+  servicesCount: string;
+  activeProjects: string;
+  contractValue: string;
+  healthStatus: string;
+  renewal: string;
+  renewalUrgent?: boolean;
+  lastActivity: string;
+  billingStatus: string;
+  billingOverdue?: boolean;
+  isAtRisk: boolean;
+}
 
 export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient360, onNavigate }) => {
   // View mode toggle
@@ -242,7 +140,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [selectedBilling, setSelectedBilling] = useState('All');
 
   // Selected rows
-  const [selectedClients, setSelectedClients] = useState<string[]>(['c1', 'c2']);
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
   // Add Client Drawer/Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -254,137 +152,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newContractVal, setNewContractVal] = useState('₹18.5L');
 
   // Client accounts data matching reference Image 2
-  const [clients, setClients] = useState([
-    {
-      id: 'c1',
-      name: 'Acme Technologies',
-      domain: 'acmetechnologies.com',
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: 'AT',
-      industry: 'Technology',
-      primaryContact: 'Arjun Nair',
-      contactRole: 'Marketing Director',
-      accountManager: 'Alex Morgan',
-      amInitials: 'AM',
-      amBg: 'bg-[#0A1628]',
-      servicesCount: '3 Services',
-      activeProjects: '2 Active',
-      contractValue: '₹18.5L',
-      healthStatus: 'Healthy',
-      renewal: 'Jan 2027',
-      lastActivity: 'Today, 10:20 AM',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    },
-    {
-      id: 'c2',
-      name: 'Zenith Retail Global',
-      domain: 'zenithretail.co',
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: 'ZR',
-      industry: 'Retail',
-      primaryContact: 'Sara Thomas',
-      contactRole: 'Founder & CEO',
-      accountManager: 'Maya Joseph',
-      amInitials: 'MJ',
-      amBg: 'bg-[#B91C1C]',
-      servicesCount: '4 Services',
-      activeProjects: '3 Active',
-      contractValue: '₹32.4L',
-      healthStatus: 'Healthy',
-      renewal: 'Jan 2027',
-      lastActivity: 'Today, 08:30 AM',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    },
-    {
-      id: 'c3',
-      name: 'Nova Healthcare Labs',
-      domain: 'novalabs.health',
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: 'NH',
-      industry: 'Healthcare',
-      primaryContact: 'Meera Joseph',
-      contactRole: 'Managing Director',
-      accountManager: 'Maya Joseph',
-      amInitials: 'MJ',
-      amBg: 'bg-[#B91C1C]',
-      servicesCount: '2 Services',
-      activeProjects: '2 Active',
-      contractValue: '₹14.8L',
-      healthStatus: 'Attention Needed',
-      renewal: 'Mar 2027',
-      lastActivity: 'Yesterday',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    },
-    {
-      id: 'c4',
-      name: 'Vertex Solutions',
-      domain: 'vertexsolutions.io',
-      avatarBg: 'bg-[#FEE2E2]',
-      avatarText: 'VS',
-      avatarTextColor: 'text-[#DC2626]',
-      industry: 'Software',
-      primaryContact: 'Rahul Menon',
-      contactRole: 'Marketing Manager',
-      accountManager: 'Alex Morgan',
-      amInitials: 'AM',
-      amBg: 'bg-[#0A1628]',
-      servicesCount: '2 Services',
-      activeProjects: '1 Active',
-      contractValue: '₹8.4L',
-      healthStatus: 'At Risk',
-      renewal: 'Nov 2026 (28d)',
-      renewalUrgent: true,
-      lastActivity: '2 days ago',
-      billingStatus: '₹75k Overdue',
-      billingOverdue: true,
-      isAtRisk: true,
-    },
-    {
-      id: 'c5',
-      name: 'Nexa FinTech Systems',
-      domain: 'nexafintech.global',
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: 'NF',
-      industry: 'Financial Services',
-      primaryContact: 'Priyanka Sen',
-      contactRole: 'VP Growth',
-      accountManager: 'Maya Joseph',
-      amInitials: 'MJ',
-      amBg: 'bg-[#B91C1C]',
-      servicesCount: '3 Services',
-      activeProjects: '2 Active',
-      contractValue: '₹24.2L',
-      healthStatus: 'Healthy',
-      renewal: 'Dec 2026',
-      lastActivity: 'Yesterday',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    },
-    {
-      id: 'c6',
-      name: 'Kinetix Apparel Co',
-      domain: 'kinetixapparel.com',
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: 'KA',
-      industry: 'E-Commerce',
-      primaryContact: 'Siddharth Roy',
-      contactRole: 'VP Marketing',
-      accountManager: 'Alex Morgan',
-      amInitials: 'AM',
-      amBg: 'bg-[#0A1628]',
-      servicesCount: '1 Service',
-      activeProjects: '1 Active',
-      contractValue: '₹6.2L',
-      healthStatus: 'Healthy',
-      renewal: 'Aug 2027',
-      lastActivity: '3 days ago',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    },
-  ]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
 
   const toggleSelectAll = () => {
     if (selectedClients.length === clients.length) {
@@ -1124,7 +892,16 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-normal">
-                {filteredClients.map((client) => {
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="p-12 text-center text-slate-500">
+                      <Briefcase className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                      <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No clients found</p>
+                      <p className="text-xs text-slate-400 mt-1">Add your first enterprise client using + Add Client.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client) => {
                   const isSelected = selectedClients.includes(client.id);
                   return (
                     <tr
@@ -1288,7 +1065,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -1297,8 +1074,8 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           <div className="p-4 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-4">
               <span>
-                Showing <strong className="text-slate-800 dark:text-slate-200">1–{filteredClients.length}</strong> of{' '}
-                <strong className="text-slate-800 dark:text-slate-200">142</strong> clients
+                Showing <strong className="text-slate-800 dark:text-slate-200">0–{filteredClients.length}</strong> of{' '}
+                <strong className="text-slate-800 dark:text-slate-200">{clients.length}</strong> clients
               </span>
               <div className="flex items-center gap-1.5">
                 <span>Rows per page:</span>

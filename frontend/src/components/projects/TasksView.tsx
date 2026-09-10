@@ -53,171 +53,27 @@ export const TasksView: React.FC = () => {
   const [selectedPriority, setSelectedPriority] = useState('All');
 
   // Selection
-  const [selectedTasks, setSelectedTasks] = useState<string[]>(['t1', 't2', 't3']);
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
 
-  // Active Task Detail (Defaults to #OPT-9492 matching Image 4)
+  // Active Task Detail (Defaults to null)
   const [activeTask, setActiveTask] = useState<any>(null);
 
   // Time Tracker Stopwatch
-  const [timerRunning, setTimerRunning] = useState(true);
-  const [timerSeconds, setTimerSeconds] = useState(2538); // 00:42:18
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(0);
 
   // New Comment
   const [newComment, setNewComment] = useState('');
 
   // Subtask checkbox state
-  const [subtasksState, setSubtasksState] = useState([
-    { id: 's1', title: 'Configure GCP Cloud Run Service & Deploy Base Container image', hours: 'Rated SG • 1.5h', done: true },
-    { id: 's2', title: 'Map CNAME tag.acmetech.io & SSL Cert Verification', hours: 'Rated SG • 1.0h', done: true },
-    { id: 's3', title: 'Implement Meta CAPI Client Tag in sGTM with Event Deduplication', hours: 'Rated SG • 3.0h', done: true },
-    { id: 's4', title: 'Run Synthetic GA4 Purchase Payload Simulation & QA in DebugView', hours: 'Pending • Est. 2.5h', done: false },
-  ]);
+  const [subtasksState, setSubtasksState] = useState<any[]>([]);
 
   // Tasks dataset matching Reference Image 4
-  const [tasks, setTasks] = useState([
-    {
-      id: 't1',
-      code: '#OPT-9492',
-      title: 'Configure GA4 Server-Side Container & Meta CAPI',
-      subtasksCount: '3/4 done',
-      subtasksBadge: 'Depends on DNS',
-      clientName: 'Acme Technologies',
-      clientAvatar: 'AT',
-      clientAvatarBg: 'bg-[#0A1628]',
-      project: 'Acme Growth Campaign',
-      milestone: 'Tracking Architecture',
-      assignee: 'Rahul Menon',
-      assigneeInitials: 'RM',
-      priority: 'Urgent',
-      status: 'In Progress',
-      statusBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-      timeline: 'Due Today (10 Sep)',
-      timelineStart: 'Start: 06 Sep',
-      timelineUrgent: true,
-      timeActual: '5.5h',
-      timeEst: '8.0h',
-      timePercent: 68,
-    },
-    {
-      id: 't2',
-      code: '#OPT-9488',
-      title: 'Deliver Batch 4 Ad Creatives (12 Video Variations)',
-      subtasksCount: '12 Figma assets',
-      subtasksBadge: 'Motion graphics QA ready',
-      clientName: 'Acme Technologies',
-      clientAvatar: 'AT',
-      clientAvatarBg: 'bg-[#0A1628]',
-      project: 'Acme Growth Campaign',
-      milestone: 'Creative Production',
-      assignee: 'Maya Joseph',
-      assigneeInitials: 'MJ',
-      priority: 'High',
-      status: 'Review',
-      statusBg: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800',
-      timeline: '15 Sep 2026',
-      timelineStart: 'Start: 05 Sep',
-      timelineUrgent: false,
-      timeActual: '14h',
-      timeEst: '16h',
-      timePercent: 88,
-    },
-    {
-      id: 't3',
-      code: '#OPT-9472',
-      title: 'Reconcile Q3 Retainer Invoices & Razorpay Payouts',
-      subtasksCount: 'Finance Sync',
-      subtasksBadge: 'Blocking invoice dispatch',
-      clientName: 'Zenith Retail Global',
-      clientAvatar: 'ZR',
-      clientAvatarBg: 'bg-[#0A1628]',
-      project: 'Retainer Billing Ops',
-      milestone: 'Finance Sync',
-      assignee: 'Alex Morgan',
-      assigneeInitials: 'AM',
-      priority: 'Medium',
-      status: 'To Do',
-      statusBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
-      timeline: '12 Sep 2026',
-      timelineStart: 'Start: 11 Sep',
-      timelineUrgent: false,
-      timeActual: '0h',
-      timeEst: '4.0h',
-      timePercent: 0,
-    },
-    {
-      id: 't4',
-      code: '#OPT-9461',
-      title: 'Fix Mobile Viewport Breakpoints on Checkout Step 2',
-      subtasksCount: 'Frontend Dev',
-      subtasksBadge: 'Blocked: Awaiting client staging credentials',
-      subtasksBlocked: true,
-      clientName: 'Vertex Solutions',
-      clientAvatar: 'VS',
-      clientAvatarBg: 'bg-[#FEE2E2]',
-      clientAvatarTextColor: 'text-rose-600',
-      project: 'Website Revamp & CRO',
-      milestone: 'Frontend Dev',
-      assignee: 'Rahul Menon',
-      assigneeInitials: 'RM',
-      priority: 'Urgent',
-      status: 'Blocked',
-      statusBg: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800',
-      timeline: 'Overdue (09 Sep)',
-      timelineStart: 'Start: 04 Sep',
-      timelineUrgent: true,
-      timeActual: '4h',
-      timeEst: '6.5h',
-      timePercent: 62,
-    },
-    {
-      id: 't5',
-      code: '#OPT-9455',
-      title: 'Draft Executive QBR Strategy Deck & Attribution Report',
-      subtasksCount: 'Strategy C-Level Deliverable',
-      clientName: 'Nova Healthcare',
-      clientAvatar: 'NH',
-      clientAvatarBg: 'bg-[#0A1628]',
-      project: 'Q3 Performance Review',
-      milestone: 'Attribution Modeling',
-      assignee: 'Alex Morgan',
-      assigneeInitials: 'AM',
-      priority: 'High',
-      status: 'In Progress',
-      statusBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-      timeline: '14 Sep 2026',
-      timelineStart: 'Start: 07 Sep',
-      timelineUrgent: false,
-      timeActual: '6.5h',
-      timeEst: '10h',
-      timePercent: 65,
-    },
-    {
-      id: 't6',
-      code: '#OPT-9430',
-      title: 'Client Bi-Weekly Sync & Performance Briefing',
-      subtasksCount: 'Recording uploaded & minutes shared',
-      clientName: 'Acme Technologies',
-      clientAvatar: 'AT',
-      clientAvatarBg: 'bg-[#0A1628]',
-      project: 'Account Management',
-      milestone: 'Sprint Sync',
-      assignee: 'Alex Morgan',
-      assigneeInitials: 'AM',
-      priority: 'Medium',
-      status: 'Done',
-      statusBg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800',
-      timeline: 'Completed Today',
-      timelineStart: 'Sprint Sync',
-      timelineUrgent: false,
-      timeActual: '1.5h',
-      timeEst: '2.0h',
-      timePercent: 75,
-    },
-  ]);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   // Set default active task
   useEffect(() => {
-    if (!activeTask) {
+    if (!activeTask && tasks.length > 0) {
       setActiveTask(tasks[0]);
     }
   }, [tasks, activeTask]);
@@ -335,7 +191,7 @@ export const TasksView: React.FC = () => {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Tasks</h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-                46 Total • 12 My Open
+                {tasks.length} Total • 0 My Open
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -435,29 +291,29 @@ export const TasksView: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. 5 KPI Summary Cards (Exact match to Reference Image 4) */}
+        {/* 3. 5 KPI Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* My Open Tasks */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-rose-600 dark:text-rose-400">MY OPEN TASKS</span>
+              <span className="font-medium text-slate-600 dark:text-slate-400">MY OPEN TASKS</span>
               <CheckSquare className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">12</div>
-            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1 flex items-center gap-1">
-              <span>● 4 urgent / high priority</span>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">{tasks.length}</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+              <span>0 urgent / high priority</span>
             </div>
           </div>
 
           {/* Overdue */}
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-rose-200 dark:border-rose-900/40 shadow-xs">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-rose-600 dark:text-rose-400">OVERDUE</span>
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span className="font-medium text-slate-600 dark:text-slate-400">OVERDUE</span>
+              <AlertTriangle className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1.5">03</div>
-            <div className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-              <span>Requires escalation</span>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
+            <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+              <span>No overdue tasks</span>
             </div>
           </div>
 
@@ -467,8 +323,8 @@ export const TasksView: React.FC = () => {
               <span className="font-medium">DUE TODAY</span>
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">07</div>
-            <div className="text-[11px] text-slate-500 mt-1">Scheduled across 4 clients</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
+            <div className="text-[11px] text-slate-400 mt-1">No tasks due today</div>
           </div>
 
           {/* Due This Week */}
@@ -477,18 +333,18 @@ export const TasksView: React.FC = () => {
               <span className="font-medium">DUE THIS WEEK</span>
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">24</div>
-            <div className="text-[11px] text-slate-500 mt-1">5 sprint 4 deliverables</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
+            <div className="text-[11px] text-slate-400 mt-1">0 deliverables</div>
           </div>
 
           {/* Completed (MTD) */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="font-medium">COMPLETED (MTD)</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">86</div>
-            <div className="text-[11px] text-emerald-600 font-semibold mt-1">94.2% on-time rate</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1">0% on-time rate</div>
           </div>
         </div>
 
@@ -545,12 +401,12 @@ export const TasksView: React.FC = () => {
           {/* Filter tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
-              { id: 'my', label: 'My Tasks (12)' },
-              { id: 'overdue', label: 'Overdue (3)', isAlert: true },
-              { id: 'due_today', label: 'Due Today (7)' },
-              { id: 'high', label: 'High Priority (9)' },
-              { id: 'team', label: 'Team Tasks (34)' },
-              { id: 'completed', label: 'Completed (86)' },
+              { id: 'all', label: `All Tasks (${tasks.length})` },
+              { id: 'my', label: 'My Tasks (0)' },
+              { id: 'overdue', label: 'Overdue (0)' },
+              { id: 'due_today', label: 'Due Today (0)' },
+              { id: 'high', label: 'High Priority (0)' },
+              { id: 'completed', label: 'Completed (0)' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -558,8 +414,6 @@ export const TasksView: React.FC = () => {
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                   activeFilterTab === tab.id
                     ? 'bg-[#0A1628] text-white shadow-xs'
-                    : tab.isAlert
-                    ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100'
                     : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
@@ -714,165 +568,171 @@ export const TasksView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredTasks.map((task) => {
-                    const isSelected = selectedTasks.includes(task.id);
-                    const isActive = activeTask?.id === task.id;
+                  {filteredTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-12 text-center text-slate-500">
+                        <CheckSquare className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                        <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No tasks found</div>
+                        <div className="text-xs text-slate-400 mt-1">Create a new task to get started tracking deliverables.</div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map((task) => {
+                      const isSelected = selectedTasks.includes(task.id);
+                      const isActive = activeTask?.id === task.id;
 
-                    return (
-                      <tr
-                        key={task.id}
-                        onClick={() => {
-                          setActiveTask(task);
-                          setViewMode('detail');
-                        }}
-                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer ${
-                          isActive
-                            ? 'bg-rose-50/30 dark:bg-rose-950/20 border-l-4 border-[#B91C1C]'
-                            : isSelected
-                            ? 'bg-slate-50 dark:bg-slate-800/30'
-                            : ''
-                        }`}
-                      >
-                        <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectRow(task.id)}
-                            className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
-                          />
-                        </td>
+                      return (
+                        <tr
+                          key={task.id}
+                          onClick={() => {
+                            setActiveTask(task);
+                            setViewMode('detail');
+                          }}
+                          className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer ${
+                            isActive
+                              ? 'bg-rose-50/30 dark:bg-rose-950/20 border-l-4 border-[#B91C1C]'
+                              : isSelected
+                              ? 'bg-slate-50 dark:bg-slate-800/30'
+                              : ''
+                          }`}
+                        >
+                          <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectRow(task.id)}
+                              className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                            />
+                          </td>
 
-                        {/* Task Name & Subtasks */}
-                        <td className="p-3.5">
-                          <div className="space-y-0.5">
-                            <div className="font-bold text-slate-900 dark:text-white hover:text-rose-600 transition">
-                              {task.title}
+                          {/* Task Name & Subtasks */}
+                          <td className="p-3.5">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {task.title}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {task.code}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                <span>{task.subtasksCount}</span>
+                                <span>•</span>
+                                <span className="text-emerald-600 font-medium">
+                                  {task.subtasksBadge}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                              <span>{task.subtasksCount}</span>
-                              {task.subtasksBadge && (
-                                <>
-                                  <span>•</span>
-                                  <span
-                                    className={`px-1.5 py-0.2 rounded font-semibold ${
-                                      task.subtasksBlocked
-                                        ? 'text-rose-600 font-bold'
-                                        : 'text-slate-500'
-                                    }`}
-                                  >
-                                    {task.subtasksBadge}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Client & Context */}
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-6 h-6 rounded ${task.clientAvatarBg} flex items-center justify-center text-[10px] font-bold ${
-                                task.clientAvatarTextColor || 'text-white'
-                              }`}
-                            >
-                              {task.clientAvatar}
-                            </div>
-                            <span className="font-semibold text-rose-600 dark:text-rose-400">
-                              {task.clientName}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Project / Milestone */}
-                        <td className="p-3.5">
-                          <div>
-                            <div className="font-semibold text-rose-600 dark:text-rose-400">
-                              {task.project}
-                            </div>
-                            <div className="text-[11px] text-slate-500">{task.milestone}</div>
-                          </div>
-                        </td>
-
-                        {/* Assignee */}
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">
-                              {task.assigneeInitials}
-                            </div>
-                            <span className="font-medium text-slate-700 dark:text-slate-300">
-                              {task.assignee}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Priority */}
-                        <td className="p-3.5">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              task.priority === 'Urgent'
-                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                                : task.priority === 'High'
-                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            {task.priority}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="p-3.5">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${task.statusBg}`}>
-                            {task.status}
-                          </span>
-                        </td>
-
-                        {/* Timeline */}
-                        <td className="p-3.5">
-                          <div>
-                            <div
-                              className={`font-semibold ${
-                                task.timelineUrgent
-                                  ? 'text-rose-600 dark:text-rose-400 font-bold'
-                                  : 'text-slate-800 dark:text-slate-200'
-                              }`}
-                            >
-                              {task.timeline}
-                            </div>
-                            <div className="text-[11px] text-slate-400">{task.timelineStart}</div>
-                          </div>
-                        </td>
-
-                        {/* Time (Act/Est) */}
-                        <td className="p-3.5 pr-4">
-                          <div className="w-24 space-y-1">
-                            <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                              {task.timeActual} / {task.timeEst}
-                            </div>
-                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                          {/* Client & Context */}
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
                               <div
-                                className={`h-full rounded-full ${
-                                  task.priority === 'Urgent'
-                                    ? 'bg-rose-600'
-                                    : 'bg-[#0A1628] dark:bg-blue-500'
-                                }`}
-                                style={{ width: `${task.timePercent}%` }}
-                              ></div>
+                                className={`w-6 h-6 rounded-md ${task.clientAvatarBg} text-white font-bold flex items-center justify-center text-[10px] shrink-0`}
+                              >
+                                {task.clientAvatar}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {task.clientName}
+                                </div>
+                                <div className="text-[11px] text-slate-400">Retainer Client</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+
+                          {/* Project / Milestone */}
+                          <td className="p-3.5">
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-200">
+                                {task.project}
+                              </div>
+                              <div className="text-[11px] text-slate-400">{task.milestone}</div>
+                            </div>
+                          </td>
+
+                          {/* Assignee */}
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center text-[10px]">
+                                {task.assigneeInitials}
+                              </div>
+                              <span className="font-medium text-slate-800 dark:text-slate-200">
+                                {task.assignee}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Priority */}
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                task.priority === 'Urgent'
+                                  ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                  : task.priority === 'High'
+                                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              {task.priority}
+                            </span>
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3.5">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${task.statusBg}`}>
+                              {task.status}
+                            </span>
+                          </td>
+
+                          {/* Timeline */}
+                          <td className="p-3.5">
+                            <div>
+                              <div
+                                className={`font-semibold ${
+                                  task.timelineUrgent
+                                    ? 'text-rose-600 dark:text-rose-400 font-bold'
+                                    : 'text-slate-800 dark:text-slate-200'
+                                }`}
+                              >
+                                {task.timeline}
+                              </div>
+                              <div className="text-[11px] text-slate-400">{task.timelineStart}</div>
+                            </div>
+                          </td>
+
+                          {/* Time (Act/Est) */}
+                          <td className="p-3.5 pr-4">
+                            <div className="w-24 space-y-1">
+                              <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                                {task.timeActual} / {task.timeEst}
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    task.priority === 'Urgent'
+                                      ? 'bg-rose-600'
+                                      : 'bg-[#0A1628] dark:bg-blue-500'
+                                  }`}
+                                  style={{ width: `${task.timePercent}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
             <div className="p-3 bg-[#F8FAFC] dark:bg-[#0A101C] border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-              <span>Showing 1-6 of 14 total tasks</span>
+              <span>Showing {filteredTasks.length > 0 ? 1 : 0}-{filteredTasks.length} of {tasks.length} total tasks</span>
               <div className="flex items-center gap-1">
-                {[1, 2, 3].map((p) => (
+                {[1].map((p) => (
                   <button
                     key={p}
                     onClick={() => setCurrentPage(p)}
@@ -891,6 +751,20 @@ export const TasksView: React.FC = () => {
         )}
 
         {/* 8. 70/30 Task Detail View (Exact match to Bottom half of Reference Image 4) */}
+        {viewMode === 'detail' && !activeTask && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center shadow-xs">
+            <CheckSquare className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">No Task Selected</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">Select a task from the list view or create a new task to view its workspace detail.</p>
+            <button
+              onClick={() => setViewMode('list')}
+              className="mt-4 px-4 py-2 bg-[#0A1628] text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer"
+            >
+              Back to Task List
+            </button>
+          </div>
+        )}
+
         {viewMode === 'detail' && activeTask && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-md space-y-6 animate-in fade-in">
             {/* Detail Navigation Bar */}

@@ -19,7 +19,9 @@ import {
   FileSpreadsheet,
   Settings,
   Bell,
-  Rocket
+  Rocket,
+  CheckSquare,
+  Layers
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -74,8 +76,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
       title: 'DELIVERY',
       items: [
         { id: 'clients' as NavItem, label: 'Clients', icon: Briefcase },
+        { id: 'client-360' as NavItem, label: 'Client 360°', icon: Layers },
         { id: 'onboarding' as NavItem, label: 'Onboarding', icon: Rocket },
         { id: 'projects' as NavItem, label: 'Projects', icon: FolderClosed },
+        { id: 'tasks' as NavItem, label: 'Tasks', icon: CheckSquare },
       ]
     },
     {

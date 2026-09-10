@@ -79,154 +79,16 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
   const [newContractVal, setNewContractVal] = useState('₹18,50,000');
 
   // Onboarding Accounts Dataset
-  const [accounts, setAccounts] = useState<OnboardingAccount[]>([
-    {
-      id: 'onb-1',
-      name: 'Acme Technologies Pvt Ltd',
-      domain: 'acmetechnologies.com',
-      avatarText: 'AT',
-      contractTier: 'Enterprise Retainer',
-      contractValue: '₹18,50,000 / mo',
-      am: 'Alex Morgan',
-      pm: 'Elena Rostova',
-      currentStage: 'Assets & Access Audit',
-      stageIndex: 1,
-      daysInOnboarding: 6,
-      totalDaysTarget: 14,
-      completedSteps: 18,
-      totalSteps: 24,
-      hasBlocker: true,
-      blockerDesc: 'IT Security pending BigQuery permissions approval',
-      primaryContact: {
-        name: 'Arjun Nair',
-        role: 'Marketing Director',
-        email: 'arjun.nair@acmetech.com',
-      }
-    },
-    {
-      id: 'onb-2',
-      name: 'Zenith Retail Global Ltd',
-      domain: 'zenithretail.com',
-      avatarText: 'ZR',
-      contractTier: 'Omnichannel Growth Retainer',
-      contractValue: '₹24,00,000 / mo',
-      am: 'Sarah Chen',
-      pm: 'Vikram Seth',
-      currentStage: 'Strategy & North Star KPIs',
-      stageIndex: 2,
-      daysInOnboarding: 9,
-      totalDaysTarget: 18,
-      completedSteps: 15,
-      totalSteps: 24,
-      hasBlocker: false,
-      primaryContact: {
-        name: 'Elena Rostova',
-        role: 'VP of Digital Commerce',
-        email: 'e.rostova@zenithretail.com',
-      }
-    },
-    {
-      id: 'onb-3',
-      name: 'Vertex Solutions Inc',
-      domain: 'vertexsolutions.com',
-      avatarText: 'VS',
-      contractTier: 'AI CRM Acceleration',
-      contractValue: '₹12,50,000 / mo',
-      am: 'Marcus Vance',
-      pm: 'Priya Sharma',
-      currentStage: 'Sales Handoff & Intake',
-      stageIndex: 0,
-      daysInOnboarding: 2,
-      totalDaysTarget: 12,
-      completedSteps: 5,
-      totalSteps: 24,
-      hasBlocker: false,
-      primaryContact: {
-        name: 'Rajesh Verma',
-        role: 'Chief Technology Officer',
-        email: 'r.verma@vertexsolutions.com',
-      }
-    },
-    {
-      id: 'onb-4',
-      name: 'Nova Healthcare Labs',
-      domain: 'novalabs.health',
-      avatarText: 'NH',
-      contractTier: 'Patient Portal Retainer',
-      contractValue: '₹16,00,000 / mo',
-      am: 'David Ross',
-      pm: 'Elena Rostova',
-      currentStage: 'Kickoff Call & Alignment',
-      stageIndex: 3,
-      daysInOnboarding: 11,
-      totalDaysTarget: 15,
-      completedSteps: 21,
-      totalSteps: 24,
-      hasBlocker: true,
-      blockerDesc: 'HIPAA BAA agreement countersignature pending',
-      primaryContact: {
-        name: 'Dr. Meera Sen',
-        role: 'Head of Clinical Informatics',
-        email: 'meera.sen@novalabs.health',
-      }
-    }
-  ]);
+  const [accounts, setAccounts] = useState<OnboardingAccount[]>([]);
 
   // Credentials / Access Checklist for active client
-  const [credentials, setCredentials] = useState([
-    { id: 'cred-1', name: 'Domain DNS Zone Access (Cloudflare)', category: 'Infrastructure', status: 'Granted', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 'cred-2', name: 'Google Analytics 4 & GTM Admin', category: 'Analytics', status: 'Granted', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 'cred-3', name: 'Meta Business Manager Partner ID (7994021)', category: 'Paid Media', status: 'Pending Client Approval', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { id: 'cred-4', name: 'AWS Production Read-Only API Token', category: 'Infrastructure', status: 'Granted', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 'cred-5', name: 'HubSpot Enterprise CRM API Key', category: 'CRM Integration', status: 'Granted', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 'cred-6', name: 'Okta Enterprise SSO SAML Config', category: 'Identity & Sec', status: 'Pending InfoSec Review', badgeColor: 'bg-rose-50 text-rose-700 border-rose-200' },
-  ]);
+  const [credentials, setCredentials] = useState<any[]>([]);
 
   // Blockers for active client
-  const [blockers, setBlockers] = useState([
-    {
-      id: 'blk-1',
-      title: 'InfoSec Approval for BigQuery Cloud Sync',
-      severity: 'High',
-      owner: 'Arjun Nair (Client)',
-      dateReported: 'Oct 21, 2026',
-      impact: 'Delays historical conversion tracking data backfill',
-      resolved: false
-    },
-    {
-      id: 'blk-2',
-      title: 'DNS SPF & DKIM Records for Outbound Warmup',
-      severity: 'Medium',
-      owner: 'Elena Rostova (Agency PM)',
-      dateReported: 'Oct 22, 2026',
-      impact: 'Email deliverability warming delayed 24h',
-      resolved: false
-    }
-  ]);
+  const [blockers, setBlockers] = useState<any[]>([]);
 
   // 24-Step Timeline checklist items
-  const [checklist, setChecklist] = useState<{ [key: string]: boolean }>({
-    'st-1': true,
-    'st-2': true,
-    'st-3': true,
-    'st-4': true,
-    'st-5': true,
-    'st-6': true,
-    'st-7': true,
-    'st-8': true,
-    'st-9': true,
-    'st-10': true,
-    'st-11': true,
-    'st-12': false,
-    'st-13': true,
-    'st-14': true,
-    'st-15': true,
-    'st-16': false,
-    'st-17': false,
-    'st-18': true,
-    'st-19': false,
-    'st-20': false,
-  });
+  const [checklist, setChecklist] = useState<{ [key: string]: boolean }>({});
 
   const toggleChecklist = (id: string) => {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }));
@@ -260,7 +122,7 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 text-xs font-bold flex items-center gap-1">
               <Rocket className="w-3.5 h-3.5" />
-              <span>4 In-Flight</span>
+              <span>{accounts.length} In-Flight</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -293,10 +155,10 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
             <span className="font-semibold uppercase tracking-wider text-[11px]">Active Onboardings</span>
             <Rocket className="w-4 h-4 text-blue-500" />
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">4 Accounts</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">{accounts.length} Accounts</div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
             <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold">100% On-Track</span>
-            <span>Avg 14.2 Days to Live</span>
+            <span>Avg 0 Days to Live</span>
           </div>
         </div>
 
@@ -305,10 +167,10 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
             <span className="font-semibold uppercase tracking-wider text-[11px]">Retainer Value in Handoff</span>
             <Target className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">₹71,00,000 / mo</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">₹0 / mo</div>
           <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-            <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 font-bold">+34.5% MoM</span>
-            <span>High-ARR client cohort</span>
+            <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 font-bold">0 Active</span>
+            <span>No active retainers</span>
           </div>
         </div>
 
@@ -317,10 +179,9 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
             <span className="font-semibold uppercase tracking-wider text-[11px]">Avg Time to Live</span>
             <Clock className="w-4 h-4 text-purple-500" />
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">14.2 Days</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">0 Days</div>
           <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-            <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 font-bold">-3.8 Days</span>
-            <span>Target SLA: 18 Days</span>
+            <span>Target SLA: 14 Days</span>
           </div>
         </div>
 
@@ -329,10 +190,9 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
             <span className="font-semibold uppercase tracking-wider text-[11px] text-rose-600">Active Action Blockers</span>
             <ShieldAlert className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-2xl font-bold text-rose-600 mt-2">2 Blockers</div>
+          <div className="text-2xl font-bold text-rose-600 mt-2">{blockers.length} Blockers</div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-            <span className="px-1.5 py-0.2 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 font-bold">2 Accounts</span>
-            <span>InfoSec &amp; BAA signatures</span>
+            <span>0 Blocked Accounts</span>
           </div>
         </div>
       </div>
@@ -356,9 +216,9 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
 
             <div className="flex items-center gap-1 text-[11px] font-semibold overflow-x-auto">
               {[
-                { id: 'all', label: 'All (4)' },
-                { id: 'in_progress', label: 'Active (3)' },
-                { id: 'blocked', label: 'Blocked (2)' },
+                { id: 'all', label: `All (${accounts.length})` },
+                { id: 'in_progress', label: `Active (${accounts.filter(a => a.stageIndex < 4).length})` },
+                { id: 'blocked', label: `Blocked (${accounts.filter(a => a.hasBlocker).length})` },
               ].map((f) => (
                 <button
                   key={f.id}
@@ -377,7 +237,14 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
 
           {/* Account Cards */}
           <div className="space-y-3">
-            {filteredAccounts.map((acc) => {
+            {filteredAccounts.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl shadow-xs text-xs">
+                <Rocket className="w-6 h-6 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="font-semibold text-slate-700 dark:text-slate-300">No onboarding accounts</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Click Start New Onboarding above.</p>
+              </div>
+            ) : (
+              filteredAccounts.map((acc) => {
               const isSelected = acc.id === selectedClientId;
               const progressPct = Math.round((acc.completedSteps / acc.totalSteps) * 100);
 
@@ -439,19 +306,36 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
           </div>
         </div>
 
         {/* Right Column: Deep-Dive Onboarding Detail (8 Cols) */}
         <div className="lg:col-span-8 space-y-4">
-          {/* Client Header Card */}
-          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-[#0A1628] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                  {selectedClient.avatarText}
-                </div>
+          {!selectedClient ? (
+            <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-12 text-center text-slate-500 shadow-xs">
+              <Rocket className="w-10 h-10 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+              <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">No Active Onboarding Workflows</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Start a new 24-step onboarding workflow to transition signed commercial deals into delivery.
+              </p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="mt-4 px-4 py-2 text-xs font-semibold bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl shadow-xs transition cursor-pointer"
+              >
+                + Start New Onboarding
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Client Header Card */}
+              <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-[#0A1628] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                      {selectedClient.avatarText}
+                    </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">{selectedClient.name}</h2>
@@ -833,8 +717,10 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+  </div>
 
       {/* 4. Create New Onboarding Modal */}
       {showCreateModal && (

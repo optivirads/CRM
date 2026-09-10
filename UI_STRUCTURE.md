@@ -6,6 +6,61 @@
 
 ---
 
+## Visual Architecture Blueprint I: Global Application Shell & 70/30 Viewport
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [OPTIVIR]    [🔍 Omnisearch (Ctrl + K)...]            [📅 Oct 2026] [👥 All Teams] [🔔 7] [+ New] [AM] │
+├──────────────────┬─────────────────────────────────────────────────────────────────────────────────────┤
+│ 256px SIDEBAR    │ MAIN VIEWPORT CONTAINER                                                             │
+│                  │                                                                                     │
+│ COMMAND          │ PERSPECTIVE SWITCHER:                                                               │
+│ ▸ Dashboard (Act)│ [Management Dashboard] | [Sales] | [Marketing] | [Finance] | [My Workspace]         │
+│ • My Workspace   │ ┌─────────────────────────────────────────────────────────────────────────────────┐ │
+│                  │ │ 🟢 OPERATIONAL FRICTION: ALL 14 SYSTEMS OPERATIONAL • ZERO CRITICAL ESCALATIONS │ │
+│ REVENUE / CRM    │ └─────────────────────────────────────────────────────────────────────────────────┘ │
+│ • Leads (1,482)  │ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐           │ │
+│ • Deal Pipeline  │ │ TOTAL REVENUE │ │ ACTIVE CLIENTS│ │ PIPELINE LEADS│ │ WIN VELOCITY  │           │ │
+│ • Proposals      │ │ ₹48,25,000    │ │ 142 Active    │ │ 1,482 Leads   │ │ 18.4 Days     │           │ │
+│                  │ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘           │ │
+│ OPERATIONS       │ ┌───────────────────────────────────────────────┬─────────────────────────────────┐ │ │
+│ • Clients (142)  │ │ PRIMARY FOCUS CANVAS (70% VIEWPORT)           │ TELEMETRY & CONTEXT (30%)       │ │ │
+│ • Client 360°    │ │ ┌──────────┐ ┌──────────┐ ┌──────────┐        │ ┌─────────────────────────────┐ │ │ │
+│ • Projects       │ │ │Discovery │ │Audit     │ │Proposal  │        │ │ LIVE BILLABLE STOPWATCH     │ │ │ │
+│ • Tasks          │ │ │(20% Prob)│ │(40% Prob)│ │(60% Prob)│        │ │ ⏱ 02h 15m 42s              │ │ │ │
+│ • Calendar       │ │ │Apex:₹1.5L│ │Nova:₹2.2L│ │Zep: ₹3.0L│        │ │ Active: #OPT-9492 (Maya)    │ │ │ │
+│                  │ │ └──────────┘ └──────────┘ └──────────┘        │ └─────────────────────────────┘ │ │ │
+│ FINANCE          │ │ ┌──────────┐ ┌───────────────────────┐        │ ┌─────────────────────────────┐ │ │ │
+│ • Invoices (GST) │ │ │Negotiate │ │ CLOSED WON (100%)     │        │ │ TODAY'S DELIVERABLES CHECK  │ │ │ │
+│ • Retainers      │ │ │(80% Prob)│ │ 🎉 Auto-Onboarding!   │        │ │ [✓] Send SOW to Apex        │ │ │ │
+│                  │ │ └──────────┘ └───────────────────────┘        │ │ [✓] Review Meta Ad ROAS     │ │ │ │
+│ SYSTEM / VAULT   │ │                                               │ │ [ ] Verify GTM Purchase CAPI│ │ │ │
+│ • Doc Vault      │ │ • High-density canvas (Kanban, SOW, Invoices) │ └─────────────────────────────┘ │ │ │
+│ • Settings       │ └───────────────────────────────────────────────┴─────────────────────────────────┘ │ │
+└──────────────────┴─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Visual Architecture Blueprint II: 14-Module Operational Data Lifecycle
+
+```text
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ 01. INGESTION   │       │ 02. QUALIFY     │       │ 03. PIPELINE    │       │ 04. PROPOSAL    │
+│ Web Form / Meta │ ────> │ BANT Scoring    │ ────> │ 5-Stage Kanban  │ ────> │ SOW Builder     │
+│ Inbound Leads   │       │ Company + GSTIN │       │ Weighted Values │       │ SAC 998311 Code │
+└─────────────────┘       └─────────────────┘       └─────────────────┘       └─────────────────┘
+                                                                                       │
+                                                                                       ▼
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ 08. GOVERNANCE  │       │ 07. COMMERCE    │       │ 06. EXECUTION   │       │ 05. ONBOARDING  │
+│ SHA-256 Vault   │ <──── │ 1-Click 18% GST │ <──── │ Tasks & Milestones│ <───│ 24-Step Engine  │
+│ QBR Reports Dossier     │ Bank UTR Settlement     │ Live Stopwatch  │       │ Credential Vault│
+└─────────────────┘       └─────────────────┘       └─────────────────┘       └─────────────────┘
+```
+
+---
+
 ## Master Tree Structure
 
 ```text

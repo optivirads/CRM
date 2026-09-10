@@ -563,24 +563,25 @@ const totalPages = range.count;
 
 for (let i = 0; i < totalPages; i++) {
   doc.switchToPage(i);
+  doc.page.margins.bottom = 0;
 
   // Top Running Header (Pages 2+)
   if (i > 0) {
     doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica')
-       .text('OPTIVIR ADS CRM • COMPLETE ENTERPRISE UI ARCHITECTURE', 48, 25);
-    doc.text('SYSTEM SPECIFICATION & FUNCTIONAL MAP', doc.page.width - 250, 25, { width: 202, align: 'right' });
-    doc.rect(48, 35, contentWidth, 0.5).fill(COLORS.border);
+       .text('OPTIVIR ADS CRM • COMPLETE ENTERPRISE UI ARCHITECTURE', 48, 22, { lineBreak: false });
+    doc.text('SYSTEM SPECIFICATION & FUNCTIONAL MAP', doc.page.width - 250, 22, { width: 202, align: 'right', lineBreak: false });
+    doc.rect(48, 32, contentWidth, 0.5).fill(COLORS.border);
   }
 
   // Bottom Running Footer (All Pages)
-  const footerY = pageHeight - 35;
+  const footerY = pageHeight - 30;
   doc.rect(48, footerY - 5, contentWidth, 0.5).fill(COLORS.border);
 
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica')
-     .text('CONFIDENTIAL • OPTIVIR ADS ENTERPRISE OPERATING SYSTEM • AUTHORIZED ACCESS ONLY', 48, footerY);
+     .text('CONFIDENTIAL • OPTIVIR ADS ENTERPRISE OPERATING SYSTEM • AUTHORIZED ACCESS ONLY', 48, footerY, { lineBreak: false });
 
   const pageString = `Page ${i + 1} of ${totalPages}`;
-  doc.text(pageString, doc.page.width - 150, footerY, { width: 102, align: 'right' });
+  doc.text(pageString, doc.page.width - 150, footerY, { width: 102, align: 'right', lineBreak: false });
 }
 
 // Finalize and close PDF stream

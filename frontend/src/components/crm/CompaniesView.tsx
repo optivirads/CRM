@@ -51,149 +51,7 @@ interface CompanyRow {
   lastActivity: string;
 }
 
-const INITIAL_COMPANIES: CompanyRow[] = [
-  {
-    id: 'comp-1',
-    name: 'Acme Technologies',
-    domain: 'acmetechnologies.com',
-    initials: 'AT',
-    logoBg: 'bg-[#0B1727]',
-    isVerified: true,
-    industry: 'Technology',
-    primaryContact: 'Arjun Nair',
-    primaryRole: 'Marketing Director',
-    contactsCount: 5,
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerBg: 'bg-[#0B1727]',
-    accountStatus: 'Prospect',
-    activeDeals: '2 open',
-    clientValue: '₹75,000',
-    renewal: '—',
-    lastActivity: 'Today, 10:20 AM'
-  },
-  {
-    id: 'comp-2',
-    name: 'Zenith Retail',
-    domain: 'zenithretail.com',
-    initials: 'ZR',
-    logoBg: 'bg-[#0B1727]',
-    isVerified: false,
-    industry: 'Retail',
-    primaryContact: 'Sara Thomas',
-    primaryRole: 'Founder & CEO',
-    contactsCount: 8,
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerBg: 'bg-[#991B1B]',
-    accountStatus: 'Active Client',
-    activeDeals: '3 open',
-    clientValue: '₹4,80,000',
-    renewal: 'Jan 2027',
-    lastActivity: 'Today, 08:30 AM'
-  },
-  {
-    id: 'comp-3',
-    name: 'Orion Properties',
-    domain: 'orionproperties.com',
-    initials: 'OP',
-    logoBg: 'bg-[#1E293B]',
-    isVerified: false,
-    industry: 'Real Estate',
-    primaryContact: 'John Mathew',
-    primaryRole: 'Head of Sales',
-    contactsCount: 4,
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerBg: 'bg-[#0B1727]',
-    accountStatus: 'Prospect',
-    activeDeals: '2 open',
-    clientValue: '₹1,20,000',
-    renewal: '—',
-    lastActivity: 'Yesterday'
-  },
-  {
-    id: 'comp-4',
-    name: 'Nova Healthcare',
-    domain: 'novahealthcare.com',
-    initials: 'NH',
-    logoBg: 'bg-[#1E293B]',
-    isVerified: false,
-    industry: 'Healthcare',
-    primaryContact: 'Meera Joseph',
-    primaryRole: 'Managing Director',
-    contactsCount: 6,
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerBg: 'bg-[#991B1B]',
-    accountStatus: 'Active Client',
-    activeDeals: '1 open',
-    clientValue: '₹8,50,000',
-    renewal: 'Mar 2027',
-    lastActivity: 'Today, 11:15 AM'
-  },
-  {
-    id: 'comp-5',
-    name: 'Vertex Solutions',
-    domain: 'vertexsolutions.com',
-    initials: 'VS',
-    logoBg: 'bg-red-100 text-red-700',
-    isVerified: false,
-    industry: 'Software',
-    primaryContact: 'Rahul Menon',
-    primaryRole: 'Marketing Mgr',
-    contactsCount: 3,
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerBg: 'bg-[#0B1727]',
-    accountStatus: 'At Risk',
-    activeDeals: '1 open',
-    clientValue: '₹2,40,000',
-    renewal: 'Nov 2026',
-    isRenewalUrgent: true,
-    lastActivity: '2 days ago'
-  },
-  {
-    id: 'comp-6',
-    name: 'Nexa FinTech',
-    domain: 'nexafin.co',
-    initials: 'NF',
-    logoBg: 'bg-[#1E293B]',
-    isVerified: false,
-    industry: 'Financial Services',
-    primaryContact: 'Priyanka Sen',
-    primaryRole: 'VP Growth',
-    contactsCount: 7,
-    ownerInitials: 'MJ',
-    ownerName: 'Maya Joseph',
-    ownerBg: 'bg-[#991B1B]',
-    accountStatus: 'Active Client',
-    activeDeals: '2 open',
-    clientValue: '₹6,20,000',
-    renewal: 'Dec 2026',
-    lastActivity: 'Yesterday'
-  },
-  {
-    id: 'comp-7',
-    name: 'Apex Logistics',
-    domain: 'apexlog.in',
-    initials: 'AL',
-    logoBg: 'bg-[#1E293B]',
-    isVerified: false,
-    industry: 'Logistics & Supply',
-    primaryContact: 'Vikram Malhotra',
-    primaryRole: 'CCO',
-    contactsCount: 4,
-    ownerInitials: 'AM',
-    ownerName: 'Alex Morgan',
-    ownerBg: 'bg-[#0B1727]',
-    accountStatus: 'Former Client',
-    activeDeals: '0 open',
-    clientValue: '₹0',
-    renewal: '—',
-    lastActivity: '12 days ago'
-  }
-];
+const INITIAL_COMPANIES: CompanyRow[] = [];
 
 const FILTER_TABS = [
   { id: 'all', label: 'All Companies', count: '428' },
@@ -212,7 +70,7 @@ export const CompaniesView: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [simulatorStep, setSimulatorStep] = useState('1. Companies List');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['comp-1', 'comp-2']);
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -277,6 +135,14 @@ export const CompaniesView: React.FC = () => {
     }
   };
 
+  const getStatusPill = (status: CompanyRow['accountStatus']) => {
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(status)}`}>
+        {status}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
       {/* ========================================================================= */}
@@ -323,7 +189,7 @@ export const CompaniesView: React.FC = () => {
             <span>&gt;</span>
             <span className="font-semibold text-[#0B1727] dark:text-white">Companies</span>
             <span className="px-2 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300">
-              428 total
+              {companies.length} total
             </span>
           </div>
           <h1 className="text-2xl font-bold text-[#0B1727] dark:text-white tracking-tight mt-1">
@@ -379,11 +245,11 @@ export const CompaniesView: React.FC = () => {
           <div className="flex justify-between items-start">
             <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">Total Companies</span>
             <span className="text-xs font-bold text-emerald-600 flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" /> +8.4%
+              <TrendingUp className="w-3 h-3" /> Live
             </span>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">428</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">{companies.length}</span>
             <span className="text-[11px] text-[#8492A6] block mt-0.5">All registered accounts</span>
           </div>
         </div>
@@ -395,8 +261,10 @@ export const CompaniesView: React.FC = () => {
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">142</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Generating recurring ARR</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">
+              {companies.filter((c) => c.accountStatus === 'Active Client').length}
+            </span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Active enterprise accounts</span>
           </div>
         </div>
 
@@ -407,7 +275,9 @@ export const CompaniesView: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-blue-500" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">196</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">
+              {companies.filter((c) => c.accountStatus === 'Prospect').length}
+            </span>
             <span className="text-[11px] text-[#8492A6] block mt-0.5">In pipeline qualification</span>
           </div>
         </div>
@@ -416,13 +286,12 @@ export const CompaniesView: React.FC = () => {
         <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <span className="text-[10px] uppercase font-bold text-[#8492A6] tracking-wider">At Risk Accounts</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-700">
-              Alert
-            </span>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#DC2626]">12</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">SLA &amp; churn warning</span>
+            <span className="text-2xl font-bold text-[#DC2626]">
+              {companies.filter((c) => c.accountStatus === 'At Risk').length}
+            </span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">SLA warning</span>
           </div>
         </div>
 
@@ -433,8 +302,8 @@ export const CompaniesView: React.FC = () => {
             <Calendar className="w-4 h-4 text-[#8492A6]" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">24</span>
-            <span className="text-[11px] text-[#8492A6] block mt-0.5">Added in Sep 2026</span>
+            <span className="text-2xl font-bold text-[#0B1727] dark:text-white">{companies.length}</span>
+            <span className="text-[11px] text-[#8492A6] block mt-0.5">Added this period</span>
           </div>
         </div>
       </div>
@@ -443,30 +312,43 @@ export const CompaniesView: React.FC = () => {
       {/* 4. FILTER TABS ROW (Matching Image 2)                                    */}
       {/* ========================================================================= */}
       <div className="flex items-center gap-1.5 border-b border-[#E2E6EC] dark:border-[#152238] pb-2 overflow-x-auto custom-scrollbar">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-              activeTab === tab.id
-                ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
-                tab.isAlert
-                  ? 'bg-red-100 text-red-700'
-                  : activeTab === tab.id
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+        {FILTER_TABS.map((tab) => {
+          const count =
+            tab.id === 'all'
+              ? companies.length
+              : tab.id === 'clients'
+              ? companies.filter((c) => c.accountStatus === 'Active Client').length
+              : tab.id === 'prospects'
+              ? companies.filter((c) => c.accountStatus === 'Prospect').length
+              : tab.id === 'atrisk'
+              ? companies.filter((c) => c.accountStatus === 'At Risk').length
+              : companies.filter((c) => c.ownerName === 'Alex Morgan').length;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                activeTab === tab.id
+                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
+                  : 'text-[#5A6A80] dark:text-[#94A3B8] hover:text-[#0B1727] hover:bg-slate-100 dark:hover:bg-[#111E34]'
               }`}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+                  tab.isAlert
+                    ? 'bg-red-100 text-red-700'
+                    : activeTab === tab.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 dark:bg-[#0F1E36] text-[#5A6A80] dark:text-[#94A3B8]'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ========================================================================= */}
@@ -632,113 +514,120 @@ export const CompaniesView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-            {companies.map((comp) => {
-              const isSelected = selectedCompanies.includes(comp.id);
-              return (
-                <tr
-                  key={comp.id}
-                  className={`hover:bg-[#F8FAFC] dark:hover:bg-[#111E34] transition ${
-                    isSelected ? 'bg-red-50/20 dark:bg-[#DC2626]/5' : ''
-                  }`}
-                >
-                  {/* Checkbox */}
-                  <td className="p-4 text-center" onClick={(e) => toggleSelect(comp.id, e)}>
-                    {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-[#DC2626] fill-current" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-400" />
-                    )}
-                  </td>
+            {companies.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="p-12 text-center text-slate-500">
+                  <Building2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                  <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No companies found</p>
+                  <p className="text-xs text-slate-400 mt-1">Create your first company account using Create Company.</p>
+                </td>
+              </tr>
+            ) : (
+              companies.map((comp) => {
+                const isSelected = selectedCompanies.includes(comp.id);
+                return (
+                  <tr
+                    key={comp.id}
+                    className={`hover:bg-[#F8FAFC] dark:hover:bg-[#111E34] transition ${
+                      isSelected ? 'bg-red-50/20 dark:bg-[#DC2626]/5' : ''
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <td className="p-4 text-center" onClick={(e) => toggleSelect(comp.id, e)}>
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-[#DC2626] fill-current" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400" />
+                      )}
+                    </td>
 
-                  {/* Company */}
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl ${comp.logoBg} font-bold flex items-center justify-center text-xs text-white shrink-0 shadow-xs`}>
-                        {comp.initials}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-[#0B1727] dark:text-white hover:text-[#DC2626] cursor-pointer">
-                            {comp.name}
-                          </span>
-                          {comp.isVerified && (
-                            <Check className="w-3.5 h-3.5 text-blue-500" />
-                          )}
+                    {/* Company */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl ${comp.logoBg} font-bold flex items-center justify-center text-xs text-white shrink-0 shadow-xs`}>
+                          {comp.initials}
                         </div>
-                        <span className="text-[11px] text-[#8492A6] block">{comp.domain}</span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[#0B1727] dark:text-white hover:text-[#DC2626] cursor-pointer">
+                              {comp.name}
+                            </span>
+                            {comp.isVerified && (
+                              <Check className="w-3.5 h-3.5 text-slate-400 stroke-[2.5]" />
+                            )}
+                          </div>
+                          <span className="text-[11px] text-[#8492A6] block">{comp.domain}</span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Industry */}
-                  <td className="p-4">
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-[#111E34] text-slate-700 dark:text-slate-300">
+                    {/* Industry */}
+                    <td className="p-4 text-[#5A6A80] dark:text-[#94A3B8]">
                       {comp.industry}
-                    </span>
-                  </td>
+                    </td>
 
-                  {/* Primary Contact */}
-                  <td className="p-4">
-                    <p className="font-semibold text-[#0B1727] dark:text-white">{comp.primaryContact}</p>
-                    <p className="text-[11px] text-[#8492A6]">{comp.primaryRole}</p>
-                  </td>
+                    {/* Primary Contact */}
+                    <td className="p-4">
+                      <p className="font-semibold text-[#0B1727] dark:text-white">{comp.primaryContact}</p>
+                      <p className="text-[11px] text-[#8492A6]">{comp.primaryRole}</p>
+                    </td>
 
-                  {/* Contacts Count */}
-                  <td className="p-4 text-center font-bold text-[#0B1727] dark:text-white">
-                    {comp.contactsCount}
-                  </td>
-
-                  {/* Owner */}
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full ${comp.ownerBg} text-white font-bold text-[10px] flex items-center justify-center shrink-0`}>
-                        {comp.ownerInitials}
-                      </div>
-                      <span className="font-medium text-red-800 dark:text-red-300 text-xs">
-                        {comp.ownerName}
+                    {/* Contacts Count */}
+                    <td className="p-4 text-center">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#111E34] text-slate-600 dark:text-slate-300">
+                        {comp.contactsCount}
                       </span>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Account Status */}
-                  <td className="p-4">
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-bold ${getStatusBadge(comp.accountStatus)}`}>
-                      {comp.accountStatus === 'At Risk' && <span className="mr-1">●</span>}
-                      {comp.accountStatus}
-                    </span>
-                  </td>
+                    {/* Owner */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-full ${comp.ownerBg} text-white font-bold text-[10px] flex items-center justify-center shrink-0`}>
+                          {comp.ownerInitials}
+                        </div>
+                        <span className="font-medium text-red-800 dark:text-red-300 text-xs">
+                          {comp.ownerName}
+                        </span>
+                      </div>
+                    </td>
 
-                  {/* Active Deals */}
-                  <td className="p-4 font-semibold text-slate-800 dark:text-slate-200">
-                    {comp.activeDeals}
-                  </td>
+                    {/* Account Status Pill */}
+                    <td className="p-4">
+                      {getStatusPill(comp.accountStatus)}
+                    </td>
 
-                  {/* Client Value */}
-                  <td className="p-4 font-bold text-[#0B1727] dark:text-white">
-                    {comp.clientValue}
-                  </td>
+                    {/* Active Deals */}
+                    <td className="p-4 font-semibold text-[#0B1727] dark:text-white">
+                      {comp.activeDeals}
+                    </td>
 
-                  {/* Renewal */}
-                  <td className="p-4">
-                    <span className={comp.isRenewalUrgent ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400'}>
-                      {comp.renewal}
-                    </span>
-                  </td>
+                    {/* Client Value */}
+                    <td className="p-4 font-bold text-red-800 dark:text-red-400">
+                      {comp.clientValue}
+                    </td>
 
-                  {/* Last Activity */}
-                  <td className="p-4 text-slate-500 text-[11px]">
-                    {comp.lastActivity}
-                  </td>
-                </tr>
-              );
-            })}
+                    {/* Renewal */}
+                    <td className="p-4">
+                      <span className={`text-xs ${comp.isRenewalUrgent ? 'font-bold text-[#DC2626]' : 'text-slate-600 dark:text-slate-400'}`}>
+                        {comp.renewal}
+                      </span>
+                    </td>
+
+                    {/* Last Activity */}
+                    <td className="p-4 text-slate-500 text-[11px]">
+                      {comp.lastActivity}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
 
         {/* Pagination Bar */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">
           <div className="flex items-center gap-3">
-            <span>Showing 1-7 of 428 companies</span>
+            <span>Showing {companies.length > 0 ? 1 : 0}-{companies.length} of {companies.length} companies</span>
             <div className="flex items-center gap-1">
               <span>Rows per page:</span>
               <select

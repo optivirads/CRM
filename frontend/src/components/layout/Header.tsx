@@ -55,42 +55,16 @@ export const Header: React.FC<HeaderProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(4);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'Discount Override Requested',
-      desc: 'Nordic Industrial Robotics requested 18.5% discount tier',
-      time: '14m ago',
-      unread: true,
-      type: 'warning'
-    },
-    {
-      id: 2,
-      title: 'Closed Won Milestone 🎉',
-      desc: 'Aegis Biopharma countersigned MSA for ₹1.25 Cr',
-      time: '18m ago',
-      unread: true,
-      type: 'success'
-    },
-    {
-      id: 3,
-      title: 'Overdue Invoice Alert',
-      desc: 'Invoice #INV-2024-001 for ₹3,45,000 is 5 days overdue',
-      time: '1h ago',
-      unread: true,
-      type: 'danger'
-    },
-    {
-      id: 4,
-      title: 'Custom SLA Addendum',
-      desc: 'Legal approval pending for Aegis Biopharma integration',
-      time: '2h ago',
-      unread: true,
-      type: 'info'
-    }
-  ]);
+  const [notifications, setNotifications] = useState<Array<{
+    id: number;
+    title: string;
+    desc: string;
+    time: string;
+    unread: boolean;
+    type: string;
+  }>>([]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -219,13 +193,26 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
+        {/* Backdrop for open menus */}
+        {(showNewMenu || showNotifications || showPersonaMenu || showProfileMenu) && (
+          <div
+            className="fixed inset-0 z-40 bg-transparent cursor-default"
+            onClick={() => {
+              setShowNewMenu(false);
+              setShowNotifications(false);
+              setShowPersonaMenu(false);
+              setShowProfileMenu(false);
+            }}
+          />
+        )}
+
         {/* Theme Toggle (Sun / Moon) */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg text-[#64748B] hover:text-[#0B1727] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#111E34] transition"
+          className="p-2 rounded-lg text-[#64748B] hover:text-[#0B1727] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#111E34] transition relative z-50 cursor-pointer"
           title="Toggle color theme"
         >
-          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
         </button>
 
         {/* Notifications Bell with Counter */}
@@ -247,13 +234,21 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-[#DC2626] font-semibold">{unreadCount} unread</span>
               </div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div key={n.id} className="p-2 rounded-lg bg-slate-50 dark:bg-[#111E34] hover:bg-slate-100 transition">
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{n.title}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{n.desc}</p>
-                    <span className="text-[9px] text-slate-400 mt-1 block">{n.time}</span>
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 dark:text-slate-500">
+                    <CheckCircle2 className="w-6 h-6 mx-auto mb-1.5 text-emerald-500/70" />
+                    <p className="text-xs font-medium">All caught up!</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">No unread notifications</p>
                   </div>
-                ))}
+                ) : (
+                  notifications.map((n) => (
+                    <div key={n.id} className="p-2 rounded-lg bg-slate-50 dark:bg-[#111E34] hover:bg-slate-100 transition">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{n.title}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{n.desc}</p>
+                      <span className="text-[9px] text-slate-400 mt-1 block">{n.time}</span>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
                 <button
