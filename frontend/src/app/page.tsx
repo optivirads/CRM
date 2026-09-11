@@ -22,14 +22,20 @@ import { CalendarView } from '@/components/operations/CalendarView';
 import { DocumentsView } from '@/components/operations/DocumentsView';
 import { NotificationsView } from '@/components/operations/NotificationsView';
 import { SettingsView } from '@/components/operations/SettingsView';
+import { LoginView } from '@/components/auth/LoginView';
 import { useAuth } from '@/lib/auth-context';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Lock } from 'lucide-react';
 
 export default function Home() {
-  const { isLoading, canAccessTab, activePersona } = useAuth();
+  const [mounted, setMounted] = React.useState(false);
+  const { user, token, isLoading, canAccessTab, activePersona } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavItem>('dashboard');
   const [invoiceTransferData, setInvoiceTransferData] = useState<any>(null);
   const [openCreateInvoiceTrigger, setOpenCreateInvoiceTrigger] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleOpenCreateInvoice = () => {
     setInvoiceTransferData(null);
@@ -82,6 +88,34 @@ export default function Home() {
     }
   };
 
+  // 1. Session Initialization Splash (guarantees SSR/CSR hydration parity)
+  if (!mounted || isLoading) {
+    return (
+      <div className="h-screen w-full bg-[#060B13] flex flex-col items-center justify-center space-y-4 text-white font-sans">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#DC2626] to-[#991B1B] flex items-center justify-center font-black text-xl tracking-wider shadow-2xl shadow-rose-900/60 border border-rose-500/30">
+            OV
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
+            <Lock className="w-3 h-3 text-rose-400" />
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <div className="font-bold text-sm tracking-wide">OptiVir CRM</div>
+          <p className="text-xs text-slate-400">Verifying Agency Security Session & RBAC Policy...</p>
+        </div>
+        <div className="w-36 h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+          <div className="w-1/2 h-full bg-[#DC2626] rounded-full animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Auth Wall: Gate with Login Screen if not authenticated
+  if (!user || !token) {
+    return <LoginView />;
+  }
+
   const { title, subtitle } = getHeaderDetails();
 
   return (
@@ -101,7 +135,7 @@ export default function Home() {
         />
 
         {/* Scrollable View Area */}
-        <main className="flex-1 overflow-y-auto bg-[#F8F9FB] dark:bg-[#060B13] custom-scrollbar">
+        <main className="flex-1 overflow-y-auto bg-[#F8F9FB] dark:bg-[#060B13] custom-scrollbar isolate relative z-0">
           {!canAccessTab(currentTab) ? (
             <div className="max-w-xl mx-auto my-16 p-8 bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-[#DC2626] mx-auto flex items-center justify-center shadow-inner">

@@ -101,7 +101,7 @@ This manual was written for **non-technical human beings**.
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
 │ 01. INGESTION   │       │ 02. QUALIFY     │       │ 03. PIPELINE    │       │ 04. PROPOSAL    │
 │ Web Form / Meta │ ────> │ BANT Scoring    │ ────> │ 5-Stage Kanban  │ ────> │ SOW Builder     │
-│ Inbound Leads   │       │ Company + GSTIN │       │ Weighted Values │       │ SAC 998311 Code │
+│ Inbound Leads   │       │ Company + GSTIN │       │ Weighted Values │       │ SAC 998361 Code │
 └─────────────────┘       └─────────────────┘       └─────────────────┘       └─────────────────┘
                                                                                        │
                                                                                        ▼
@@ -651,7 +651,7 @@ Click into any client to view their 8 dedicated tabs:
    - **Invoice Date**: Today's date (auto-filled).
    - **Due Date**: Select payment deadline (standard: 15 days from today).
    - **Service Package / Description**: Select or type the service rendered (e.g., *Monthly Performance Retainer & Ad Management*).
-   - **SAC Service Code**: System auto-fills `998311` (Information Technology & Advertising Services).
+   - **SAC Service Code**: System auto-fills `998361` (Advertising & Digital Marketing Services).
    - **Taxable Amount**: Enter your agreed service fee (e.g., `₹1,00,000`).
 3. **Automatic Tax Calculation**:
    - The system automatically calculates 18% GST:

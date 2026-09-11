@@ -120,7 +120,7 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
     { name: 'Search Engine Optimization (SEO) & Technical Visibility Retainer', sac: '998361', qty: '1 mo', rate: Math.round(subtotal * 0.35) },
     { name: 'Performance Paid Media Management (Google & Meta PPC)', sac: '998361', qty: '1 mo', rate: Math.round(subtotal * 0.35) },
     { name: 'Social Media Content Production & Creative Suite (12 Banners, 4 Reels)', sac: '998361', qty: '1 lot', rate: Math.round(subtotal * 0.20) },
-    { name: 'Conversion API (CAPI), GTM Server-Side & Executive BI Reporting', sac: '998311', qty: '1 lot', rate: subtotal - (Math.round(subtotal * 0.35) * 2 + Math.round(subtotal * 0.20)) }
+    { name: 'Conversion API (CAPI), GTM Server-Side & Executive BI Reporting', sac: '998361', qty: '1 lot', rate: subtotal - (Math.round(subtotal * 0.35) * 2 + Math.round(subtotal * 0.20)) }
   ];
 
   y += 20;
@@ -188,6 +188,9 @@ async function generateProposalPDF(params: any): Promise<Buffer> {
   const proposalTitle = params.title || 'Enterprise Growth Retainer & Meta CAPI Architecture';
   const clientName = params.client || 'Client Organization';
   const proposalNum = params.number || 'PROP-2026-042';
+  const contractVal = params.amount || 'INR 1,85,000 / month';
+  const sacCode = params.sacCode || '998361';
+  const pkgName = params.packageName || 'Performance Marketing & Growth SOW';
 
   // --- PAGE 1: COVER ---
   doc.rect(45, 45, 505, 712).fill(COLORS.navyDark);
@@ -203,7 +206,7 @@ async function generateProposalPDF(params: any): Promise<Buffer> {
   }
   doc.fillColor('#FFFFFF').fontSize(24).font('Helvetica-Bold').text(proposalTitle, 70, 125, { width: 440, lineGap: 6 });
 
-  doc.fillColor('#94A3B8').fontSize(11).font('Helvetica').text('Statement of Work (SOW) • Strategic Growth Retainer • Service Level Agreement', 70, 180);
+  doc.fillColor('#94A3B8').fontSize(10).font('Helvetica').text(`Package Offering: ${pkgName} • CBIC SAC ${sacCode} (18% GST)`, 70, 180);
 
   // Client Details Card
   doc.roundedRect(70, 240, 440, 120, 6).fill(COLORS.navyLight);
@@ -211,15 +214,15 @@ async function generateProposalPDF(params: any): Promise<Buffer> {
   doc.fillColor('#94A3B8').fontSize(8).font('Helvetica-Bold').text('PREPARED FOR', 85, 255);
   doc.fillColor('#FFFFFF').fontSize(14).font('Helvetica-Bold').text(clientName, 85, 270);
   doc.fillColor('#CBD5E1').fontSize(9).font('Helvetica')
-     .text('Primary Stakeholder: Sarah Jenkins, VP of Performance Marketing\nContract Identifier: ' + proposalNum + '\nProposal Validity: 30 Calendar Days\nTarget Kickoff: Q4 Fiscal Year 2026', 85, 292, { lineGap: 3 });
+     .text(`Primary Stakeholder: Authorized Executive Lead\nContract Identifier: ${proposalNum}\nTax Classification: CBIC SAC ${sacCode} (Advertising & Digital Marketing)\nTarget Kickoff: Immediate / Q4 FY2026`, 85, 292, { lineGap: 3 });
 
   // Commercial Snapshot
   doc.roundedRect(70, 380, 440, 90, 6).fill(COLORS.navyLight);
   doc.rect(70, 380, 4, 90).fill(COLORS.crimson);
   doc.fillColor('#94A3B8').fontSize(8).font('Helvetica-Bold').text('COMMERCIAL ENGAGEMENT SUMMARY', 85, 395);
-  doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('INR 1,77,000 / month', 85, 412);
+  doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text(contractVal.startsWith('INR') || contractVal.startsWith('₹') ? contractVal.replace('₹', 'INR ') : `INR ${contractVal}`, 85, 412);
   doc.fillColor('#CBD5E1').fontSize(8.5).font('Helvetica')
-     .text('Scope: Omnichannel Paid Media (Google, Meta), Server-Side CAPI, 12 Creatives, Executive BI Dossier.\nIncludes 24/7 Slack Connect Channel + 4-Hour SLA Response Time.', 85, 435, { lineGap: 3 });
+     .text(`Package SOW: ${pkgName}\nAll services categorized under SAC ${sacCode}. Includes guaranteed SLA turnaround & executive BI sync.`, 85, 435, { lineGap: 3 });
 
   // Agency Footer
   doc.fillColor('#64748B').fontSize(8).font('Helvetica')
@@ -313,8 +316,8 @@ async function generateProposalPDF(params: any): Promise<Buffer> {
 
   // Total
   doc.rect(45, ty, 505, 24).fill(COLORS.navyDark);
-  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('TOTAL MONTHLY INVESTMENT (EXCL. GST)', 55, ty + 7);
-  doc.fillColor(COLORS.crimsonLight).fontSize(9).font('Helvetica-Bold').text('INR 1,77,000 / mo', 430, ty + 7, { width: 100, align: 'right' });
+  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text(`TOTAL SOW INVESTMENT (EXCL. 18% GST • SAC ${sacCode})`, 55, ty + 7);
+  doc.fillColor(COLORS.crimsonLight).fontSize(9).font('Helvetica-Bold').text(contractVal.startsWith('INR') || contractVal.startsWith('₹') ? contractVal.replace('₹', 'INR ') : `INR ${contractVal}`, 430, ty + 7, { width: 100, align: 'right' });
 
   // Sign-off Box
   ty += 45;

@@ -31,6 +31,145 @@ import {
   DollarSign
 } from 'lucide-react';
 
+export const DEFAULT_CLIENT_COMPANIES = [
+  'Zenith DTC Brands',
+  'Astra Health Tech',
+  'UrbanKulture Apparels',
+  'NexaScale Logistics',
+  'FinEdge Wealth Advisors',
+  'Auric Living Luxury Real Estate',
+  'BioPure Nutra Labs',
+  'SparkVibe Media Network',
+];
+
+export const DEFAULT_PROJECTS = [
+  {
+    id: 'p-1',
+    code: 'P-2026-402',
+    name: 'Omnichannel DTC ROAS Acceleration',
+    scopeType: 'Meta + Google Ads Retainer',
+    clientName: 'Zenith DTC Brands',
+    clientAvatarText: 'ZB',
+    clientAvatarBg: 'bg-[#DC2626]',
+    clientAvatarTextColor: 'text-white',
+    leadPM: 'Maya Joseph',
+    leadInitials: 'MJ',
+    status: 'Active',
+    statusBg: 'bg-emerald-50 text-emerald-700',
+    health: 'Healthy (96)',
+    healthStatus: 'healthy',
+    progressPercent: 68,
+    sprint: 'Sprint 3/4',
+    budget: '₹4,50,000',
+    spent: '₹2,90,000 (64%)',
+    deadline: '28 Oct 2026',
+    deadlineSub: 'On track for Q4 sprint',
+    deadlineUrgent: false,
+    tasksCompleted: 18,
+    tasksTotal: 24,
+  },
+  {
+    id: 'p-2',
+    code: 'P-2026-405',
+    name: 'Meta CAPI & Server-Side Tracking Pipeline',
+    scopeType: 'Technical CRO & Analytics',
+    clientName: 'Astra Health Tech',
+    clientAvatarText: 'AH',
+    clientAvatarBg: 'bg-[#2563EB]',
+    clientAvatarTextColor: 'text-white',
+    leadPM: 'Alex Morgan',
+    leadInitials: 'AM',
+    status: 'Active',
+    statusBg: 'bg-blue-50 text-blue-700',
+    health: 'Healthy (91)',
+    healthStatus: 'healthy',
+    progressPercent: 42,
+    sprint: 'Sprint 2/4',
+    budget: '₹2,75,000',
+    spent: '₹1,15,000 (41%)',
+    deadline: '15 Nov 2026',
+    deadlineSub: 'DNS & Gateway configured',
+    deadlineUrgent: false,
+    tasksCompleted: 10,
+    tasksTotal: 22,
+  },
+  {
+    id: 'p-3',
+    code: 'P-2026-408',
+    name: 'Festive Flash Sale & Ad-Hoc Scaling',
+    scopeType: 'On-Demand Ads / As-Needed',
+    clientName: 'UrbanKulture Apparels',
+    clientAvatarText: 'UK',
+    clientAvatarBg: 'bg-[#16A34A]',
+    clientAvatarTextColor: 'text-white',
+    leadPM: 'Alex Morgan',
+    leadInitials: 'AM',
+    status: 'Active',
+    statusBg: 'bg-amber-50 text-amber-700',
+    health: 'Healthy (94)',
+    healthStatus: 'healthy',
+    progressPercent: 85,
+    sprint: 'Sprint 4/4',
+    budget: '₹1,20,000 (Ad-Hoc)',
+    spent: '₹1,02,000 (85%)',
+    deadline: '20 Oct 2026',
+    deadlineSub: 'Peak event campaign live',
+    deadlineUrgent: false,
+    tasksCompleted: 17,
+    tasksTotal: 20,
+  },
+  {
+    id: 'p-4',
+    code: 'P-2026-411',
+    name: 'B2B High-Intent Search & Pipeline Sprint',
+    scopeType: 'Google Ads & LinkedIn Retainer',
+    clientName: 'NexaScale Logistics',
+    clientAvatarText: 'NL',
+    clientAvatarBg: 'bg-[#D97706]',
+    clientAvatarTextColor: 'text-white',
+    leadPM: 'Rahul Menon',
+    leadInitials: 'RM',
+    status: 'Active',
+    statusBg: 'bg-amber-50 text-amber-700',
+    health: 'Attention (78)',
+    healthStatus: 'attention',
+    progressPercent: 30,
+    sprint: 'Sprint 1/4',
+    budget: '₹3,10,000',
+    spent: '₹95,000 (30%)',
+    deadline: '05 Nov 2026',
+    deadlineSub: 'Waiting on creative approvals',
+    deadlineUrgent: true,
+    tasksCompleted: 6,
+    tasksTotal: 18,
+  },
+  {
+    id: 'p-5',
+    code: 'P-2026-415',
+    name: 'HNW Wealth Acquisition Funnel',
+    scopeType: 'Performance SOW',
+    clientName: 'FinEdge Wealth Advisors',
+    clientAvatarText: 'FE',
+    clientAvatarBg: 'bg-[#9333EA]',
+    clientAvatarTextColor: 'text-white',
+    leadPM: 'Maya Joseph',
+    leadInitials: 'MJ',
+    status: 'Active',
+    statusBg: 'bg-purple-50 text-purple-700',
+    health: 'Healthy (89)',
+    healthStatus: 'healthy',
+    progressPercent: 55,
+    sprint: 'Sprint 2/4',
+    budget: '₹2,40,000',
+    spent: '₹1,32,000 (55%)',
+    deadline: '30 Nov 2026',
+    deadlineSub: 'Landing page V2 converting at 4.2%',
+    deadlineUrgent: false,
+    tasksCompleted: 12,
+    tasksTotal: 20,
+  }
+];
+
 export const ProjectsView: React.FC = () => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,17 +190,59 @@ export const ProjectsView: React.FC = () => {
   // Selection
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
+  // Client Companies state (OptiVir agency client roster)
+  const [clientCompanies, setClientCompanies] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('optivir_client_companies');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+        const savedAccounts = localStorage.getItem('optivir_client_accounts');
+        if (savedAccounts) {
+          const parsed = JSON.parse(savedAccounts);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const names = parsed.map((a: any) => a.name).filter(Boolean);
+            return Array.from(new Set([...names, ...DEFAULT_CLIENT_COMPANIES]));
+          }
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_CLIENT_COMPANIES;
+  });
+  const [showAddNewClient, setShowAddNewClient] = useState(false);
+  const [customClientInput, setCustomClientInput] = useState('');
+
   // Add Project Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [newClientName, setNewClientName] = useState('');
-  const [newScopeType, setNewScopeType] = useState('Performance Marketing Retainer');
-  const [newLeadPM, setNewLeadPM] = useState('OptiVir Project Lead');
-  const [newBudget, setNewBudget] = useState('');
-  const [newDeadline, setNewDeadline] = useState('');
+  const [newClientName, setNewClientName] = useState(DEFAULT_CLIENT_COMPANIES[0]);
+  const [newScopeType, setNewScopeType] = useState('Meta + Google Ads Retainer');
+  const [newLeadPM, setNewLeadPM] = useState('Maya Joseph');
+  const [newBudget, setNewBudget] = useState('₹2,50,000');
+  const [newDeadline, setNewDeadline] = useState('30 Nov 2026');
 
-  // Projects data matching Reference Image 3
-  const [projects, setProjects] = useState<any[]>([]);
+  // Projects data with localStorage persistence
+  const [projects, setProjects] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('optivir_projects_list');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_PROJECTS;
+  });
+
+  // Sync projects to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('optivir_projects_list', JSON.stringify(projects));
+    } catch (e) {}
+  }, [projects]);
 
   const toggleSelectAll = () => {
     if (selectedProjects.length === projects.length) {
@@ -79,36 +260,53 @@ export const ProjectsView: React.FC = () => {
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName) return;
+    if (!newProjectName.trim()) {
+      showToast('Please enter a project name', 'error');
+      return;
+    }
+    if (!newClientName) {
+      showToast('Please select or add a client company to link this project', 'error');
+      return;
+    }
+
+    const initials = newClientName
+      .split(' ')
+      .filter(Boolean)
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'OP';
 
     const newProj = {
       id: `p-${Date.now()}`,
       code: `P-2026-${Math.floor(100 + Math.random() * 900)}`,
-      name: newProjectName,
+      name: newProjectName.trim(),
       scopeType: newScopeType,
       clientName: newClientName,
-      clientAvatarText: newClientName.substring(0, 2).toUpperCase(),
-      clientAvatarBg: 'bg-[#0A1628]',
+      clientAvatarText: initials,
+      clientAvatarBg: 'bg-[#B91C1C]',
+      clientAvatarTextColor: 'text-white',
       leadPM: newLeadPM,
       leadInitials: newLeadPM.split(' ').map((n) => n[0]).join(''),
       status: 'Active',
-      statusBg: 'bg-slate-100 text-slate-700',
-      health: 'Healthy (92)',
+      statusBg: 'bg-emerald-50 text-emerald-700',
+      health: 'Healthy (95)',
       healthStatus: 'healthy',
-      progressPercent: 15,
+      progressPercent: 10,
       sprint: 'Sprint 1/4',
-      budget: newBudget,
+      budget: newBudget || '₹1,50,000',
       spent: '₹0 (0%)',
-      deadline: newDeadline,
-      deadlineSub: 'Just launched',
+      deadline: newDeadline || '30 Nov 2026',
+      deadlineSub: 'Kickoff in progress',
       deadlineUrgent: false,
       tasksCompleted: 1,
-      tasksTotal: 12,
+      tasksTotal: 15,
     };
 
     setProjects([newProj, ...projects]);
     setShowCreateModal(false);
     setNewProjectName('');
+    showToast(`Project created and linked to ${newClientName}!`, 'success');
   };
 
   // Filtered projects
@@ -255,7 +453,7 @@ export const ProjectsView: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. 5 KPI Summary Cards (Exact match to Reference Image 3) */}
+        {/* 3. 5 KPI Summary Cards (OptiVir Portfolio Metrics) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Active Projects */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -266,61 +464,68 @@ export const ProjectsView: React.FC = () => {
               </div>
             </div>
             <div className="flex items-baseline gap-1 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">{projects.length}</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {projects.filter((p) => p.status === 'Active').length}
+              </span>
               <span className="text-xs text-slate-500 font-medium">/ {projects.length} portfolio</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
               <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300">
-                0 this month
+                Active Delivery
               </span>
-              <span>Across 0 brands</span>
+              <span>Across {new Set(projects.map((p) => p.clientName)).size} clients</span>
             </div>
           </div>
 
           {/* At Risk */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-rose-200 dark:border-rose-900/40 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-rose-600 dark:text-rose-400">At Risk</span>
+              <span className="font-medium text-rose-600 dark:text-rose-400">At Risk / Warning</span>
               <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-rose-600">
                 <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
               <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">
-                {projects.filter((p) => p.healthStatus === 'at_risk').length}
+                {projects.filter((p) => p.healthStatus === 'at_risk' || p.healthStatus === 'attention').length}
               </span>
               <span className="text-xs text-slate-500">SLA warning</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-              <span>0 pending approvals</span>
+              <span>{projects.filter((p) => p.deadlineUrgent).length} urgent milestone(s)</span>
             </div>
           </div>
 
           {/* Due This Month */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">Due This Month</span>
+              <span className="font-medium">Deliverables Due</span>
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">0</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {projects.filter((p) => p.deadline).length}
+              </span>
+              <span className="text-xs text-slate-500">Scheduled</span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-              <span>0 due soon</span>
+              <span>Sprint Targets Active</span>
             </div>
           </div>
 
-          {/* Completed This Month */}
+          {/* Progress / Deliverables */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">Completed This Month</span>
+              <span className="font-medium">Avg Sprint Progress</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">0</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {Math.round(projects.reduce((acc, p) => acc + (p.progressPercent || 0), 0) / (projects.length || 1))}%
+              </span>
             </div>
             <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-              ₹0 revenue recognized
+              {projects.reduce((acc, p) => acc + (p.tasksCompleted || 0), 0)} tasks delivered
             </div>
           </div>
 
@@ -332,10 +537,10 @@ export const ProjectsView: React.FC = () => {
                 ₹
               </div>
             </div>
-            <div className="text-2xl font-black tracking-tight mt-1.5">₹0</div>
+            <div className="text-2xl font-black tracking-tight mt-1.5">₹13.95L</div>
             <div className="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
-              <span>Burned: <strong>₹0</strong></span>
-              <span className="text-emerald-400 font-bold">0%</span>
+              <span>Burned: <strong>₹7.34L</strong></span>
+              <span className="text-emerald-400 font-bold">52%</span>
             </div>
           </div>
         </div>
@@ -427,7 +632,12 @@ export const ProjectsView: React.FC = () => {
               onChange={(e) => setSelectedClient(e.target.value)}
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
-              <option value="All">Client: All</option>
+              <option value="All">Client: All ({clientCompanies.length})</option>
+              {clientCompanies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
 
             <select
@@ -909,28 +1119,105 @@ export const ProjectsView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold block mb-1">Client Account</label>
-                  <input
-                    type="text"
-                    placeholder="Enter Client Name"
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold block text-slate-800 dark:text-slate-200">
+                    Link to Client Company *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddNewClient(!showAddNewClient)}
+                    className="text-[11px] font-medium text-[#B91C1C] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>{showAddNewClient ? 'Select Existing Client' : '+ Add New Client Company'}</span>
+                  </button>
+                </div>
+
+                {showAddNewClient ? (
+                  <div className="mb-2 p-2.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 rounded-lg space-y-2">
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                      Register &amp; Link New Client Company for OptiVir
+                    </span>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="e.g. Paramount Retail Brands"
+                        value={customClientInput}
+                        onChange={(e) => setCustomClientInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 text-xs border rounded-md bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customClientInput.trim()) {
+                              const trimmed = customClientInput.trim();
+                              if (!clientCompanies.includes(trimmed)) {
+                                const updated = [...clientCompanies, trimmed];
+                                setClientCompanies(updated);
+                                localStorage.setItem('optivir_client_companies', JSON.stringify(updated));
+                              }
+                              setNewClientName(trimmed);
+                              setCustomClientInput('');
+                              setShowAddNewClient(false);
+                              showToast(`Linked client company: "${trimmed}"`, 'success');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customClientInput.trim()) {
+                            const trimmed = customClientInput.trim();
+                            if (!clientCompanies.includes(trimmed)) {
+                              const updated = [...clientCompanies, trimmed];
+                              setClientCompanies(updated);
+                              localStorage.setItem('optivir_client_companies', JSON.stringify(updated));
+                            }
+                            setNewClientName(trimmed);
+                            setCustomClientInput('');
+                            setShowAddNewClient(false);
+                            showToast(`Linked client company: "${trimmed}"`, 'success');
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-[#B91C1C] text-white text-xs font-semibold rounded-md hover:bg-rose-700"
+                      >
+                        Link
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <select
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                  />
-                </div>
+                    required
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
+                  >
+                    <option value="" disabled>Select Client Company to Link</option>
+                    {clientCompanies.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold block mb-1">Scope Category</label>
                   <select
                     value={newScopeType}
                     onChange={(e) => setNewScopeType(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
                   >
-                    <option>Retainer Tier 1</option>
-                    <option>Fixed Scope</option>
-                    <option>Implementation</option>
-                    <option>Retainer Ongoing</option>
+                    <option>Meta + Google Ads Retainer</option>
+                    <option>On-Demand Ads / As-Needed</option>
+                    <option>Technical CRO &amp; Analytics</option>
+                    <option>Performance Marketing SOW</option>
+                    <option>Creative Studio &amp; Direct-Response UGC</option>
+                    <option>Brand Search &amp; Google Shopping Domination</option>
+                    <option>Ad-Hoc Sprint (No Fixed ACV)</option>
                   </select>
                 </div>
               </div>

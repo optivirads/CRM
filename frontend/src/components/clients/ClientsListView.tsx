@@ -99,6 +99,114 @@ export interface ClientAccount {
   isAtRisk: boolean;
 }
 
+export const DEFAULT_CLIENT_ACCOUNTS: ClientAccount[] = [
+  {
+    id: 'c1',
+    name: 'Zenith DTC Brands',
+    domain: 'zenithbrands.in',
+    avatarBg: 'bg-[#DC2626]',
+    avatarText: 'ZB',
+    industry: 'E-Commerce',
+    primaryContact: 'Arjun Mehta',
+    contactRole: 'VP of Marketing',
+    accountManager: 'Alex Morgan',
+    amInitials: 'AM',
+    amBg: 'bg-[#0A1628]',
+    servicesCount: '3 Services',
+    activeProjects: '2 Active',
+    contractValue: '₹18.5L / yr',
+    healthStatus: 'Healthy',
+    renewal: 'Nov 2027',
+    lastActivity: '12m ago',
+    billingStatus: 'Current',
+    isAtRisk: false,
+  },
+  {
+    id: 'c2',
+    name: 'Astra Health Tech',
+    domain: 'astrahealth.com',
+    avatarBg: 'bg-[#2563EB]',
+    avatarText: 'AH',
+    industry: 'Healthcare',
+    primaryContact: 'Priya Sharma',
+    contactRole: 'Chief Commercial Officer',
+    accountManager: 'Maya Joseph',
+    amInitials: 'MJ',
+    amBg: 'bg-[#0A1628]',
+    servicesCount: '4 Services',
+    activeProjects: '3 Active',
+    contractValue: '₹33.0L / yr',
+    healthStatus: 'Healthy',
+    renewal: 'Jan 2028',
+    lastActivity: '1h ago',
+    billingStatus: 'Current',
+    isAtRisk: false,
+  },
+  {
+    id: 'c3',
+    name: 'UrbanKulture Apparels',
+    domain: 'urbankulture.in',
+    avatarBg: 'bg-[#16A34A]',
+    avatarText: 'UK',
+    industry: 'Retail',
+    primaryContact: 'Vikram Joshi',
+    contactRole: 'Founder & CEO',
+    accountManager: 'Alex Morgan',
+    amInitials: 'AM',
+    amBg: 'bg-[#0A1628]',
+    servicesCount: '1 Service (Ad-Hoc Ads)',
+    activeProjects: '1 Active',
+    contractValue: 'On-Demand / As-Needed',
+    healthStatus: 'Healthy',
+    renewal: 'On-Demand Active',
+    lastActivity: '2h ago',
+    billingStatus: 'Current',
+    isAtRisk: false,
+  },
+  {
+    id: 'c4',
+    name: 'Kavach FinTech',
+    domain: 'kavachfin.in',
+    avatarBg: 'bg-[#D97706]',
+    avatarText: 'KF',
+    industry: 'Financial Services',
+    primaryContact: 'Rohan Deshmukh',
+    contactRole: 'Head of Growth',
+    accountManager: 'Maya Joseph',
+    amInitials: 'MJ',
+    amBg: 'bg-[#0A1628]',
+    servicesCount: '1 Service (Search PPC)',
+    activeProjects: '1 Active',
+    contractValue: 'Pay-As-You-Go',
+    healthStatus: 'Healthy',
+    renewal: 'Campaign-Based',
+    lastActivity: '3h ago',
+    billingStatus: 'Current',
+    isAtRisk: false,
+  },
+  {
+    id: 'c5',
+    name: 'Nexa Mobility',
+    domain: 'nexamobility.io',
+    avatarBg: 'bg-[#7C3AED]',
+    avatarText: 'NM',
+    industry: 'Technology',
+    primaryContact: 'Siddharth Varma',
+    contactRole: 'COO',
+    accountManager: 'Marcus Vance',
+    amInitials: 'MV',
+    amBg: 'bg-[#0A1628]',
+    servicesCount: '2 Services',
+    activeProjects: '1 Active',
+    contractValue: '₹15.0L / yr',
+    healthStatus: 'Healthy',
+    renewal: 'Oct 2027',
+    lastActivity: '1d ago',
+    billingStatus: 'Current',
+    isAtRisk: false,
+  }
+];
+
 export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient360, onNavigate }) => {
   // View mode toggle
   const [viewMode, setViewMode] = useState<'clients' | 'campaigns'>('clients');
@@ -142,6 +250,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   // Selected rows
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
+
   // Add Client Drawer/Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -149,10 +258,29 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newIndustry, setNewIndustry] = useState('Technology');
   const [newPrimaryContact, setNewPrimaryContact] = useState('');
   const [newAccountManager, setNewAccountManager] = useState('Alex Morgan');
-  const [newContractVal, setNewContractVal] = useState('₹18.5L');
+  const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('annual_retainer');
+  const [newContractVal, setNewContractVal] = useState('₹18.5L / yr');
 
-  // Client accounts data matching reference Image 2
-  const [clients, setClients] = useState<ClientAccount[]>([]);
+  // Client accounts data with localStorage support
+  const [clients, setClients] = useState<ClientAccount[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('optivir_clients');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) { }
+      }
+    }
+    return DEFAULT_CLIENT_ACCOUNTS;
+  });
+
+  // Sync clients to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('optivir_clients', JSON.stringify(clients));
+    } catch (e) { }
+  }, [clients]);
 
   const toggleSelectAll = () => {
     if (selectedClients.length === clients.length) {
@@ -172,7 +300,25 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     e.preventDefault();
     if (!newCompanyName) return;
 
-    const newClient = {
+    let computedVal = newContractVal;
+    let renewalVal = 'Dec 2027';
+    let serviceLabel = '2 Services';
+
+    if (newBillingModel === 'on_demand') {
+      computedVal = 'On-Demand / As-Needed';
+      renewalVal = 'On-Demand (As Needed)';
+      serviceLabel = 'Ad-Hoc Campaigns';
+    } else if (newBillingModel === 'pay_as_you_go') {
+      computedVal = 'Pay-As-You-Go';
+      renewalVal = 'Campaign-Based';
+      serviceLabel = 'Pay-As-You-Go Ads';
+    } else if (newBillingModel === 'one_time') {
+      computedVal = computedVal || 'One-Time Project';
+      renewalVal = 'Fixed Scope';
+      serviceLabel = 'One-Time Scope';
+    }
+
+    const newClient: ClientAccount = {
       id: `c-${Date.now()}`,
       name: newCompanyName,
       domain: newDomain || `${newCompanyName.toLowerCase().replace(/\s+/g, '')}.com`,
@@ -184,11 +330,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
       accountManager: newAccountManager,
       amInitials: newAccountManager.split(' ').map((n) => n[0]).join(''),
       amBg: 'bg-[#0A1628]',
-      servicesCount: '2 Services',
+      servicesCount: serviceLabel,
       activeProjects: '1 Active',
-      contractValue: newContractVal,
+      contractValue: computedVal,
       healthStatus: 'Healthy',
-      renewal: 'Dec 2027',
+      renewal: renewalVal,
       lastActivity: 'Just now',
       billingStatus: 'Current',
       isAtRisk: false,
@@ -199,6 +345,9 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setNewCompanyName('');
     setNewDomain('');
     setNewPrimaryContact('');
+    setNewBillingModel('annual_retainer');
+    setNewContractVal('₹18.5L / yr');
+    showToast(`Client account created for ${newClient.name}!`, 'success');
   };
 
   // Filtered clients
@@ -1006,8 +1155,20 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Contract (TCV) */}
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-slate-100">
-                        {client.contractValue}
+                      <td className="p-3.5">
+                        {client.contractValue?.toLowerCase().includes('demand') || client.contractValue?.toLowerCase().includes('as-needed') || client.contractValue?.toLowerCase().includes('ad-hoc') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            <span>⚡ On-Demand Ads</span>
+                          </span>
+                        ) : client.contractValue?.toLowerCase().includes('pay-as-you-go') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            <span>Pay-As-You-Go</span>
+                          </span>
+                        ) : (
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {client.contractValue || '—'}
+                          </span>
+                        )}
                       </td>
 
                       {/* Health Status */}
@@ -1205,14 +1366,51 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Annual Contract Value (₹)</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Billing &amp; Engagement Model *
+                  </label>
+                  <select
+                    value={newBillingModel}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewBillingModel(val);
+                      if (val === 'on_demand') {
+                        setNewContractVal('On-Demand / As-Needed');
+                      } else if (val === 'pay_as_you_go') {
+                        setNewContractVal('Pay-As-You-Go');
+                      } else if (val === 'one_time') {
+                        setNewContractVal('One-Time Project');
+                      } else {
+                        setNewContractVal('₹18.5L / yr');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white mb-2 text-xs"
+                  >
+                    <option value="annual_retainer">Annual Retainer (Fixed ACV)</option>
+                    <option value="monthly_retainer">Monthly Retainer (Annualized)</option>
+                    <option value="on_demand">⚡ On-Demand / As-Needed Ads (No Fixed ACV)</option>
+                    <option value="pay_as_you_go">Pay-As-You-Go Ad Campaigns (Spend %)</option>
+                    <option value="one_time">One-Time Project / Audit SOW</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Annual Contract Value (₹) {newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
+                  </label>
                   <input
                     type="text"
                     value={newContractVal}
                     onChange={(e) => setNewContractVal(e.target.value)}
-                    placeholder="₹18.5L"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                    placeholder={newBillingModel === 'on_demand' ? 'On-Demand / As-Needed (No Fixed ACV)' : 'e.g. ₹18.5L / yr'}
+                    disabled={newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go'}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs"
                   />
+                  {(newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go') && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                      <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
+                    </p>
+                  )}
                 </div>
               </form>
             </div>

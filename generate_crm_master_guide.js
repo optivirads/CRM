@@ -667,7 +667,7 @@ function renderPage3() {
     { num: '01', name: 'LEAD INGESTION', desc: 'Web forms, Meta Lead Ads, Google PPC & cold referrals captured in CRM > Leads.', col: C.navyDark, bg: C.cardBg },
     { num: '02', name: 'BANT QUALIFY', desc: 'Score Budget, Authority, Need, Timeline. Convert to Company + Contact in 1 click.', col: C.blue, bg: C.blueBg },
     { num: '03', name: 'PIPELINE KANBAN', desc: '5 drag-and-drop stages (20% to 100%). Weighted cashflow forecast auto-updates.', col: C.amber, bg: C.amberBg },
-    { num: '04', name: 'PROPOSAL / SOW', desc: '3-column builder, SAC 998311 tax coding, legal terms, and signed vector PDF quote.', col: C.purple, bg: C.purpleBg },
+    { num: '04', name: 'PROPOSAL / SOW', desc: '3-column builder, SAC 998361 tax coding, legal terms, and signed vector PDF quote.', col: C.purple, bg: C.purpleBg },
     { num: '05', name: '24-STEP ONBOARD', desc: 'Closed Won trigger. Kickoff, AES-256 Credential Vault, and CAPI pixel audit.', col: C.crimson, bg: C.crimsonBg },
     { num: '06', name: 'DELIVERY & TIMER', desc: 'Milestones, tasks, and live billable stopwatch. Margin guard stops scope creep.', col: C.blue, bg: C.blueBg },
     { num: '07', name: 'GST SETTLEMENT', desc: '1-Click 18% GST tax invoice, PDF download, and bank wire UTR payment reconciliation.', col: C.emerald, bg: C.emeraldBg }
@@ -734,7 +734,7 @@ function renderPage3() {
     ['Deal Opportunity', 'Contract Value, Pipeline Stage, Closing Target Date', 'Generates weighted cashflow forecasts for executive planning.'],
     ['Onboarding Dossier', '24 Step Status, Platform Logins, Looker Studio URL', 'Ensures zero dropped handoffs from sales to account teams.'],
     ['Delivery Task', 'Estimated Hours, Due Date, Live Stopwatch Minutes', 'Credits billable execution time against contracted retainers.'],
-    ['Tax Invoice', 'SAC 998311, 9% CGST + 9% SGST, Total Due (₹1.18L)', 'Computes audit-ready tax ledgers and dispatchable A4 PDFs.'],
+    ['Tax Invoice', 'SAC 998361, 9% CGST + 9% SGST, Total Due (Rs. 1.18L)', 'Computes audit-ready tax ledgers and dispatchable A4 PDFs.'],
     ['Payment Settlement', 'Bank Transaction UTR, Payment Date, Cashflow Balance', 'Instantly turns invoice green ("PAID") and reconciles runway.']
   ];
 
@@ -1204,9 +1204,9 @@ function renderPage10() {
     'Left Sidebar > Click Finance > Click Invoices > Click "+ Create Invoice"',
     [
       'Click "+ Create Invoice" in top right. Select Client (Apex Apparel). Issue date defaults to today; set due date to Net 15.',
-      'Select Service Package (Monthly Performance Retainer). SAC Service Code 998311 auto-fills.',
-      'Enter agreed fee (₹1,00,000). System auto-adds 9% CGST (₹9,000) + 9% SGST (₹9,000) or 18% IGST for interstate clients.',
-      'Total Amount Payable computes to ₹1,18,000. Click "Save & Issue Invoice".'
+      'Select Service Package (Monthly Performance Retainer). SAC Service Code 998361 auto-fills.',
+      'Enter agreed fee (Rs. 1,00,000). System auto-adds 9% CGST (Rs. 9,000) + 9% SGST (Rs. 9,000) or 18% IGST for interstate clients.',
+      'Total Amount Payable computes to Rs. 1,18,000. Click "Save & Issue Invoice".'
     ],
     { accentColor: C.blue, marginBottom: 3.5 }
   );
@@ -1228,7 +1228,7 @@ function renderPage10() {
     [
       'When client transfers money into your bank account, click "Record Payment" next to that invoice.',
       'Select payment method (Bank Wire NEFT/RTGS/IMPS or UPI) and type in the bank transaction UTR Number (e.g. UTR9823411209).',
-      'Enter amount received (₹1,18,000) and click "Confirm Settlement". Invoice badge turns green ("PAID"), and cashflow reconciles!'
+      'Enter amount received (Rs. 1,18,000) and click "Confirm Settlement". Invoice badge turns green ("PAID"), and cashflow reconciles!'
     ],
     { accentColor: C.crimson, marginBottom: 3.8 }
   );
@@ -1249,16 +1249,16 @@ function renderPage10() {
   renderStepBox(
     2,
     'Calculate Operating Runway (Cash Reserves ÷ Burn)',
-    'Runway formula: Total Cash in Bank divided by Monthly Overhead (Rent + Payroll). Example: ₹36L reserves ÷ ₹6L burn = 6.0 Months of Runway.',
+    'Runway formula: Total Cash in Bank divided by Monthly Overhead (Rent + Payroll). Example: Rs. 36L reserves ÷ Rs. 6L burn = 6.0 Months of Runway.',
     'RUNWAY',
     { badgeColor: C.emerald, marginBottom: 3.8 }
   );
 
   renderCard(
     'TAX INVOICE CALCULATION BREAKDOWN (GST COMPLIANCE)',
-    '• Service Description: Digital Marketing & Creative Production Services • SAC Code: 998311\n' +
-    '• Taxable Subtotal: ₹1,00,000 • Central GST (CGST @ 9%): ₹9,000 • State GST (SGST @ 9%): ₹9,000\n' +
-    '• (For out-of-state clients: Integrated GST @ 18% = ₹18,000) • Total Amount Payable: ₹1,18,000\n' +
+    '• Service Description: Digital Marketing & Creative Production Services • SAC Code: 998361\n' +
+    '• Taxable Subtotal: Rs. 1,00,000 • Central GST (CGST @ 9%): Rs. 9,000 • State GST (SGST @ 9%): Rs. 9,000\n' +
+    '• (For out-of-state clients: Integrated GST @ 18% = Rs. 18,000) • Total Amount Payable: Rs. 1,18,000\n' +
     '• Invoices clearly display agency bank name, account number, IFSC code, and registered GSTIN.',
     { bg: C.cardBg, border: C.borderDark, marginBottom: 0 }
   );
