@@ -142,7 +142,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           <div className="flex flex-wrap items-center gap-2.5 relative">
             {(showDateDropdown || showTeamDropdown || showExportDropdown || showCreateDropdown) && (
               <div
-                className="fixed inset-0 z-40 bg-transparent cursor-default"
+                className="fixed inset-0 z-20 bg-transparent cursor-default"
                 onClick={() => {
                   setShowDateDropdown(false);
                   setShowTeamDropdown(false);
@@ -152,7 +152,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               />
             )}
             {/* Date Range Selector */}
-            <div className="relative z-50">
+            <div className="relative z-20">
               <button
                 onClick={() => {
                   setShowDateDropdown(!showDateDropdown);
@@ -167,7 +167,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               </button>
 
               {showDateDropdown && (
-                <div className="absolute left-0 top-10 w-64 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-50 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute left-0 top-10 w-64 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-30 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
                   {[
                     'This Month (Oct 1 – Oct 31, 2026)',
                     'Previous Month (Sep 1 – Sep 30, 2026)',
@@ -193,7 +193,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             </div>
 
             {/* All Teams Selector */}
-            <div className="relative z-50">
+            <div className="relative z-20">
               <button
                 onClick={() => {
                   setShowTeamDropdown(!showTeamDropdown);
@@ -208,7 +208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               </button>
 
               {showTeamDropdown && (
-                <div className="absolute left-0 top-10 w-44 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-50 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute left-0 top-10 w-44 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-30 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
                   {['All Teams', 'Revenue Team', 'Engineering Team', 'Marketing Team', 'Operations Team'].map((t) => (
                     <div
                       key={t}
@@ -229,7 +229,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             </div>
 
             {/* Export Dropdown */}
-            <div className="relative z-50">
+            <div className="relative z-20">
               <button
                 onClick={() => {
                   setShowExportDropdown(!showExportDropdown);
@@ -241,11 +241,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               >
                 <Download className="w-3.5 h-3.5 text-[#5A6A80]" />
                 <span>Export</span>
-                <ChevronDown className="w-3 h-3 text-[#5A6A80] ml-0.5" />
+                <ChevronDown className="w-3.5 h-3.5 text-[#5A6A80] ml-0.5" />
               </button>
 
               {showExportDropdown && (
-                <div className="absolute right-0 top-10 w-72 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-10 w-72 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-30 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
                   <a
                     href="/OPTIVIR_CRM_MASTER_GUIDE.pdf"
                     download="OPTIVIR_CRM_MASTER_GUIDE.pdf"
@@ -253,37 +253,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
                     className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white group transition"
                   >
                     <div className="p-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100">Download Master Tutorial Guide</div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Complete 10-page agency operating manual (PDF)</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="/OPTIVIR_CRM_UI_STRUCTURE.pdf"
-                    download="OPTIVIR_CRM_UI_STRUCTURE.pdf"
-                    onClick={() => setShowExportDropdown(false)}
-                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white group transition"
-                  >
-                    <div className="p-1.5 rounded-md bg-red-50 dark:bg-red-950/40 text-[#DC2626]">
                       <FileText className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100">Download Architecture PDF</div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Actual 7-page native vector UI architecture</div>
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <span>Download Master Architecture PDF</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400" />
+                      </div>
+                      <div className="text-[10px] text-slate-500">12-page comprehensive enterprise spec</div>
                     </div>
                   </a>
-
+                  <button
+                    onClick={() => {
+                      setShowExportDropdown(false);
+                      onNavigate('reports');
+                    }}
+                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white group transition"
+                  >
+                    <div className="p-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600">
+                      <BarChart2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Export QBR Dossier</div>
+                      <div className="text-[10px] text-slate-500">Generate executive business review dossier</div>
+                    </div>
+                  </button>
                   <button
                     onClick={() => {
                       setShowExportDropdown(false);
                       window.print();
                     }}
-                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white border-t border-slate-100 dark:border-slate-800 mt-1 pt-2 transition cursor-pointer"
+                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white group transition"
                   >
-                    <div className="p-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600">
+                    <div className="p-1.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-600">
                       <Printer className="w-4 h-4" />
                     </div>
                     <div>
@@ -296,7 +298,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             </div>
 
             {/* + Create Black/Navy Button */}
-            <div className="relative z-50">
+            <div className="relative z-20">
               <button
                 onClick={() => {
                   setShowCreateDropdown(!showCreateDropdown);
@@ -311,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               </button>
 
               {showCreateDropdown && (
-                <div className="absolute right-0 top-10 w-48 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-50 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-10 w-48 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-30 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
                   <button
                     onClick={() => {
                       setShowCreateDropdown(false);
@@ -331,6 +333,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
                   >
                     <Briefcase className="w-3.5 h-3.5 text-blue-600" />
                     <span>New Deal</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateDropdown(false);
+                      onNavigate('proposals');
+                    }}
+                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-[#0B1727] dark:text-white"
+                  >
+                    <FileCheck className="w-3.5 h-3.5 text-purple-600" />
+                    <span>New Proposal</span>
                   </button>
                   <button
                     onClick={() => {

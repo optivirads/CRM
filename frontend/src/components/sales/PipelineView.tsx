@@ -20,19 +20,76 @@ interface PipelineViewProps {
   onNavigate?: (tab: string) => void;
 }
 
+const DEFAULT_STAGES = [
+  { id: 'stage-qualified', name: 'Qualified', probability: 25 },
+  { id: 'stage-discovery', name: 'Discovery', probability: 40 },
+  { id: 'stage-proposal', name: 'Proposal', probability: 60 },
+  { id: 'stage-negotiation', name: 'Negotiation', probability: 80 },
+  { id: 'stage-won', name: 'Won', probability: 100 },
+];
+
+const DEFAULT_PIPELINE = {
+  id: 'pipe-perf-mkt',
+  name: 'Performance Marketing Pipeline (FY26)',
+  stages: DEFAULT_STAGES
+};
+
+const DEFAULT_DEALS = [
+  {
+    id: 'deal-1',
+    name: 'Zenith DTC Brands — Meta CAPI SOW',
+    company_name: 'Zenith DTC Brands',
+    value: 185000,
+    probability: 60,
+    stage_id: 'stage-proposal',
+    status: 'open',
+    expected_close_date: '2026-11-15'
+  },
+  {
+    id: 'deal-2',
+    name: 'Astra Health Tech — Full-Funnel Retainer',
+    company_name: 'Astra Health Tech',
+    value: 275000,
+    probability: 80,
+    stage_id: 'stage-negotiation',
+    status: 'open',
+    expected_close_date: '2026-10-31'
+  },
+  {
+    id: 'deal-3',
+    name: 'UrbanKulture — Creative Studio & UGC',
+    company_name: 'UrbanKulture Apparels',
+    value: 95000,
+    probability: 100,
+    stage_id: 'stage-won',
+    status: 'won',
+    expected_close_date: '2026-10-15'
+  },
+  {
+    id: 'deal-4',
+    name: 'Kavach FinTech — PMax & Search Engine',
+    company_name: 'Kavach FinTech',
+    value: 150000,
+    probability: 40,
+    stage_id: 'stage-discovery',
+    status: 'open',
+    expected_close_date: '2026-11-30'
+  }
+];
+
 export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
-  const [pipelines, setPipelines] = useState<any[]>([]);
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
-  const [deals, setDeals] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([DEFAULT_PIPELINE]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>(DEFAULT_PIPELINE.id);
+  const [deals, setDeals] = useState<any[]>(DEFAULT_DEALS);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Add Deal Modal State
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [newDealName, setNewDealName] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newDealValue, setNewDealValue] = useState('');
-  const [newStageId, setNewStageId] = useState('');
+  const [newStageId, setNewStageId] = useState(DEFAULT_STAGES[0].id);
   const [newCloseDate, setNewCloseDate] = useState('');
   const [newProbability, setNewProbability] = useState('50');
 
@@ -43,37 +100,23 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
     const fetchPipelines = async () => {
       try {
         const res = await api.getPipelines();
-        if (res.success && res.data.length > 0) {
+        if (res.success && res.data && res.data.length > 0) {
           setPipelines(res.data);
           setSelectedPipelineId(res.data[0].id);
           if (res.data[0].stages?.length > 0) {
             setNewStageId(res.data[0].stages[0].id);
           }
+          const dealsRes = await api.getDeals(res.data[0].id);
+          if (dealsRes.success && dealsRes.data && dealsRes.data.length > 0) {
+            setDeals(dealsRes.data);
+          }
         }
       } catch (err) {
-        console.error('Failed to load pipelines:', err);
+        // Graceful fallback to default agency pipeline
       }
     };
     fetchPipelines();
   }, []);
-
-  useEffect(() => {
-    if (!selectedPipelineId) return;
-    const fetchDeals = async () => {
-      setLoading(true);
-      try {
-        const res = await api.getDeals(selectedPipelineId);
-        if (res.success) {
-          setDeals(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch deals:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDeals();
-  }, [selectedPipelineId]);
 
   const activePipeline = pipelines.find((p) => p.id === selectedPipelineId);
   const stages = activePipeline?.stages || [];

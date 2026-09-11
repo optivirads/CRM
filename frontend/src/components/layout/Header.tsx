@@ -53,7 +53,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -101,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
   const breadcrumb = getBreadcrumbLabel();
 
   return (
-    <header className="h-14 border-b border-[#E2E6EC] dark:border-[#152238] bg-[#FFFFFF] dark:bg-[#0A121F] px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
+    <header className="h-14 border-b border-[#E2E6EC] dark:border-[#152238] bg-[#FFFFFF] dark:bg-[#0A121F] px-6 flex items-center justify-between sticky top-0 z-50 transition-colors duration-200">
       {/* 1. Left Breadcrumbs matching reference screenshot */}
       <div className="flex items-center gap-3">
         <button
@@ -182,6 +181,16 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={() => {
                   setShowNewMenu(false);
+                  onNavigate && onNavigate('proposals');
+                }}
+                className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-[#0B1727] dark:text-white"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-purple-600" />
+                <span>Create Proposal</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowNewMenu(false);
                   if (onCreateInvoice) onCreateInvoice();
                 }}
                 className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-[#0B1727] dark:text-white"
@@ -194,13 +203,12 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Backdrop for open menus */}
-        {(showNewMenu || showNotifications || showPersonaMenu || showProfileMenu) && (
+        {(showNewMenu || showNotifications || showProfileMenu) && (
           <div
             className="fixed inset-0 z-40 bg-transparent cursor-default"
             onClick={() => {
               setShowNewMenu(false);
               setShowNotifications(false);
-              setShowPersonaMenu(false);
               setShowProfileMenu(false);
             }}
           />
@@ -265,131 +273,110 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Persona Switcher (RBAC) */}
-        <div className="relative">
-          <button
-            onClick={() => setShowPersonaMenu(!showPersonaMenu)}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#1C2C45] bg-slate-50 dark:bg-[#0D1829] hover:bg-slate-100 dark:hover:bg-[#13233B] transition text-xs shadow-2xs"
-            title="Switch User Persona & Access Role"
-          >
-            <div className={`w-5 h-5 rounded-md ${activePersona.avatarBg} text-white flex items-center justify-center font-black text-[10px]`}>
-              {activePersona.avatarText}
-            </div>
-            <div className="hidden sm:flex flex-col text-left">
-              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 leading-none">
-                {activePersona.name}
-              </span>
-              <span className="text-[9px] text-[#DC2626] dark:text-rose-400 font-semibold leading-tight mt-0.5">
-                {activePersona.roleLabel}
-              </span>
-            </div>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {showPersonaMenu && (
-            <div className="absolute right-0 top-11 w-72 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-2xl z-50 p-2 text-xs space-y-1.5 animate-in fade-in zoom-in-95 duration-100">
-              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px]">
-                    Role & Persona Switcher
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-[9px]">
-                    RBAC Active
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Select a persona to test role-specific view permissions and data access
-                </p>
-              </div>
-
-              <div className="space-y-1 max-h-80 overflow-y-auto">
-                {AGENCY_PERSONAS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      switchPersona(p.id);
-                      setShowPersonaMenu(false);
-                    }}
-                    className={`w-full p-2 rounded-lg text-left flex items-start gap-2.5 transition ${
-                      activePersona.id === p.id
-                        ? 'bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60'
-                        : 'hover:bg-slate-50 dark:hover:bg-[#111E34] border border-transparent'
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-lg ${p.avatarBg} text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs`}>
-                      {p.avatarText}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                          {p.name}
-                        </span>
-                        {activePersona.id === p.id && (
-                          <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        )}
-                      </div>
-                      <div className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                        {p.roleLabel}
-                      </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                        {p.description}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* User Profile Avatar */}
+        {/* Unified User Profile & Role Switcher */}
         <div className="relative">
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 pl-1 pr-1.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34] transition"
+            className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl border border-slate-200 dark:border-[#1C2C45] bg-slate-50 dark:bg-[#0D1829] hover:bg-slate-100 dark:hover:bg-[#13233B] transition text-xs shadow-2xs cursor-pointer"
+            title="User Profile & RBAC Role Switcher"
           >
-            <div className={`w-7 h-7 rounded-full ${activePersona.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden`}>
+            <div className={`w-7 h-7 rounded-lg ${activePersona.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden`}>
               <span>{activePersona.avatarText}</span>
             </div>
-            <div className="hidden lg:flex flex-col text-left">
+            <div className="hidden sm:flex flex-col text-left">
               <span className="text-xs font-bold text-[#0B1727] dark:text-[#F8FAFC] leading-none">
                 {activePersona.name}
               </span>
-              <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8] leading-tight">
-                {activePersona.designation}
+              <span className="text-[10px] text-[#DC2626] dark:text-rose-400 font-semibold leading-tight mt-0.5">
+                {activePersona.roleLabel}
               </span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-[#94A3B8]" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 top-11 w-52 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-50 p-2 text-xs space-y-1">
-              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-                <p className="font-bold text-slate-900 dark:text-white">{activePersona.name}</p>
+            <div className="absolute right-0 top-11 w-72 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl shadow-2xl z-50 p-2 text-xs space-y-2 animate-in fade-in zoom-in-95 duration-100">
+              {/* Active User Details */}
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 dark:text-white text-xs">{activePersona.name}</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 font-bold text-[9px] border border-emerald-200 dark:border-emerald-800/40">
+                    Active Session
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500">{activePersona.email}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{activePersona.designation}</p>
               </div>
-              <button
-                onClick={() => {
-                  setShowProfileMenu(false);
-                  if (onNavigate) onNavigate('settings');
-                  showToast(`Opened profile settings for ${activePersona.name}`, 'info');
-                }}
-                className="w-full px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Profile Settings</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowProfileMenu(false);
-                  logout();
-                  showToast('Signed out of OptiVir CRM session', 'info');
-                }}
-                className="w-full px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-[#DC2626] cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </button>
+
+              {/* Role Switcher Section */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">
+                    Switch Persona (RBAC)
+                  </span>
+                  <span className="text-[9px] text-rose-500 font-semibold">1-Click Test</span>
+                </div>
+
+                <div className="space-y-0.5 max-h-52 overflow-y-auto custom-scrollbar">
+                  {AGENCY_PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        switchPersona(p.id);
+                        setShowProfileMenu(false);
+                      }}
+                      className={`w-full p-2 rounded-xl text-left flex items-center gap-2.5 transition cursor-pointer ${
+                        activePersona.id === p.id
+                          ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60'
+                          : 'hover:bg-slate-50 dark:hover:bg-[#111E34] border border-transparent'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-md ${p.avatarBg} text-white flex items-center justify-center font-bold text-[10px] shrink-0 shadow-xs`}>
+                        {p.avatarText}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 dark:text-white text-[11px] truncate">
+                            {p.name}
+                          </span>
+                          {activePersona.id === p.id && (
+                            <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[9px] font-semibold text-rose-600 dark:text-rose-400 truncate">
+                          {p.roleLabel}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    if (onNavigate) onNavigate('settings');
+                    showToast(`Opened settings for ${activePersona.name}`, 'info');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 cursor-pointer transition"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Profile &amp; Tenant Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                    showToast('Signed out of OptiVir CRM session', 'info');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left flex items-center gap-2 text-[#DC2626] font-semibold cursor-pointer transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -48,7 +48,7 @@
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
 │ 01. INGESTION   │       │ 02. QUALIFY     │       │ 03. PIPELINE    │       │ 04. PROPOSAL    │
 │ Web Form / Meta │ ────> │ BANT Scoring    │ ────> │ 5-Stage Kanban  │ ────> │ SOW Builder     │
-│ Inbound Leads   │       │ Company + GSTIN │       │ Weighted Values │       │ SAC 998311 Code │
+│ Inbound Leads   │       │ Company + GSTIN │       │ Weighted Values │       │ SAC 998361 Code │
 └─────────────────┘       └─────────────────┘       └─────────────────┘       └─────────────────┘
                                                                                        │
                                                                                        ▼

@@ -60,6 +60,88 @@ interface OnboardingAccount {
   };
 }
 
+export const DEFAULT_SERVICE_TIERS = [
+  'Enterprise Retainer',
+  'Omnichannel Growth Retainer',
+  'Performance Marketing SOW',
+  'Meta CAPI & Server-Side Tracking',
+  'Creative Studio & Direct-Response UGC',
+  'Brand Search & Google Shopping Domination',
+  'Ad-Hoc / On-Demand Ads (No Fixed ACV)',
+  'Pay-As-You-Go Ad Campaigns',
+  'AI CRM Acceleration',
+  'Headless CRO & Technical Sprint'
+];
+
+export const DEFAULT_ONBOARDING_ACCOUNTS: OnboardingAccount[] = [
+  {
+    id: 'onb-1',
+    name: 'Zenith DTC Brands',
+    domain: 'zenithbrands.in',
+    avatarText: 'ZB',
+    contractTier: 'Meta CAPI & Server-Side Tracking',
+    contractValue: '₹1,85,000 / mo',
+    am: 'Alex Morgan',
+    pm: 'Elena Rostova',
+    currentStage: 'Asset & Delegation Handoff',
+    stageIndex: 1,
+    daysInOnboarding: 4,
+    totalDaysTarget: 14,
+    completedSteps: 8,
+    totalSteps: 24,
+    hasBlocker: false,
+    primaryContact: {
+      name: 'Arjun Mehta',
+      role: 'VP Marketing',
+      email: 'arjun@zenithbrands.in',
+    }
+  },
+  {
+    id: 'onb-2',
+    name: 'Astra Health Tech',
+    domain: 'astrahealth.com',
+    avatarText: 'AH',
+    contractTier: 'Omnichannel Growth Retainer',
+    contractValue: '₹2,75,000 / mo',
+    am: 'Maya Joseph',
+    pm: 'Elena Rostova',
+    currentStage: 'Strategy & Tracking Kickoff',
+    stageIndex: 2,
+    daysInOnboarding: 7,
+    totalDaysTarget: 14,
+    completedSteps: 14,
+    totalSteps: 24,
+    hasBlocker: false,
+    primaryContact: {
+      name: 'Priya Sharma',
+      role: 'Chief Commercial Officer',
+      email: 'priya@astrahealth.com',
+    }
+  },
+  {
+    id: 'onb-3',
+    name: 'UrbanKulture Apparels',
+    domain: 'urbankulture.in',
+    avatarText: 'UK',
+    contractTier: 'Ad-Hoc / On-Demand Ads SOW',
+    contractValue: 'On-Demand / As-Needed',
+    am: 'Alex Morgan',
+    pm: 'Elena Rostova',
+    currentStage: 'Sales Handoff & Intake',
+    stageIndex: 0,
+    daysInOnboarding: 2,
+    totalDaysTarget: 7,
+    completedSteps: 4,
+    totalSteps: 24,
+    hasBlocker: false,
+    primaryContact: {
+      name: 'Vikram Joshi',
+      role: 'Founder & CEO',
+      email: 'vikram@urbankulture.in',
+    }
+  }
+];
+
 export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOpenClient360, onNavigate }) => {
   const { showToast } = useToast();
   // Active selected client for detail view
@@ -72,14 +154,54 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
   const [activeFilter, setActiveFilter] = useState<'all' | 'in_progress' | 'blocked' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Commercial tiers state
+  const [serviceTiers, setServiceTiers] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('optivir_onboarding_tiers');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) { }
+      }
+    }
+    return DEFAULT_SERVICE_TIERS;
+  });
+  const [showAddTierInput, setShowAddTierInput] = useState(false);
+  const [customTierInput, setCustomTierInput] = useState('');
+
   // Create Onboarding modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newClientName, setNewClientName] = useState('');
-  const [newTier, setNewTier] = useState('Enterprise Retainer');
-  const [newContractVal, setNewContractVal] = useState('₹18,50,000');
+  const [newTier, setNewTier] = useState(DEFAULT_SERVICE_TIERS[0]);
+  const [newContractVal, setNewContractVal] = useState('₹1,85,000 / mo');
 
-  // Onboarding Accounts Dataset
-  const [accounts, setAccounts] = useState<OnboardingAccount[]>([]);
+  // Sync tiers to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('optivir_onboarding_tiers', JSON.stringify(serviceTiers));
+    } catch (e) { }
+  }, [serviceTiers]);
+
+  // Onboarding Accounts Dataset with localStorage
+  const [accounts, setAccounts] = useState<OnboardingAccount[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('optivir_onboarding_accounts');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) { }
+      }
+    }
+    return DEFAULT_ONBOARDING_ACCOUNTS;
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('optivir_onboarding_accounts', JSON.stringify(accounts));
+    } catch (e) { }
+  }, [accounts]);
 
   // Credentials / Access Checklist for active client
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -749,25 +871,101 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Commercial Tier / Service Model</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold block">Commercial Tier / Service Model</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTierInput(!showAddTierInput)}
+                    className="text-[11px] font-medium text-[#B91C1C] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>{showAddTierInput ? 'Close' : '+ Add Custom Tier'}</span>
+                  </button>
+                </div>
+                
+                {showAddTierInput && (
+                  <div className="mb-2 p-2.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 rounded-lg space-y-2">
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Create New Service Model / Commercial Tier</span>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="e.g. Meta Reels & Influencer Sprint"
+                        value={customTierInput}
+                        onChange={(e) => setCustomTierInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 text-xs border rounded-md bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customTierInput.trim()) {
+                              const trimmed = customTierInput.trim();
+                              if (!serviceTiers.includes(trimmed)) {
+                                setServiceTiers([...serviceTiers, trimmed]);
+                              }
+                              setNewTier(trimmed);
+                              setCustomTierInput('');
+                              setShowAddTierInput(false);
+                              showToast(`Added custom tier: "${trimmed}"`, 'success');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customTierInput.trim()) {
+                            const trimmed = customTierInput.trim();
+                            if (!serviceTiers.includes(trimmed)) {
+                              setServiceTiers([...serviceTiers, trimmed]);
+                            }
+                            setNewTier(trimmed);
+                            setCustomTierInput('');
+                            setShowAddTierInput(false);
+                            showToast(`Added custom tier: "${trimmed}"`, 'success');
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-[#B91C1C] text-white text-xs font-semibold rounded-md hover:bg-rose-700"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <select
                   value={newTier}
-                  onChange={(e) => setNewTier(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewTier(val);
+                    if (val.includes('Ad-Hoc') || val.includes('On-Demand') || val.includes('Pay-As-You-Go')) {
+                      setNewContractVal('On-Demand (As Needed)');
+                    }
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-xs"
                 >
-                  <option>Enterprise Retainer</option>
-                  <option>Omnichannel Growth Retainer</option>
-                  <option>AI CRM Acceleration</option>
-                  <option>Performance Marketing SOW</option>
+                  {serviceTiers.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {tier}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Monthly Contract Value (₹)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold block">Monthly Contract Value / Retainer</label>
+                  <button
+                    type="button"
+                    onClick={() => setNewContractVal('On-Demand (As Needed)')}
+                    className="text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline"
+                  >
+                    Set to On-Demand (No Fixed ACV)
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={newContractVal}
                   onChange={(e) => setNewContractVal(e.target.value)}
+                  placeholder="e.g. ₹1,85,000 / mo or On-Demand (As Needed)"
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                 />
               </div>

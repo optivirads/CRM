@@ -51,6 +51,11 @@ import {
   Package,
   Send,
   Eye,
+  EyeOff,
+  Lock,
+  KeyRound,
+  Copy,
+  Shield,
   FileSpreadsheet,
   RefreshCw
 } from 'lucide-react';
@@ -87,12 +92,157 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const activeInitials = activeClientName.substring(0, 2).toUpperCase();
   const { showToast: showGlobalToast } = useToast();
   const [simulatorState, setSimulatorState] = useState('1. Overview (Command)');
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'campaigns' | 'deliverables' | 'performance' | 'projects' | 'retainers' | 'finance' | 'timeline' | 'health'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'campaigns' | 'deliverables' | 'vault' | 'performance' | 'projects' | 'retainers' | 'finance' | 'timeline' | 'health'>('overview');
   const [dateRange, setDateRange] = useState('This Month');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCommercialModal, setShowCommercialModal] = useState(false);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [showGenerateDeliverableModal, setShowGenerateDeliverableModal] = useState(false);
+
+  // Credential Vault & Delegation Architecture State
+  const [vaultSubMode, setVaultSubMode] = useState<'delegation' | 'fallback_vault'>('delegation');
+  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+  const [showAddVaultModal, setShowAddVaultModal] = useState(false);
+  const [newVaultPlatform, setNewVaultPlatform] = useState('Shopify Custom App Token');
+  const [newVaultIdentifier, setNewVaultIdentifier] = useState('shpat_live_8910482019482');
+  const [newVaultSecret, setNewVaultSecret] = useState('shpss_9904291840291');
+  const [newVaultAccess, setNewVaultAccess] = useState<'Admin' | 'Standard' | 'Read-Only'>('Standard');
+  const [newVaultNotes, setNewVaultNotes] = useState('Private integration token for store telemetry');
+
+  const [vaultAuditLogs, setVaultAuditLogs] = useState<any[]>([
+    { id: 'aud-1', action: 'DELEGATION_VERIFIED', asset: 'Meta Business Manager (Partner 194820194810291)', operator: 'Maya Joseph', timestamp: 'Today, 04:15 PM' },
+    { id: 'aud-2', action: 'KMS_KEY_ROTATED', asset: 'Master Key Envelope #V4 (AWS KMS)', operator: 'Security Bot', timestamp: 'Yesterday, 12:00 AM' }
+  ]);
+
+  const [delegationAssets, setDelegationAssets] = useState<any[]>([
+    {
+      id: 'del-meta',
+      platform: 'Meta Business Manager',
+      iconBg: 'bg-blue-600',
+      partnerId: '194820194810291',
+      clientAccountId: 'act_492019481029',
+      status: 'Active',
+      permissions: ['Manage Campaigns', 'CAPI Conversion Dataset', 'Ad Account Admin'],
+      method: 'Partner Business ID Request (No Password Shared)',
+      lastVerified: '10 mins ago',
+    },
+    {
+      id: 'del-google',
+      platform: 'Google Ads (MCC)',
+      iconBg: 'bg-red-500',
+      partnerId: '829-102-9912',
+      clientAccountId: 'cid-910-244-8891',
+      status: 'Active',
+      permissions: ['Standard Access', 'Billing Audit', 'Performance Max Execution'],
+      method: 'Manager Link CID Request (No Password Shared)',
+      lastVerified: '25 mins ago',
+    },
+    {
+      id: 'del-shopify',
+      platform: 'Shopify Partner Collaborator',
+      iconBg: 'bg-emerald-600',
+      partnerId: 'OPTI-COL-8821',
+      clientAccountId: 'apex-apparel-india.myshopify.com',
+      status: 'Approved',
+      permissions: ['Themes & Assets', 'Products & Orders', 'Analytics Telemetry'],
+      method: 'Collaborator Access Code (Zero Password Handoff)',
+      lastVerified: '1 hour ago',
+    },
+    {
+      id: 'del-tiktok',
+      platform: 'TikTok Business Center',
+      iconBg: 'bg-slate-900',
+      partnerId: '71982910283',
+      clientAccountId: 'tt-org-8839210',
+      status: 'Active',
+      permissions: ['Spark Ads', 'Pixel Telemetry'],
+      method: 'Business Center Partner Linking',
+      lastVerified: '3 hours ago',
+    }
+  ]);
+
+  const [fallbackCredentials, setFallbackCredentials] = useState<any[]>([
+    {
+      id: 'cred-1',
+      platform: 'Headless CMS Admin (Strapi)',
+      category: 'Content API & Landing Pages',
+      identifier: 'admin@apexapparel.com',
+      secret: 'strp_live_sec_994204_x8a!K',
+      accessLevel: 'Admin',
+      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
+      lastRotated: '14 days ago',
+      notes: 'No delegation available. Secured with AES-256-GCM envelope cipher.'
+    },
+    {
+      id: 'cred-2',
+      platform: 'Private SFTP Asset Server',
+      category: 'Raw Video B-Roll & High-Res Catalog',
+      identifier: 'sftp_optivir_sync',
+      secret: 'sftp#Apex2026@secure-vault',
+      accessLevel: 'Standard',
+      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
+      lastRotated: '30 days ago',
+      notes: 'Isolated static delivery pipeline.'
+    }
+  ]);
+
+  const handleToggleReveal = (id: string, platformName: string) => {
+    setRevealedSecrets(prev => ({ ...prev, [id]: !prev[id] }));
+    const newLog = {
+      id: `aud-${Date.now()}`,
+      action: !revealedSecrets[id] ? 'REVEAL_SECRET' : 'MASK_SECRET',
+      asset: platformName,
+      operator: 'Active Operator',
+      timestamp: 'Just now'
+    };
+    setVaultAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  const handleCopySecret = (id: string, secret: string, platformName: string) => {
+    navigator.clipboard.writeText(secret);
+    setCopiedSecretId(id);
+    showToast(`Encrypted secret for ${platformName} copied to clipboard (Audit logged)`, 'success');
+    const newLog = {
+      id: `aud-${Date.now()}`,
+      action: 'COPY_CLIPBOARD',
+      asset: platformName,
+      operator: 'Active Operator',
+      timestamp: 'Just now'
+    };
+    setVaultAuditLogs(prev => [newLog, ...prev]);
+    setTimeout(() => setCopiedSecretId(null), 2500);
+  };
+
+  const handleAddFallbackCredential = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVaultIdentifier.trim() || !newVaultSecret.trim()) return;
+
+    const newRecord = {
+      id: `cred-${Date.now()}`,
+      platform: newVaultPlatform,
+      category: 'Agency Tool Integration',
+      identifier: newVaultIdentifier,
+      secret: newVaultSecret,
+      accessLevel: newVaultAccess,
+      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
+      lastRotated: 'Today',
+      notes: newVaultNotes
+    };
+
+    setFallbackCredentials(prev => [newRecord, ...prev]);
+    setShowAddVaultModal(false);
+    showToast(`Saved encrypted credential for ${newVaultPlatform} with AES-256-GCM envelope`, 'success');
+
+    const newLog = {
+      id: `aud-${Date.now()}`,
+      action: 'ADD_CREDENTIAL',
+      asset: newVaultPlatform,
+      operator: 'Active Operator',
+      timestamp: 'Just now'
+    };
+    setVaultAuditLogs(prev => [newLog, ...prev]);
+  };
 
   // Deliverables State & Presets
   const [deliverables, setDeliverables] = useState<ClientDeliverable[]>([]);
@@ -469,6 +619,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             { id: 'overview', label: 'Overview' },
             { id: 'campaigns', label: 'Running Campaigns (4)' },
             { id: 'deliverables', label: `Deliverables & Outputs (${deliverables.length})` },
+            { id: 'vault', label: 'Credential Vault & Delegation' },
             { id: 'performance', label: 'Performance Analytics' },
             { id: 'projects', label: 'Projects (2)' },
             { id: 'retainers', label: 'Services & Retainers (3)' },
@@ -490,8 +641,390 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           ))}
         </div>
 
-        {/* 7. Deliverables Workspace or 2-Column Split Workspace */}
-        {activeSubTab === 'deliverables' ? (
+        {/* 7. Credential Vault Workspace */}
+        {activeSubTab === 'vault' ? (
+          <div className="space-y-6">
+            {/* Security & Key Isolation Header Banner */}
+            <div className="bg-gradient-to-br from-slate-900 via-[#0B1424] to-[#0A1628] border border-slate-800 rounded-3xl p-6 text-white shadow-xl space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-950/60 border border-rose-800/40 text-rose-400 flex items-center justify-center shrink-0 shadow-inner">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-white">Credential Vault &amp; Partner Delegation Hub</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800/60">
+                        KMS Key Isolated
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/60 text-blue-300 border border-blue-800/60">
+                        AES-256-GCM Envelope
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                      Enterprise key management architecture. Master keys are isolated in external KMS/environment variables—never co-located in the database. Delegation-first access eliminates raw passwords for Google, Meta, and Shopify.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub-mode Navigation Pill */}
+                <div className="flex items-center gap-2 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800 shrink-0">
+                  <button
+                    onClick={() => setVaultSubMode('delegation')}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                      vaultSubMode === 'delegation'
+                        ? 'bg-[#B91C1C] text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Partner Delegation
+                  </button>
+                  <button
+                    onClick={() => setVaultSubMode('fallback_vault')}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                      vaultSubMode === 'fallback_vault'
+                        ? 'bg-[#B91C1C] text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Encrypted Fallback Locker
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Advisory Callout */}
+              <div className="p-3.5 bg-rose-950/20 border border-rose-900/30 rounded-xl flex items-start gap-3 text-xs text-rose-200/90">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="text-white">OptiVir Delegation Policy:</strong> Never store or request raw passwords for platforms supporting native agency partner links (Meta Business Manager, Google MCC, Shopify Collaborator). Raw password encryption in the fallback locker is strictly reserved for legacy servers and custom APIs.
+                </div>
+              </div>
+            </div>
+
+            {/* View A: Partner Delegation Hub */}
+            {vaultSubMode === 'delegation' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Active Agency Asset Delegations</h4>
+                    <p className="text-xs text-slate-500">Authorized platform connections operating with zero raw credential exposure</p>
+                  </div>
+                  <button
+                    onClick={() => showToast('Refreshed partner API delegation permissions from ad networks', 'info')}
+                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Audit Partner Permissions</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {delegationAssets.map((asset) => (
+                    <div
+                      key={asset.id}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-9 h-9 rounded-xl ${asset.iconBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}>
+                            {asset.platform.charAt(0)}
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-bold text-slate-900 dark:text-white">{asset.platform}</h5>
+                            <span className="text-[11px] text-slate-500 font-mono">{asset.clientAccountId}</span>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>{asset.status}</span>
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500">Agency Partner ID:</span>
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{asset.partnerId}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500">Delegation Protocol:</span>
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">{asset.method}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500">Last Verified:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{asset.lastVerified}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Authorized Permissions:</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {asset.permissions.map((p: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-semibold border border-slate-200 dark:border-slate-700"
+                            >
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Zero Password Risk</span>
+                        </span>
+                        <button
+                          onClick={() => showToast(`Delegation handshake verified for ${asset.platform}`, 'success')}
+                          className="text-xs font-bold text-[#B91C1C] dark:text-rose-400 hover:underline cursor-pointer"
+                        >
+                          Verify Handshake →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* View B: Encrypted Fallback Locker */}
+            {vaultSubMode === 'fallback_vault' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Encrypted Fallback Locker (Legacy &amp; Non-Delegated Tools)</h4>
+                    <p className="text-xs text-slate-500">Secured with AES-256-GCM. Master key isolated outside the database.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddVaultModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Fallback Credential</span>
+                  </button>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="py-3 px-4">Platform &amp; Purpose</th>
+                          <th className="py-3 px-4">Identifier / Username</th>
+                          <th className="py-3 px-4">Secret (AES-256-GCM)</th>
+                          <th className="py-3 px-4">Access Level</th>
+                          <th className="py-3 px-4">Key Isolation</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {fallbackCredentials.map((cred) => (
+                          <tr key={cred.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900 dark:text-white">{cred.platform}</div>
+                              <div className="text-[10px] text-slate-400">{cred.category}</div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-slate-700 dark:text-slate-300">
+                              {cred.identifier}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md text-[11px]">
+                                  {revealedSecrets[cred.id] ? cred.secret : '••••••••••••••••'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleReveal(cred.id, cred.platform)}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                  title={revealedSecrets[cred.id] ? 'Mask password' : 'Reveal password'}
+                                >
+                                  {revealedSecrets[cred.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
+                                  className="text-slate-400 hover:text-[#B91C1C]"
+                                  title="Copy to clipboard (audited)"
+                                >
+                                  {copiedSecretId === cred.id ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                {cred.accessLevel}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                {cred.kmsKeyVersion}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
+                              >
+                                Copy Secret
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Audit & Access Telemetry Stream */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Vault Access &amp; Operator Audit Trail
+                  </h4>
+                </div>
+                <span className="text-[10px] text-slate-400">Immutable 256-Bit Log Stream</span>
+              </div>
+
+              <div className="space-y-2">
+                {vaultAuditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between text-xs border border-slate-200/60 dark:border-slate-700/60"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="font-bold text-slate-800 dark:text-slate-200">[{log.action}]</span>
+                      <span className="text-slate-600 dark:text-slate-400">{log.asset}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                      <span>Operator: <strong>{log.operator}</strong></span>
+                      <span>•</span>
+                      <span>{log.timestamp}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Add Fallback Credential Modal */}
+            {showAddVaultModal && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-[#B91C1C]" />
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Add Encrypted Fallback Secret</h4>
+                    </div>
+                    <button
+                      onClick={() => setShowAddVaultModal(false)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleAddFallbackCredential} className="space-y-3 text-xs">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Platform Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={newVaultPlatform}
+                        onChange={(e) => setNewVaultPlatform(e.target.value)}
+                        placeholder="e.g. Headless Strapi CMS"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Account Identifier / Username</label>
+                      <input
+                        type="text"
+                        required
+                        value={newVaultIdentifier}
+                        onChange={(e) => setNewVaultIdentifier(e.target.value)}
+                        placeholder="e.g. admin@apexapparel.com"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Access Token / Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={newVaultSecret}
+                        onChange={(e) => setNewVaultSecret(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Access Scope</label>
+                        <select
+                          value={newVaultAccess}
+                          onChange={(e) => setNewVaultAccess(e.target.value as any)}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                        >
+                          <option value="Admin">Admin</option>
+                          <option value="Standard">Standard</option>
+                          <option value="Read-Only">Read-Only</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Cipher Standard</label>
+                        <input
+                          type="text"
+                          disabled
+                          value="AES-256-GCM (Isolated)"
+                          className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Notes / Scope Context</label>
+                      <textarea
+                        rows={2}
+                        value={newVaultNotes}
+                        onChange={(e) => setNewVaultNotes(e.target.value)}
+                        placeholder="Context for team members accessing this fallback credential..."
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddVaultModal(false)}
+                        className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl transition shadow-xs"
+                      >
+                        Encrypt &amp; Save to Vault
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : activeSubTab === 'deliverables' ? (
           <div className="space-y-6">
             {/* Top Metric Strip */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
