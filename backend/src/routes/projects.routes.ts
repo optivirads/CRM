@@ -44,6 +44,98 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
   }
 });
 
+// Team Members (For Task Assignment & Workload)
+router.get('/team-members', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+
+  try {
+    const result = await db.query(`
+      SELECT 
+        u.id,
+        u.first_name,
+        u.last_name,
+        TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name,
+        u.email,
+        u.phone,
+        COALESCE(ou.designation, 'Team Member') as designation,
+        COALESCE(r.name, 'Member') as role_name
+      FROM organization_users ou
+      JOIN users u ON ou.user_id = u.id
+      LEFT JOIN roles r ON ou.role_id = r.id
+      WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
+      ORDER BY u.first_name ASC;
+    `, [orgId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Add New Team Member
+router.post('/team-members', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const { name, first_name, last_name, designation, email, phone, role } = req.body;
+
+  const rawName = (name || '').trim();
+  let firstName = (first_name || '').trim();
+  let lastName = (last_name || '').trim();
+
+  if (!firstName && rawName) {
+    const parts = rawName.split(' ');
+    firstName = parts[0];
+    lastName = parts.slice(1).join(' ');
+  }
+
+  if (!firstName) {
+    res.status(400).json({ success: false, message: 'Team member name is required' });
+    return;
+  }
+
+  const cleanRole = designation || role || 'Team Member';
+  const cleanEmail = (email || '').trim().toLowerCase() || `${firstName.toLowerCase().replace(/[^a-z0-9]/g, '')}.${Date.now()}@optivir.local`;
+
+  try {
+    // 1. Create or fetch user
+    let userRes = await db.query('SELECT * FROM users WHERE email = $1;', [cleanEmail]);
+    let memberId: string;
+
+    if (userRes.rows.length === 0) {
+      const insertUser = await db.query(`
+        INSERT INTO users (email, password_hash, first_name, last_name, phone, status)
+        VALUES ($1, 'placeholder_hash', $2, $3, $4, 'active')
+        RETURNING *;
+      `, [cleanEmail, firstName, lastName, phone || null]);
+      memberId = insertUser.rows[0].id;
+    } else {
+      memberId = userRes.rows[0].id;
+    }
+
+    // 2. Link to organization_users
+    await db.query(`
+      INSERT INTO organization_users (organization_id, user_id, designation, is_owner, status)
+      VALUES ($1, $2, $3, false, 'active')
+      ON CONFLICT (organization_id, user_id) 
+      DO UPDATE SET designation = EXCLUDED.designation;
+    `, [orgId, memberId, cleanRole]);
+
+    const fullName = `${firstName} ${lastName}`.trim();
+    res.status(201).json({
+      success: true,
+      data: {
+        id: memberId,
+        name: fullName,
+        first_name: firstName,
+        last_name: lastName,
+        designation: cleanRole,
+        email: cleanEmail
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // 2. Tasks List (For Kanban & List views)
 router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -55,12 +147,15 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
         t.*,
         p.name as project_name,
         comp.name as client_name,
+        COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
+        COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
         u.first_name as assignee_first, u.last_name as assignee_last
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN clients c ON t.client_id = c.id
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN organization_users ou ON ou.user_id = u.id AND ou.organization_id = t.organization_id
       WHERE t.organization_id = $1 AND t.deleted_at IS NULL
     `;
     const params: any[] = [orgId];
@@ -98,7 +193,11 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
 router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
-  const { title, description, project_id, client_id, assignee_id, priority, due_date, assigned_date, start_date } = req.body;
+  const {
+    title, description, project_id, client_id,
+    assignee_id, assignee_name, assignee_role,
+    priority, due_date, assigned_date, start_date
+  } = req.body;
 
   if (!title) {
     res.status(400).json({ success: false, message: 'Task title is required' });
@@ -111,12 +210,14 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
     const result = await db.query(`
       INSERT INTO tasks (
         organization_id, title, description, project_id, client_id, assignee_id,
+        assignee_name, assignee_role,
         priority, status, assigned_date, start_date, due_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'To Do', $8, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'To Do', $10, $10, $11, $12)
       RETURNING *;
     `, [
       orgId, title, description || null, project_id || null, client_id || null,
-      assignee_id || userId, priority || 'Medium', effectiveAssignedDate, due_date || null, userId
+      assignee_id || null, assignee_name || null, assignee_role || null,
+      priority || 'Medium', effectiveAssignedDate, due_date || null, userId
     ]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -321,7 +422,10 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const taskId = req.params.id;
-  const { title, description, priority, status, due_date, assigned_date, start_date, assignee_id } = req.body;
+  const {
+    title, description, priority, status, due_date,
+    assigned_date, start_date, assignee_id, assignee_name, assignee_role
+  } = req.body;
 
   try {
     const current = await db.query('SELECT * FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [taskId, orgId]);
@@ -341,13 +445,15 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
         status = COALESCE($4, status),
         due_date = COALESCE($5, due_date),
         assignee_id = COALESCE($6, assignee_id),
-        assigned_date = COALESCE($7, assigned_date),
-        start_date = COALESCE($7, start_date),
+        assignee_name = COALESCE($7, assignee_name),
+        assignee_role = COALESCE($8, assignee_role),
+        assigned_date = COALESCE($9, assigned_date),
+        start_date = COALESCE($9, start_date),
         completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
-        updated_by = $8
-      WHERE id = $9 AND organization_id = $10
+        updated_by = $10
+      WHERE id = $11 AND organization_id = $12
       RETURNING *;
-    `, [title, description, priority, status, due_date, assignee_id, effectiveAssignedDate, userId, taskId, orgId]);
+    `, [title, description, priority, status, due_date, assignee_id, assignee_name, assignee_role, effectiveAssignedDate, userId, taskId, orgId]);
 
     await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });

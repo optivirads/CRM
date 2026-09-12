@@ -178,6 +178,17 @@ class ApiClient {
     });
   }
 
+  async getTeamMembers() {
+    return this.request<{ success: boolean; data: any[] }>('/projects/team-members');
+  }
+
+  async createTeamMember(payload: { name: string; designation?: string; email?: string; phone?: string; role?: string }) {
+    return this.request<{ success: boolean; data: any }>('/projects/team-members', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Finance
   async getInvoices(clientId?: string) {
     return this.request<{ success: boolean; data: any[] }>(`/finance/invoices${clientId ? `?clientId=${clientId}` : ''}`);
