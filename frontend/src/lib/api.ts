@@ -79,6 +79,12 @@ class ApiClient {
     });
   }
 
+  async deleteLead(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/crm/leads/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getCompanies(search?: string) {
     return this.request<{ success: boolean; data: any[] }>(`/crm/companies${search ? `?search=${search}` : ''}`);
   }
@@ -214,11 +220,122 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>(`/activities${query ? `?${query}` : ''}`);
   }
 
-  // Delete Operations (CRUD)
-  async deleteLead(id: string) {
-    return this.request<{ success: boolean; message: string }>(`/crm/leads/${id}`, { method: 'DELETE' });
+  // Companies & Contacts (CRUD)
+  async createCompany(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/crm/companies', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
+  async updateCompany(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/crm/companies/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createContact(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/crm/contacts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateContact(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/crm/contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Clients (CRUD)
+  async createClient(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/clients', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateClient(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/clients/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Projects (CRUD)
+  async createProject(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateProject(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteProject(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/projects/${id}`, { method: 'DELETE' });
+  }
+
+  async updateTask(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/projects/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Finance (CRUD)
+  async createInvoice(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/finance/invoices', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateInvoice(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/finance/invoices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createExpense(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/finance/expenses', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteExpense(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/finance/expenses/${id}`, { method: 'DELETE' });
+  }
+
+  // Marketing (CRUD)
+  async createCampaign(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/marketing/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCampaign(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/marketing/campaigns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteCampaign(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/marketing/campaigns/${id}`, { method: 'DELETE' });
+  }
+
+  // Delete Operations (CRUD)
   async deleteCompany(id: string) {
     return this.request<{ success: boolean; message: string }>(`/crm/companies/${id}`, { method: 'DELETE' });
   }

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { db } from '../config/db';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 
 const router = Router();
@@ -98,6 +98,116 @@ router.get('/analytics', requireAuth, async (req: AuthenticatedRequest, res: Res
         }
       }
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Create Campaign
+router.post('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { name, platform, client_id, budget, status, objective, start_date, end_date } = req.body;
+
+  if (!name || !name.trim()) {
+    res.status(400).json({ success: false, message: 'Campaign name is required' });
+    return;
+  }
+
+  try {
+    let resolvedClientId = client_id;
+    if (!resolvedClientId) {
+      const fallbackClient = await db.query('SELECT id FROM clients WHERE organization_id = $1 AND deleted_at IS NULL LIMIT 1;', [orgId]);
+      resolvedClientId = fallbackClient.rows[0]?.id;
+    }
+
+    if (!resolvedClientId) {
+      const comp = await db.query(`
+        INSERT INTO companies (organization_id, name, created_by)
+        VALUES ($1, 'Default Agency Client', $2) RETURNING id;
+      `, [orgId, userId]);
+      const newCl = await db.query(`
+        INSERT INTO clients (organization_id, company_id, created_by)
+        VALUES ($1, $2, $3) RETURNING id;
+      `, [orgId, comp.rows[0].id, userId]);
+      resolvedClientId = newCl.rows[0].id;
+    }
+
+    const validPlatforms = ['Meta', 'Google Ads', 'LinkedIn', 'TikTok', 'YouTube', 'SEO / Organic', 'Email Marketing', 'Influencer', 'Other'];
+    const resolvedPlatform = validPlatforms.includes(platform) ? platform : 'Meta';
+
+    const result = await db.query(`
+      INSERT INTO campaigns (
+        organization_id, client_id, name, platform, budget, status, objective, start_date, end_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *;
+    `, [
+      orgId, resolvedClientId, name.trim(), resolvedPlatform,
+      Number(budget || 0), status || 'Active', objective || 'Lead Gen',
+      start_date || new Date(), end_date || null, userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'campaigns', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Update Campaign
+router.patch('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const campaignId = req.params.id;
+  const { name, budget, status, objective } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM campaigns WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [campaignId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Campaign not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE campaigns
+      SET 
+        name = COALESCE($1, name),
+        budget = COALESCE($2, budget),
+        status = COALESCE($3, status),
+        objective = COALESCE($4, objective),
+        updated_by = $5
+      WHERE id = $6 AND organization_id = $7
+      RETURNING *;
+    `, [name, budget, status, objective, userId, campaignId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'campaigns', campaignId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. Delete Campaign (Soft Delete)
+router.delete('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const campaignId = req.params.id;
+
+  try {
+    const result = await db.query(`
+      UPDATE campaigns
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id;
+    `, [userId, campaignId, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Campaign not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'campaigns', campaignId, null, null, req);
+    res.json({ success: true, message: 'Campaign successfully deleted' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

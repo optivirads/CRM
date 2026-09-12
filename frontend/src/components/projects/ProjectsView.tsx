@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   Briefcase,
   CheckCircle2,
@@ -91,28 +92,55 @@ export const ProjectsView: React.FC = () => {
   const [newBudget, setNewBudget] = useState('₹2,50,000');
   const [newDeadline, setNewDeadline] = useState('30 Nov 2026');
 
-  // Projects data with localStorage persistence
-  const [projects, setProjects] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('optivir_projects_list');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((p: any) => !['p-1', 'p-2', 'p-3', 'p-4', 'p-5'].includes(p.id));
-          }
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_PROJECTS;
-  });
+  // Projects data from PostgreSQL
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Sync projects to localStorage
-  React.useEffect(() => {
+  const fetchProjects = async () => {
     try {
-      localStorage.setItem('optivir_projects_list', JSON.stringify(projects));
-    } catch (e) {}
-  }, [projects]);
+      setLoading(true);
+      const res = await api.getProjects();
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map((p: any) => ({
+          id: p.id,
+          code: `P-${p.id.slice(0, 4).toUpperCase()}`,
+          name: p.name || 'Untitled Project',
+          scopeType: p.description || 'Enterprise Workstream',
+          clientName: p.company_name || 'Enterprise Client',
+          clientAvatarText: (p.company_name || 'PR').slice(0, 2).toUpperCase(),
+          clientAvatarBg: 'bg-[#B91C1C]',
+          clientAvatarTextColor: 'text-white',
+          leadPM: p.pm_first ? `${p.pm_first} ${p.pm_last || ''}`.trim() : 'Alex Morgan',
+          leadInitials: ((p.pm_first?.[0] || 'A') + (p.pm_last?.[0] || 'M')).toUpperCase(),
+          status: p.status || 'Active',
+          statusBg: p.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700',
+          health: 'Healthy (95)',
+          healthStatus: 'healthy',
+          progressPercent: p.progress || 25,
+          sprint: 'Sprint Active',
+          budget: p.budget ? `₹${Number(p.budget).toLocaleString('en-IN')}` : '₹0',
+          spent: '₹0 (0%)',
+          deadline: p.end_date ? new Date(p.end_date).toLocaleDateString() : '30 Nov 2026',
+          deadlineSub: 'On Track',
+          deadlineUrgent: false,
+          tasksCompleted: Number(p.completed_tasks_count || 0),
+          tasksTotal: Number(p.total_tasks_count || 0) || 5
+        }));
+        setProjects(mapped);
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch projects:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
   const toggleSelectAll = () => {
     if (selectedProjects.length === projects.length) {
@@ -128,55 +156,68 @@ export const ProjectsView: React.FC = () => {
     );
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) {
       showToast('Please enter a project name', 'error');
       return;
     }
-    if (!newClientName) {
-      showToast('Please select or add a client company to link this project', 'error');
-      return;
+
+    try {
+      setIsCreating(true);
+      const budgetNum = parseFloat(newBudget.replace(/[^0-9.]/g, '')) || 100000;
+      const res = await api.createProject({
+        name: newProjectName.trim(),
+        client_name: newClientName || undefined,
+        description: newScopeType || undefined,
+        budget: budgetNum,
+        priority: 'Medium',
+        status: 'Active'
+      });
+      if (res.success) {
+        showToast(`Project "${newProjectName}" created successfully`, 'success');
+        setShowCreateModal(false);
+        setNewProjectName('');
+        fetchProjects();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create project', 'error');
+    } finally {
+      setIsCreating(false);
     }
+  };
 
-    const initials = newClientName
-      .split(' ')
-      .filter(Boolean)
-      .map((w: string) => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || 'OP';
+  const confirmDeleteProject = async () => {
+    if (!deletingProject) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteProject(deletingProject.id);
+      if (res.success) {
+        showToast(`Project "${deletingProject.name}" deleted successfully`);
+        setDeletingProject(null);
+        fetchProjects();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete project', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-    const newProj = {
-      id: `p-${Date.now()}`,
-      code: `P-2026-${Math.floor(100 + Math.random() * 900)}`,
-      name: newProjectName.trim(),
-      scopeType: newScopeType,
-      clientName: newClientName,
-      clientAvatarText: initials,
-      clientAvatarBg: 'bg-[#B91C1C]',
-      clientAvatarTextColor: 'text-white',
-      leadPM: newLeadPM,
-      leadInitials: newLeadPM.split(' ').map((n) => n[0]).join(''),
-      status: 'Active',
-      statusBg: 'bg-emerald-50 text-emerald-700',
-      health: 'Healthy (95)',
-      healthStatus: 'healthy',
-      progressPercent: 10,
-      sprint: 'Sprint 1/4',
-      budget: newBudget || '₹1,50,000',
-      spent: '₹0 (0%)',
-      deadline: newDeadline || '30 Nov 2026',
-      deadlineSub: 'Kickoff in progress',
-      deadlineUrgent: false,
-      tasksCompleted: 1,
-      tasksTotal: 15,
-    };
-
-    setProjects([newProj, ...projects]);
-    setShowCreateModal(false);
-    setNewProjectName('');
-    showToast(`Project created and linked to ${newClientName}!`, 'success');
+  const handleDeleteSelected = async () => {
+    if (selectedProjects.length === 0) return;
+    if (!confirm(`Delete ${selectedProjects.length} selected projects from the database?`)) return;
+    try {
+      setIsDeleting(true);
+      await Promise.all(selectedProjects.map((id) => api.deleteProject(id)));
+      showToast(`Deleted ${selectedProjects.length} projects successfully`);
+      setSelectedProjects([]);
+      fetchProjects();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete projects', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Filtered projects
@@ -611,6 +652,14 @@ export const ProjectsView: React.FC = () => {
                 Export CSV
               </button>
               <button
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-3 py-1 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded font-bold transition flex items-center gap-1 disabled:opacity-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
+              </button>
+              <button
                 onClick={() => showToast(`Archived ${selectedProjects.length} projects`, 'info')}
                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded font-medium border border-slate-700 transition cursor-pointer"
               >
@@ -827,13 +876,26 @@ export const ProjectsView: React.FC = () => {
 
                         {/* Actions */}
                         <td className="p-3.5 pr-4 text-right">
-                          <button
-                            onClick={() => showToast(`Options for project: ${project.name}`, 'info')}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                            title="Project options"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingProject(project);
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition"
+                              title="Delete project"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => showToast(`Options for project: ${project.name}`, 'info')}
+                              className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                              title="Project options"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1143,6 +1205,39 @@ export const ProjectsView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Project</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete project <span className="font-bold text-slate-900 dark:text-white">{deletingProject.name}</span> ({deletingProject.code})? This will remove the project and unlink associated tasks from the database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingProject(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteProject}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

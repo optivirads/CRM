@@ -366,4 +366,149 @@ router.delete('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
+// Create Company
+router.post('/companies', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { name, industry, website, domain, email, phone, city, address, company_size, status } = req.body;
+
+  if (!name || !name.trim()) {
+    res.status(400).json({ success: false, message: 'Company name is required' });
+    return;
+  }
+
+  try {
+    const result = await db.query(`
+      INSERT INTO companies (
+        organization_id, name, industry, website, email, phone, city, address, company_size, status, owner_id, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *;
+    `, [
+      orgId, name.trim(), industry || null, website || domain || null, email || null, phone || null,
+      city || null, address || null, company_size || '11-50', status || 'active', userId, userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'companies', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Company
+router.patch('/companies/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const companyId = req.params.id;
+  const { name, industry, website, email, phone, city, address, company_size, status } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM companies WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [companyId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Company not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE companies
+      SET 
+        name = COALESCE($1, name),
+        industry = COALESCE($2, industry),
+        website = COALESCE($3, website),
+        email = COALESCE($4, email),
+        phone = COALESCE($5, phone),
+        city = COALESCE($6, city),
+        address = COALESCE($7, address),
+        company_size = COALESCE($8, company_size),
+        status = COALESCE($9, status),
+        updated_by = $10
+      WHERE id = $11 AND organization_id = $12
+      RETURNING *;
+    `, [name, industry, website, email, phone, city, address, company_size, status, userId, companyId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'companies', companyId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Create Contact
+router.post('/contacts', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { first_name, last_name, company_id, company_name, designation, job_title, email, phone, is_decision_maker } = req.body;
+
+  const resolvedFirstName = first_name || (req.body.name ? req.body.name.split(' ')[0] : '');
+  const resolvedLastName = last_name !== undefined ? last_name : (req.body.name ? req.body.name.split(' ').slice(1).join(' ') : '');
+
+  if (!resolvedFirstName || !resolvedFirstName.trim()) {
+    res.status(400).json({ success: false, message: 'Contact first name is required' });
+    return;
+  }
+
+  try {
+    let resolvedCompanyId = company_id;
+    if (!resolvedCompanyId && company_name) {
+      const compRes = await db.query(`
+        INSERT INTO companies (organization_id, name, created_by)
+        VALUES ($1, $2, $3)
+        ON CONFLICT DO NOTHING
+        RETURNING id;
+      `, [orgId, company_name.trim(), userId]);
+      resolvedCompanyId = compRes.rows[0]?.id;
+    }
+
+    const result = await db.query(`
+      INSERT INTO contacts (
+        organization_id, company_id, first_name, last_name, designation, email, phone, is_decision_maker, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;
+    `, [
+      orgId, resolvedCompanyId || null, resolvedFirstName.trim(), resolvedLastName || '',
+      designation || job_title || null, email || null, phone || null, is_decision_maker ?? false, userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'contacts', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Contact
+router.patch('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const contactId = req.params.id;
+  const { first_name, last_name, designation, email, phone, is_decision_maker } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM contacts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [contactId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Contact not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE contacts
+      SET 
+        first_name = COALESCE($1, first_name),
+        last_name = COALESCE($2, last_name),
+        designation = COALESCE($3, designation),
+        email = COALESCE($4, email),
+        phone = COALESCE($5, phone),
+        is_decision_maker = COALESCE($6, is_decision_maker),
+        updated_by = $7
+      WHERE id = $8 AND organization_id = $9
+      RETURNING *;
+    `, [first_name, last_name, designation, email, phone, is_decision_maker, userId, contactId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'contacts', contactId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

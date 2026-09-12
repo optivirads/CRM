@@ -205,4 +205,157 @@ router.delete('/expenses/:id', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
+// Create Invoice
+router.post('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { client_id, client_name, invoice_number, invoice_date, due_date, subtotal, discount, tax, total, status, notes, items } = req.body;
+
+  try {
+    let resolvedClientId = client_id;
+    if (!resolvedClientId && client_name) {
+      const clientRes = await db.query(`
+        SELECT c.id FROM clients c
+        JOIN companies comp ON c.company_id = comp.id
+        WHERE c.organization_id = $1 AND comp.name ILIKE $2 AND c.deleted_at IS NULL
+        LIMIT 1;
+      `, [orgId, client_name.trim()]);
+      resolvedClientId = clientRes.rows[0]?.id;
+    }
+
+    if (!resolvedClientId) {
+      const fallbackClient = await db.query('SELECT id FROM clients WHERE organization_id = $1 AND deleted_at IS NULL LIMIT 1;', [orgId]);
+      resolvedClientId = fallbackClient.rows[0]?.id;
+    }
+
+    if (!resolvedClientId) {
+      res.status(400).json({ success: false, message: 'Client is required to create an invoice' });
+      return;
+    }
+
+    const invNum = invoice_number || `INV-${Date.now().toString().slice(-6)}`;
+    const calcSubtotal = Number(subtotal || total || 0);
+    const calcTax = Number(tax || 0);
+    const calcDiscount = Number(discount || 0);
+    const calcTotal = Number(total || (calcSubtotal - calcDiscount + calcTax));
+    const invDueDate = due_date || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+      const invRes = await client.query(`
+        INSERT INTO invoices (
+          organization_id, client_id, invoice_number, invoice_date, due_date,
+          subtotal, discount, tax, total, paid_amount, status, notes, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, $11, $12)
+        RETURNING *;
+      `, [
+        orgId, resolvedClientId, invNum, invoice_date || new Date(), invDueDate,
+        calcSubtotal, calcDiscount, calcTax, calcTotal, status || 'Sent', notes || null, userId
+      ]);
+      const createdInvoice = invRes.rows[0];
+
+      // Insert line items if provided
+      if (Array.isArray(items) && items.length > 0) {
+        for (const item of items) {
+          await client.query(`
+            INSERT INTO invoice_items (invoice_id, description, quantity, rate, amount)
+            VALUES ($1, $2, $3, $4, $5);
+          `, [
+            createdInvoice.id, item.description || 'Professional Services',
+            Number(item.quantity || 1), Number(item.rate || item.amount || 0),
+            Number(item.amount || (item.quantity * item.rate) || 0)
+          ]);
+        }
+      }
+
+      await client.query('COMMIT');
+      await recordAuditLog(orgId, userId, 'CREATE', 'invoices', createdInvoice.id, null, createdInvoice, req);
+      res.status(201).json({ success: true, data: createdInvoice });
+    } catch (e: any) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Invoice Status / Details
+router.patch('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const invoiceId = req.params.id;
+  const { status, due_date, notes } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [invoiceId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invoice not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE invoices
+      SET 
+        status = COALESCE($1, status),
+        due_date = COALESCE($2, due_date),
+        notes = COALESCE($3, notes),
+        updated_by = $4
+      WHERE id = $5 AND organization_id = $6
+      RETURNING *;
+    `, [status, due_date, notes, userId, invoiceId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'invoices', invoiceId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Create Expense
+router.post('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { category, amount, vendor, description, title, notes, date, client_id, project_id } = req.body;
+
+  if (!category || !amount || Number(amount) <= 0) {
+    res.status(400).json({ success: false, message: 'Valid category and positive amount are required' });
+    return;
+  }
+
+  const rawCat = String(category).trim().toLowerCase();
+  let normalizedCategory = 'Miscellaneous';
+  if (rawCat.includes('software') || rawCat.includes('subscription')) normalizedCategory = 'Software / Subscriptions';
+  else if (rawCat.includes('ad') || rawCat.includes('recharge') || rawCat.includes('media')) normalizedCategory = 'Ad Spend Recharge';
+  else if (rawCat.includes('contractor') || rawCat.includes('freelance')) normalizedCategory = 'Contractors / Freelancers';
+  else if (rawCat.includes('travel')) normalizedCategory = 'Travel';
+  else if (rawCat.includes('office') || rawCat.includes('admin')) normalizedCategory = 'Office / Admin';
+  else if (rawCat.includes('market')) normalizedCategory = 'Marketing';
+  else if (rawCat.includes('equip')) normalizedCategory = 'Equipment';
+
+  const expenseTitle = title || description || category || 'Business Expense';
+  const expenseNotes = notes || description || null;
+
+  try {
+    const result = await db.query(`
+      INSERT INTO expenses (
+        organization_id, client_id, project_id, title, category, amount,
+        vendor, notes, date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *;
+    `, [
+      orgId, client_id || null, project_id || null, expenseTitle, normalizedCategory, Number(amount),
+      vendor || null, expenseNotes, date || new Date(), userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'expenses', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;
