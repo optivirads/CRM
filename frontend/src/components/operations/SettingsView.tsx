@@ -296,26 +296,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [isFetchingAdAccounts, setIsFetchingAdAccounts] = useState(false);
   const [newAdAccountId, setNewAdAccountId] = useState('');
   const [newAdAccountName, setNewAdAccountName] = useState('');
+  const [newAdAccountBusinessProfile, setNewAdAccountBusinessProfile] = useState('');
   const [copiedAccountId, setCopiedAccountId] = useState(false);
 
   const openAdAccountDetails = async (adAccountId: string) => {
     setIsLoadingAdAccountDetails(true);
+    const existing = (integForm.adAccounts || []).find((a: any) => a.id === adAccountId);
     setSelectedAdAccountDetails({ id: adAccountId, name: 'Fetching Live Metrics...', status: 'LOADING' });
     try {
       const res = await api.getAdAccountDetails(adAccountId);
       if (res.success && res.data) {
-        setSelectedAdAccountDetails(res.data);
+        setSelectedAdAccountDetails({
+          ...res.data,
+          business_name: existing?.business_name || res.data.business_name
+        });
       } else {
         setSelectedAdAccountDetails({
           id: adAccountId,
-          name: adAccountId === 'act_492019481029' ? 'Optivir Alpha Performance Marketing Act #1' : `Ad Account ${adAccountId}`,
+          name: existing?.name || (adAccountId === 'act_492019481029' ? 'Optivir Alpha Performance Marketing Act #1' : `Ad Account ${adAccountId}`),
           status: 'ACTIVE',
-          currency: 'INR',
-          timezone: 'Asia/Kolkata (GMT+05:30)',
-          amount_spent: '₹4,82,950',
+          currency: existing?.currency || 'INR',
+          timezone: existing?.timezone || 'Asia/Kolkata (GMT+05:30)',
+          amount_spent: existing?.amount_spent ? `₹${existing.amount_spent}` : '₹4,82,950',
           balance: '₹0.00 Outstanding',
           spend_cap: '₹10,00,000',
-          business_name: 'Optivir Agency BM',
+          business_name: existing?.business_name || (integForm.partnerId ? `BM #${integForm.partnerId}` : 'Optivir Agency BM'),
           pixel_id: '8839201948201',
           connected_at: new Date().toISOString(),
           campaigns: [
@@ -2760,12 +2765,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 </button>
                               </div>
 
-                              {/* Add Another Ad Account Input Row */}
+                              {/* Add Another Ad Account Input Row with Business Profile */}
                               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
-                                <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-300 block">
-                                  + Add Ad Account Manually
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-300 block">
+                                    + Add Ad Account from Any Business Profile
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    Supports multiple client BMs &amp; agency portfolios
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
                                   <input
                                     type="text"
                                     placeholder="act_492019481029"
@@ -2780,6 +2790,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                     onChange={e => setNewAdAccountName(e.target.value)}
                                     className="sm:col-span-2 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
                                   />
+                                  <input
+                                    type="text"
+                                    placeholder="Business Profile / BM Name"
+                                    value={newAdAccountBusinessProfile}
+                                    onChange={e => setNewAdAccountBusinessProfile(e.target.value)}
+                                    className="sm:col-span-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2788,9 +2805,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                         return;
                                       }
                                       const cleanId = newAdAccountId.trim().startsWith('act_') ? newAdAccountId.trim() : `act_${newAdAccountId.trim()}`;
+                                      const bmName = newAdAccountBusinessProfile.trim() || (integForm.partnerId ? `BM Partner #${integForm.partnerId}` : 'Optivir Agency BM');
                                       const newAcc = {
                                         id: cleanId,
                                         name: newAdAccountName.trim() || `Ad Account ${cleanId}`,
+                                        business_name: bmName,
                                         status: 'ACTIVE',
                                         currency: 'INR',
                                         timezone: 'Asia/Kolkata',
@@ -2804,9 +2823,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                       }));
                                       setNewAdAccountId('');
                                       setNewAdAccountName('');
-                                      showToast(`Added ${cleanId} to connected accounts`);
+                                      setNewAdAccountBusinessProfile('');
+                                      showToast(`Added ${cleanId} from "${bmName}" to connected accounts`);
                                     }}
-                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shrink-0 flex items-center justify-center"
                                   >
                                     Add Account
                                   </button>
@@ -2830,12 +2850,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                           <Target className="w-4 h-4" />
                                         </div>
                                         <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[180px]">
                                               {acc.name || acc.id}
                                             </span>
                                             <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                               ● {acc.status || 'ACTIVE'}
+                                            </span>
+                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 truncate max-w-[170px]" title={`Business Profile: ${acc.business_name || 'Agency BM'}`}>
+                                              🏢 {acc.business_name || 'Optivir Agency BM'}
                                             </span>
                                           </div>
                                           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
