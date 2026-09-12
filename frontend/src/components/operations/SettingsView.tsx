@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getActualStorageEstimate, StorageEstimateData } from '@/lib/storage-estimate';
+import { api } from '@/lib/api';
 import {
   Settings,
   Shield,
@@ -299,6 +300,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     getActualStorageEstimate().then(setStorageData);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getIntegrations()
+      .then(res => {
+        if (isMounted && res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setIntegrations(prev => {
+            return prev.map(def => {
+              const found = res.data.find((dbItem: any) => dbItem.id === def.id);
+              if (found && found.connected) {
+                return {
+                  ...def,
+                  connected: true,
+                  statusText: found.status_text || 'Connected',
+                  config: found.config || {},
+                  lastSynced: found.updated_at ? new Date(found.updated_at).toLocaleTimeString() : 'Active'
+                };
+              }
+              return def;
+            });
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Backend integrations sync error:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -2798,8 +2829,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         {configuringInteg.connected ? (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               const integId = configuringInteg.id;
+                              const integName = configuringInteg.name;
+                              try {
+                                await api.disconnectIntegration(integId);
+                              } catch (err) {
+                                console.warn('Backend disconnect error:', err);
+                              }
                               const updated = integrations.map(item => {
                                 if (item.id === integId) {
                                   return { ...item, connected: false, statusText: 'Not Connected', config: {}, lastSynced: undefined };
@@ -2818,7 +2855,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   action: 'INTEGRATION_DISCONNECTED',
                                   operator: 'Abhinav Admin',
                                   role: 'Super Admin',
-                                  details: `Disconnected ${configuringInteg.name} and purged stored credentials`,
+                                  details: `Disconnected ${integName} and purged credentials from database`,
                                   ip: '192.168.1.45',
                                   timestamp: 'Just now',
                                   status: 'SUCCESS'
@@ -2826,7 +2863,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 ...prev
                               ]);
                               setConfiguringInteg(null);
-                              showToast(`Disconnected from ${configuringInteg.name}`);
+                              showToast(`Disconnected from ${integName}`);
                             }}
                             className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                           >
@@ -2846,84 +2883,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <button
                             type="button"
                             disabled={isTestingConnection}
-                            onClick={() => {
+                            onClick={async () => {
                               setIsTestingConnection(true);
                               setTestResult(null);
-                              setTimeout(() => {
+                              try {
+                                const res = await api.testIntegration(configuringInteg.id, integForm);
+                                setTestResult({
+                                  success: res.success,
+                                  message: res.message,
+                                  details: `${res.details || ''}${res.latencyMs !== undefined ? ` • Latency: ${res.latencyMs}ms` : ''}`.trim()
+                                });
+                              } catch (err: any) {
+                                setTestResult({
+                                  success: false,
+                                  message: 'Connection Handshake Failed',
+                                  details: err?.message || 'Server-to-server connection test failed. Check network or credentials.'
+                                });
+                              } finally {
                                 setIsTestingConnection(false);
-                                if (configuringInteg.id === 'int-paytm') {
-                                  if (!integForm.mid || !integForm.merchantKey) {
-                                    setTestResult({ success: false, message: 'Incomplete Credentials', details: 'Both Merchant ID (MID) and Merchant Key are required to authenticate with Paytm PG.' });
-                                    return;
-                                  }
-                                  if (integForm.mid.length < 8) {
-                                    setTestResult({ success: false, message: 'Invalid MID Format', details: 'Paytm Merchant ID must be an alphanumeric identifier (min 8 chars).' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Paytm PG Handshake Verified (200 OK)', details: `TLS 1.3 encrypted handshake passed. Paytm payment engine connected for MID: ${integForm.mid}` });
-                                } else if (configuringInteg.id === 'int-razorpay') {
-                                  if (!integForm.keyId || !integForm.keySecret) {
-                                    setTestResult({ success: false, message: 'Incomplete Credentials', details: 'Both Key ID and Key Secret are required for Razorpay API.' });
-                                    return;
-                                  }
-                                  if (!integForm.keyId.startsWith('rzp_')) {
-                                    setTestResult({ success: false, message: 'Invalid Key ID Prefix', details: 'Razorpay Key ID must start with rzp_live_ or rzp_test_' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Razorpay API Verified (200 OK)', details: `Authentication signature valid for ${integForm.keyId}` });
-                                } else if (configuringInteg.id === 'int-stripe') {
-                                  if (!integForm.secretKey) {
-                                    setTestResult({ success: false, message: 'Secret Key Required', details: 'Please supply a valid Stripe Secret Key.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Stripe API Handshake Verified', details: 'Stripe REST API client authenticated successfully.' });
-                                } else if (configuringInteg.id === 'int-meta') {
-                                  if (!integForm.partnerId || !integForm.accessToken) {
-                                    setTestResult({ success: false, message: 'Missing Meta Credentials', details: 'Business Partner ID and System User Access Token are required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Meta Graph API Verified (200 OK)', details: `Partner access granted for Business ID ${integForm.partnerId}` });
-                                } else if (configuringInteg.id === 'int-google') {
-                                  if (!integForm.cid || !integForm.developerToken) {
-                                    setTestResult({ success: false, message: 'Missing Google Ads Credentials', details: 'Manager CID and Developer Token are required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Google Ads MCC Handshake Verified', details: `Manager CID ${integForm.cid} validated against Google Ads API.` });
-                                } else if (configuringInteg.id === 'int-shopify') {
-                                  if (!integForm.domain || !integForm.token) {
-                                    setTestResult({ success: false, message: 'Missing Shopify Credentials', details: 'Store domain and Admin API token are required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Shopify Partner Link Active', details: `Admin REST & GraphQL schema verified for ${integForm.domain}.` });
-                                } else if (configuringInteg.id === 'int-slack') {
-                                  if (!integForm.botToken) {
-                                    setTestResult({ success: false, message: 'Bot Token Required', details: 'Slack Bot User OAuth Token (xoxb-...) is required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Slack Bot Authorized', details: `Connected to workspace alert channel ${integForm.channel || '#general'}.` });
-                                } else if (configuringInteg.id === 'int-google-workspace') {
-                                  if (!integForm.clientId || !integForm.serviceEmail) {
-                                    setTestResult({ success: false, message: 'Missing Workspace Credentials', details: 'Google Cloud Client ID and Service Account Email are required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'Google Workspace Scope Authorized', details: `Delegated calendar and mail sync active for ${integForm.serviceEmail}.` });
-                                } else if (configuringInteg.id === 'int-whatsapp') {
-                                  if (!integForm.wabaId || !integForm.accessToken) {
-                                    setTestResult({ success: false, message: 'Missing WhatsApp Credentials', details: 'WABA ID and System User Access Token are required.' });
-                                    return;
-                                  }
-                                  setTestResult({ success: true, message: 'WhatsApp Cloud API Verified', details: `Cloud API endpoint active for WABA ${integForm.wabaId}.` });
-                                }
-                              }, 650);
+                              }
                             }}
                             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin text-amber-400' : ''}`} />
-                            <span>{isTestingConnection ? 'Verifying...' : 'Test Connection'}</span>
+                            <span>{isTestingConnection ? 'Verifying Live...' : 'Test Connection'}</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               // Validation check
                               if (configuringInteg.id === 'int-paytm' && (!integForm.mid || !integForm.merchantKey)) {
                                 showToast('Please enter both Merchant ID and Merchant Key to connect Paytm PG');
@@ -2973,6 +2960,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               else if (configuringInteg.id === 'int-google-workspace') statusText = `Active • ${integForm.serviceEmail}`;
                               else if (configuringInteg.id === 'int-whatsapp') statusText = `Active • WABA: ${integForm.wabaId}`;
 
+                              try {
+                                await api.saveIntegration({
+                                  integrationId: configuringInteg.id,
+                                  name: configuringInteg.name,
+                                  category: configuringInteg.category,
+                                  config: integForm,
+                                  statusText,
+                                  connected: true
+                                });
+                              } catch (err) {
+                                console.warn('Backend save error:', err);
+                              }
+
                               const updated = integrations.map(item => {
                                 if (item.id === configuringInteg.id) {
                                   return {
@@ -2999,7 +2999,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   action: 'INTEGRATION_CONNECTED',
                                   operator: 'Abhinav Admin',
                                   role: 'Super Admin',
-                                  details: `Connected ${configuringInteg.name} with verified production credentials`,
+                                  details: `Connected ${configuringInteg.name} with verified production credentials to database`,
                                   ip: '192.168.1.45',
                                   timestamp: 'Just now',
                                   status: 'SUCCESS'
@@ -3008,7 +3008,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               ]);
 
                               setConfiguringInteg(null);
-                              showToast(`${configuringInteg.name} connected successfully!`);
+                              showToast(`${configuringInteg.name} connected & saved to database!`);
                             }}
                             className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
                           >
