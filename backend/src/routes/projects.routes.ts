@@ -98,23 +98,25 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
 router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
-  const { title, description, project_id, client_id, assignee_id, priority, due_date } = req.body;
+  const { title, description, project_id, client_id, assignee_id, priority, due_date, assigned_date, start_date } = req.body;
 
   if (!title) {
     res.status(400).json({ success: false, message: 'Task title is required' });
     return;
   }
 
+  const effectiveAssignedDate = assigned_date || start_date || new Date().toISOString().split('T')[0];
+
   try {
     const result = await db.query(`
       INSERT INTO tasks (
         organization_id, title, description, project_id, client_id, assignee_id,
-        priority, status, due_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'To Do', $8, $9)
+        priority, status, assigned_date, start_date, due_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'To Do', $8, $8, $9, $10)
       RETURNING *;
     `, [
       orgId, title, description || null, project_id || null, client_id || null,
-      assignee_id || userId, priority || 'Medium', due_date || null, userId
+      assignee_id || userId, priority || 'Medium', effectiveAssignedDate, due_date || null, userId
     ]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -314,12 +316,12 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-// General Update Task (Title, description, priority, due date, assignee)
+// General Update Task (Title, description, priority, due date, assigned date, assignee)
 router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const taskId = req.params.id;
-  const { title, description, priority, status, due_date, assignee_id } = req.body;
+  const { title, description, priority, status, due_date, assigned_date, start_date, assignee_id } = req.body;
 
   try {
     const current = await db.query('SELECT * FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [taskId, orgId]);
@@ -327,6 +329,8 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       res.status(404).json({ success: false, message: 'Task not found' });
       return;
     }
+
+    const effectiveAssignedDate = assigned_date || start_date;
 
     const updated = await db.query(`
       UPDATE tasks
@@ -337,11 +341,13 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
         status = COALESCE($4, status),
         due_date = COALESCE($5, due_date),
         assignee_id = COALESCE($6, assignee_id),
+        assigned_date = COALESCE($7, assigned_date),
+        start_date = COALESCE($7, start_date),
         completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
-        updated_by = $7
-      WHERE id = $8 AND organization_id = $9
+        updated_by = $8
+      WHERE id = $9 AND organization_id = $10
       RETURNING *;
-    `, [title, description, priority, status, due_date, assignee_id, userId, taskId, orgId]);
+    `, [title, description, priority, status, due_date, assignee_id, effectiveAssignedDate, userId, taskId, orgId]);
 
     await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
