@@ -870,7 +870,10 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
             </span>
 
             <div 
-              onClick={() => showToast(`Navigating to linked Deal: ${lead.company} Growth Retainer`, 'info')}
+              onClick={() => {
+                if (onNavigate) onNavigate('pipeline');
+                else showToast(`Navigating to linked Deal: ${lead.company} Growth Retainer`, 'info');
+              }}
               className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0A101C] flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#111E34] cursor-pointer transition"
             >
               <div className="flex items-center gap-2.5">
@@ -884,7 +887,10 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
             </div>
 
             <div 
-              onClick={() => showToast(`Navigating to primary stakeholder record`, 'info')}
+              onClick={() => {
+                if (onNavigate) onNavigate('contacts');
+                else showToast(`Navigating to primary stakeholder record`, 'info');
+              }}
               className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0A101C] flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#111E34] cursor-pointer transition"
             >
               <div className="flex items-center gap-2.5">

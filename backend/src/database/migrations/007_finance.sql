@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS payments (
     amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
     payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
     payment_method VARCHAR(50) DEFAULT 'Bank Transfer' CHECK (payment_method IN (
-        'Bank Transfer', 'UPI', 'Credit Card', 'Cheque', 'Cash', 'Stripe', 'Razorpay', 'Other'
+        'Bank Transfer', 'UPI', 'Credit Card', 'Cheque', 'Cash', 'Stripe', 'Razorpay', 'Paytm', 'Other'
     )),
     reference_number VARCHAR(150),
     notes TEXT,

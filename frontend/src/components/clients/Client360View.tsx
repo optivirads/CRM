@@ -87,8 +87,27 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   onBackToList,
   onNavigate
 }) => {
-  const activeClientName = propClientName || (clientId ? `Client #${clientId}` : 'Client 360° Profile');
-  const activeClientDomain = activeClientName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+  const [resolvedClient] = useState<any>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('optivir_clients_accounts');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (clientId) {
+            return parsed.find((c: any) => c.id === clientId) || parsed[0];
+          }
+          return parsed[0];
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  const activeClientName = propClientName || resolvedClient?.companyName || (clientId ? `Client #${clientId}` : 'Client 360° Profile');
+  const activeClientDomain = resolvedClient?.domain || (activeClientName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com');
   const activeInitials = activeClientName.substring(0, 2).toUpperCase();
   const { showToast: showGlobalToast } = useToast();
   const [simulatorState, setSimulatorState] = useState('1. Overview (Command)');
@@ -104,88 +123,53 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
   const [showAddVaultModal, setShowAddVaultModal] = useState(false);
-  const [newVaultPlatform, setNewVaultPlatform] = useState('Shopify Custom App Token');
-  const [newVaultIdentifier, setNewVaultIdentifier] = useState('shpat_live_8910482019482');
-  const [newVaultSecret, setNewVaultSecret] = useState('shpss_9904291840291');
+  const [newVaultPlatform, setNewVaultPlatform] = useState('');
+  const [newVaultIdentifier, setNewVaultIdentifier] = useState('');
+  const [newVaultSecret, setNewVaultSecret] = useState('');
   const [newVaultAccess, setNewVaultAccess] = useState<'Admin' | 'Standard' | 'Read-Only'>('Standard');
-  const [newVaultNotes, setNewVaultNotes] = useState('Private integration token for store telemetry');
+  const [newVaultNotes, setNewVaultNotes] = useState('');
 
-  const [vaultAuditLogs, setVaultAuditLogs] = useState<any[]>([
-    { id: 'aud-1', action: 'DELEGATION_VERIFIED', asset: 'Meta Business Manager (Partner 194820194810291)', operator: 'Maya Joseph', timestamp: 'Today, 04:15 PM' },
-    { id: 'aud-2', action: 'KMS_KEY_ROTATED', asset: 'Master Key Envelope #V4 (AWS KMS)', operator: 'Security Bot', timestamp: 'Yesterday, 12:00 AM' }
-  ]);
-
-  const [delegationAssets, setDelegationAssets] = useState<any[]>([
-    {
-      id: 'del-meta',
-      platform: 'Meta Business Manager',
-      iconBg: 'bg-blue-600',
-      partnerId: '194820194810291',
-      clientAccountId: 'act_492019481029',
-      status: 'Active',
-      permissions: ['Manage Campaigns', 'CAPI Conversion Dataset', 'Ad Account Admin'],
-      method: 'Partner Business ID Request (No Password Shared)',
-      lastVerified: '10 mins ago',
-    },
-    {
-      id: 'del-google',
-      platform: 'Google Ads (MCC)',
-      iconBg: 'bg-red-500',
-      partnerId: '829-102-9912',
-      clientAccountId: 'cid-910-244-8891',
-      status: 'Active',
-      permissions: ['Standard Access', 'Billing Audit', 'Performance Max Execution'],
-      method: 'Manager Link CID Request (No Password Shared)',
-      lastVerified: '25 mins ago',
-    },
-    {
-      id: 'del-shopify',
-      platform: 'Shopify Partner Collaborator',
-      iconBg: 'bg-emerald-600',
-      partnerId: 'OPTI-COL-8821',
-      clientAccountId: 'apex-apparel-india.myshopify.com',
-      status: 'Approved',
-      permissions: ['Themes & Assets', 'Products & Orders', 'Analytics Telemetry'],
-      method: 'Collaborator Access Code (Zero Password Handoff)',
-      lastVerified: '1 hour ago',
-    },
-    {
-      id: 'del-tiktok',
-      platform: 'TikTok Business Center',
-      iconBg: 'bg-slate-900',
-      partnerId: '71982910283',
-      clientAccountId: 'tt-org-8839210',
-      status: 'Active',
-      permissions: ['Spark Ads', 'Pixel Telemetry'],
-      method: 'Business Center Partner Linking',
-      lastVerified: '3 hours ago',
+  const [vaultAuditLogs, setVaultAuditLogs] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('optivir_vault_audit_logs');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(l => !['aud-1', 'aud-2'].includes(l.id)) : [];
+      }
+    } catch {
+      // fallback
     }
-  ]);
+    return [];
+  });
 
-  const [fallbackCredentials, setFallbackCredentials] = useState<any[]>([
-    {
-      id: 'cred-1',
-      platform: 'Headless CMS Admin (Strapi)',
-      category: 'Content API & Landing Pages',
-      identifier: 'admin@apexapparel.com',
-      secret: 'strp_live_sec_994204_x8a!K',
-      accessLevel: 'Admin',
-      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
-      lastRotated: '14 days ago',
-      notes: 'No delegation available. Secured with AES-256-GCM envelope cipher.'
-    },
-    {
-      id: 'cred-2',
-      platform: 'Private SFTP Asset Server',
-      category: 'Raw Video B-Roll & High-Res Catalog',
-      identifier: 'sftp_optivir_sync',
-      secret: 'sftp#Apex2026@secure-vault',
-      accessLevel: 'Standard',
-      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
-      lastRotated: '30 days ago',
-      notes: 'Isolated static delivery pipeline.'
+  const [delegationAssets, setDelegationAssets] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('optivir_delegation_assets');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(a => !['del-meta', 'del-google', 'del-shopify', 'del-tiktok'].includes(a.id)) : [];
+      }
+    } catch {
+      // fallback
     }
-  ]);
+    return [];
+  });
+
+  const [fallbackCredentials, setFallbackCredentials] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('optivir_vault_credentials');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(c => !['cred-1', 'cred-2'].includes(c.id)) : [];
+      }
+    } catch {
+      // fallback
+    }
+    return [];
+  });
 
   const handleToggleReveal = (id: string, platformName: string) => {
     setRevealedSecrets(prev => ({ ...prev, [id]: !prev[id] }));
@@ -202,7 +186,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const handleCopySecret = (id: string, secret: string, platformName: string) => {
     navigator.clipboard.writeText(secret);
     setCopiedSecretId(id);
-    showToast(`Encrypted secret for ${platformName} copied to clipboard (Audit logged)`, 'success');
+    showToast(`Secret for ${platformName} copied to clipboard (Audit logged)`, 'success');
     const newLog = {
       id: `aud-${Date.now()}`,
       action: 'COPY_CLIPBOARD',
@@ -216,32 +200,8 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
   const handleAddFallbackCredential = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVaultIdentifier.trim() || !newVaultSecret.trim()) return;
-
-    const newRecord = {
-      id: `cred-${Date.now()}`,
-      platform: newVaultPlatform,
-      category: 'Agency Tool Integration',
-      identifier: newVaultIdentifier,
-      secret: newVaultSecret,
-      accessLevel: newVaultAccess,
-      kmsKeyVersion: 'AWS-KMS-v4 (Envelope Isolated)',
-      lastRotated: 'Today',
-      notes: newVaultNotes
-    };
-
-    setFallbackCredentials(prev => [newRecord, ...prev]);
     setShowAddVaultModal(false);
-    showToast(`Saved encrypted credential for ${newVaultPlatform} with AES-256-GCM envelope`, 'success');
-
-    const newLog = {
-      id: `aud-${Date.now()}`,
-      action: 'ADD_CREDENTIAL',
-      asset: newVaultPlatform,
-      operator: 'Active Operator',
-      timestamp: 'Just now'
-    };
-    setVaultAuditLogs(prev => [newLog, ...prev]);
+    showToast('Direct credential input is disabled in preview mode to protect passwords. Please use Partner Delegation.', 'info');
   };
 
   // Deliverables State & Presets
@@ -335,6 +295,29 @@ export const Client360View: React.FC<Client360ViewProps> = ({
       number: newId
     });
   };
+
+  if (!resolvedClient && !clientId && !propClientName) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-8 text-center bg-[#F8F9FB] dark:bg-[#060B13]">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-[#B91C1C] dark:text-rose-400 flex items-center justify-center mb-4 shadow-sm">
+          <Building2 className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Client Selected</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mb-6">
+          There are no active client accounts to display. Please create a client in the Clients Directory or select an existing client to view their 360° profile.
+        </p>
+        {onBackToList && (
+          <button
+            onClick={onBackToList}
+            className="px-5 py-2.5 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white font-semibold text-sm shadow-md transition cursor-pointer flex items-center gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Go to Clients Directory</span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors font-sans">
@@ -608,7 +591,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               onClick={() => showToast('All filter criteria reset to default', 'info')}
               className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer"
             >
-              Reset (3)
+              Reset Filters
             </button>
           </div>
         </div>
@@ -617,13 +600,13 @@ export const Client360View: React.FC<Client360ViewProps> = ({
         <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
           {[
             { id: 'overview', label: 'Overview' },
-            { id: 'campaigns', label: 'Running Campaigns (4)' },
+            { id: 'campaigns', label: `Running Campaigns (${activeCampaigns.length})` },
             { id: 'deliverables', label: `Deliverables & Outputs (${deliverables.length})` },
             { id: 'vault', label: 'Credential Vault & Delegation' },
             { id: 'performance', label: 'Performance Analytics' },
-            { id: 'projects', label: 'Projects (2)' },
-            { id: 'retainers', label: 'Services & Retainers (3)' },
-            { id: 'finance', label: 'Finance & Invoices (12)' },
+            { id: 'projects', label: 'Projects' },
+            { id: 'retainers', label: 'Services & Retainers' },
+            { id: 'finance', label: 'Finance & Invoices' },
             { id: 'timeline', label: 'Canonical Timeline' },
             { id: 'health', label: 'Health Matrix' },
           ].map((tab) => (
@@ -662,7 +645,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                      Enterprise key management architecture. Master keys are isolated in external KMS/environment variables—never co-located in the database. Delegation-first access eliminates raw passwords for Google, Meta, and Shopify.
+                      Enterprise key management architecture. Master keys are isolated in external KMS/environment variables—never co-located in the database. Delegation-first access eliminates raw passwords for Google Ads MCC, Meta Business Manager, and Shopify.
                     </p>
                   </div>
                 </div>
@@ -718,78 +701,107 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {delegationAssets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-9 h-9 rounded-xl ${asset.iconBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}>
-                            {asset.platform.charAt(0)}
-                          </div>
-                          <div>
-                            <h5 className="text-xs font-bold text-slate-900 dark:text-white">{asset.platform}</h5>
-                            <span className="text-[11px] text-slate-500 font-mono">{asset.clientAccountId}</span>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>{asset.status}</span>
-                        </span>
-                      </div>
-
-                      <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500">Agency Partner ID:</span>
-                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{asset.partnerId}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500">Delegation Protocol:</span>
-                          <span className="text-slate-700 dark:text-slate-300 font-medium">{asset.method}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500">Last Verified:</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{asset.lastVerified}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Authorized Permissions:</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {asset.permissions.map((p: string, idx: number) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-semibold border border-slate-200 dark:border-slate-700"
-                            >
-                              {p}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
-                          <span>Zero Password Risk</span>
-                        </span>
-                        <button
-                          onClick={() => showToast(`Delegation handshake verified for ${asset.platform}`, 'success')}
-                          className="text-xs font-bold text-[#B91C1C] dark:text-rose-400 hover:underline cursor-pointer"
-                        >
-                          Verify Handshake →
-                        </button>
-                      </div>
+                {delegationAssets.length === 0 ? (
+                  <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <ShieldCheck className="w-6 h-6" />
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-1">
+                      <h5 className="text-sm font-bold text-slate-800 dark:text-white">No Partner Delegations Linked</h5>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        Safely link client ad accounts (Meta Business Partner, Google Ads MCC, Shopify Collaborator) with zero raw password handoffs.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => showToast('Initiating partner delegation request workflow...', 'info')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Link Partner Account</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {delegationAssets.map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-9 h-9 rounded-xl ${asset.iconBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}>
+                              {asset.platform.charAt(0)}
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-bold text-slate-900 dark:text-white">{asset.platform}</h5>
+                              <span className="text-[11px] text-slate-500 font-mono">{asset.clientAccountId}</span>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>{asset.status}</span>
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Agency Partner ID:</span>
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{asset.partnerId}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Delegation Protocol:</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">{asset.method}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Last Verified:</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{asset.lastVerified}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Authorized Permissions:</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {asset.permissions.map((p: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-semibold border border-slate-200 dark:border-slate-700"
+                              >
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                          <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Zero Password Risk</span>
+                          </span>
+                          <button
+                            onClick={() => showToast(`Delegation handshake verified for ${asset.platform}`, 'success')}
+                            className="text-xs font-bold text-[#B91C1C] dark:text-rose-400 hover:underline cursor-pointer"
+                          >
+                            Verify Handshake →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* View B: Encrypted Fallback Locker */}
+            {/* View B: Fallback Locker (Dev Preview) */}
             {vaultSubMode === 'fallback_vault' && (
               <div className="space-y-4">
+                <div className="p-4 bg-amber-950/30 border border-amber-800/50 rounded-2xl flex items-start gap-3 text-xs text-amber-200/90">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-white block mb-0.5">Development Preview Notice:</strong>
+                    Direct client password storage is currently restricted in this build. Server-side KMS envelope encryption and secrets management are currently under development. Please use <strong>Partner Delegation</strong> for active client access without raw passwords.
+                  </div>
+                </div>
+
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-bold text-slate-900 dark:text-white">Encrypted Fallback Locker (Legacy &amp; Non-Delegated Tools)</h4>
@@ -797,10 +809,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </div>
                   <button
                     onClick={() => setShowAddVaultModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 shadow-sm transition border border-slate-700"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Add Fallback Credential</span>
+                    <span>+ Add Fallback Record</span>
                   </button>
                 </div>
 
@@ -818,62 +830,72 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {fallbackCredentials.map((cred) => (
-                          <tr key={cred.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                            <td className="py-3.5 px-4">
-                              <div className="font-bold text-slate-900 dark:text-white">{cred.platform}</div>
-                              <div className="text-[10px] text-slate-400">{cred.category}</div>
-                            </td>
-                            <td className="py-3.5 px-4 font-mono text-slate-700 dark:text-slate-300">
-                              {cred.identifier}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md text-[11px]">
-                                  {revealedSecrets[cred.id] ? cred.secret : '••••••••••••••••'}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleReveal(cred.id, cred.platform)}
-                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                                  title={revealedSecrets[cred.id] ? 'Mask password' : 'Reveal password'}
-                                >
-                                  {revealedSecrets[cred.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
-                                  className="text-slate-400 hover:text-[#B91C1C]"
-                                  title="Copy to clipboard (audited)"
-                                >
-                                  {copiedSecretId === cred.id ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                  ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                {cred.accessLevel}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                {cred.kmsKeyVersion}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right">
-                              <button
-                                onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
-                              >
-                                Copy Secret
-                              </button>
+                        {fallbackCredentials.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-10 text-center text-slate-400 text-xs">
+                              <KeyRound className="w-6 h-6 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                              <p className="font-semibold text-slate-600 dark:text-slate-300">No Fallback Credentials Stored</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Use the "+ Add Fallback Record" button above to securely store legacy credentials.</p>
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          fallbackCredentials.map((cred) => (
+                            <tr key={cred.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-slate-900 dark:text-white">{cred.platform}</div>
+                                <div className="text-[10px] text-slate-400">{cred.category}</div>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-slate-700 dark:text-slate-300">
+                                {cred.identifier}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md text-[11px]">
+                                    {revealedSecrets[cred.id] ? cred.secret : '••••••••••••••••'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleReveal(cred.id, cred.platform)}
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                    title={revealedSecrets[cred.id] ? 'Mask password' : 'Reveal password'}
+                                  >
+                                    {revealedSecrets[cred.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
+                                    className="text-slate-400 hover:text-[#B91C1C]"
+                                    title="Copy to clipboard (audited)"
+                                  >
+                                    {copiedSecretId === cred.id ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                  {cred.accessLevel}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                  {cred.kmsKeyVersion}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <button
+                                  onClick={() => handleCopySecret(cred.id, cred.secret, cred.platform)}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
+                                >
+                                  Copy Secret
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -894,23 +916,29 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               </div>
 
               <div className="space-y-2">
-                {vaultAuditLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between text-xs border border-slate-200/60 dark:border-slate-700/60"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span className="font-bold text-slate-800 dark:text-slate-200">[{log.action}]</span>
-                      <span className="text-slate-600 dark:text-slate-400">{log.asset}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                      <span>Operator: <strong>{log.operator}</strong></span>
-                      <span>•</span>
-                      <span>{log.timestamp}</span>
-                    </div>
+                {vaultAuditLogs.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    No vault access or key rotation events recorded yet.
                   </div>
-                ))}
+                ) : (
+                  vaultAuditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between text-xs border border-slate-200/60 dark:border-slate-700/60"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="font-bold text-slate-800 dark:text-slate-200">[{log.action}]</span>
+                        <span className="text-slate-600 dark:text-slate-400">{log.asset}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                        <span>Operator: <strong>{log.operator}</strong></span>
+                        <span>•</span>
+                        <span>{log.timestamp}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -921,7 +949,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
                       <Lock className="w-5 h-5 text-[#B91C1C]" />
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Add Encrypted Fallback Secret</h4>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Add Fallback Record (Preview)</h4>
                     </div>
                     <button
                       onClick={() => setShowAddVaultModal(false)}
@@ -931,16 +959,23 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     </button>
                   </div>
 
+                  <div className="p-3 bg-amber-950/40 border border-amber-800/50 rounded-xl text-xs text-amber-300 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      Direct secret input is disabled in this preview build to prevent exposure of client passwords. Please use <strong>Platform Partner Delegation</strong> for active access.
+                    </span>
+                  </div>
+
                   <form onSubmit={handleAddFallbackCredential} className="space-y-3 text-xs">
                     <div>
                       <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Platform Name</label>
                       <input
                         type="text"
-                        required
+                        disabled
                         value={newVaultPlatform}
                         onChange={(e) => setNewVaultPlatform(e.target.value)}
                         placeholder="e.g. Headless Strapi CMS"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400"
                       />
                     </div>
 
@@ -948,11 +983,11 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Account Identifier / Username</label>
                       <input
                         type="text"
-                        required
+                        disabled
                         value={newVaultIdentifier}
                         onChange={(e) => setNewVaultIdentifier(e.target.value)}
                         placeholder="e.g. admin@apexapparel.com"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-400"
                       />
                     </div>
 
@@ -960,11 +995,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Access Token / Password</label>
                       <input
                         type="password"
-                        required
-                        value={newVaultSecret}
-                        onChange={(e) => setNewVaultSecret(e.target.value)}
+                        disabled
+                        value="••••••••••••"
                         placeholder="••••••••••••"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-400"
                       />
                     </div>
 
@@ -972,9 +1006,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       <div>
                         <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Access Scope</label>
                         <select
+                          disabled
                           value={newVaultAccess}
                           onChange={(e) => setNewVaultAccess(e.target.value as any)}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                          className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400"
                         >
                           <option value="Admin">Admin</option>
                           <option value="Standard">Standard</option>
@@ -983,11 +1018,11 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Cipher Standard</label>
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">KMS Status</label>
                         <input
                           type="text"
                           disabled
-                          value="AES-256-GCM (Isolated)"
+                          value="Backend KMS In Development"
                           className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500"
                         />
                       </div>
@@ -997,10 +1032,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Notes / Scope Context</label>
                       <textarea
                         rows={2}
-                        value={newVaultNotes}
-                        onChange={(e) => setNewVaultNotes(e.target.value)}
-                        placeholder="Context for team members accessing this fallback credential..."
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                        disabled
+                        value="Direct secret storage disabled in preview mode."
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400"
                       />
                     </div>
 
@@ -1008,15 +1042,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setShowAddVaultModal(false)}
-                        className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition shadow-xs"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl transition shadow-xs"
-                      >
-                        Encrypt &amp; Save to Vault
+                        Close (Input Restricted)
                       </button>
                     </div>
                   </form>
@@ -1243,49 +1271,61 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             </div>
 
             {/* Client Executive Campaign Telemetry KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Ad Spend MTD</div>
-                  <DollarSign className="w-4 h-4 text-[#B91C1C]" />
-                </div>
-                <div className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">₹8,76,000</div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                  <span>Budget: ₹11,00,000</span>
-                  <span className="font-semibold text-emerald-600">79.6% Pacing</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
-                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: '79.6%' }} />
-                </div>
-              </div>
+            {(() => {
+              const totalSpend = activeCampaigns.reduce((acc, c) => acc + (c.spendMtd || 0), 0);
+              const totalBudget = activeCampaigns.reduce((acc, c) => acc + (c.monthlyBudget || 0), 0);
+              const totalAttributedRev = activeCampaigns.reduce((acc, c) => acc + (c.attributedRev || 0), 0);
+              const totalLeads = activeCampaigns.reduce((acc, c) => acc + (c.leads || 0), 0);
+              const blendedRoas = totalSpend > 0 ? (totalAttributedRev / totalSpend).toFixed(2) : '0.00';
+              const pacing = totalBudget > 0 ? ((totalSpend / totalBudget) * 100).toFixed(1) : '0.0';
+              const cpl = totalLeads > 0 ? (totalSpend / totalLeads).toFixed(2) : '0.00';
 
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Attributed Revenue</div>
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="text-2xl font-black text-emerald-600 mt-1.5">₹42,00,000</div>
-                <div className="text-[11px] text-slate-500 mt-2">Blended across 4 active campaigns</div>
-              </div>
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Ad Spend MTD</div>
+                      <DollarSign className="w-4 h-4 text-[#B91C1C]" />
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">₹{totalSpend.toLocaleString()}</div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                      <span>Budget: ₹{totalBudget.toLocaleString()}</span>
+                      <span className="font-semibold text-emerald-600">{pacing}% Pacing</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                      <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: `${Math.min(Number(pacing), 100)}%` }} />
+                    </div>
+                  </div>
 
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Blended Account ROAS</div>
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="text-2xl font-black text-blue-600 mt-1.5">4.80x</div>
-                <div className="text-[11px] text-slate-500 mt-2">Target benchmark: 3.80x (+26.3%)</div>
-              </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Attributed Revenue</div>
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="text-2xl font-black text-emerald-600 mt-1.5">₹{totalAttributedRev.toLocaleString()}</div>
+                    <div className="text-[11px] text-slate-500 mt-2">Across {activeCampaigns.length} active campaigns</div>
+                  </div>
 
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Paid Pipeline Leads</div>
-                  <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Blended Account ROAS</div>
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="text-2xl font-black text-blue-600 mt-1.5">{blendedRoas}x</div>
+                    <div className="text-[11px] text-slate-500 mt-2">Blended return on ad spend</div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Paid Pipeline Leads</div>
+                      <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="text-2xl font-black text-purple-600 mt-1.5">{totalLeads.toLocaleString()}</div>
+                    <div className="text-[11px] text-slate-500 mt-2">Blended CPL: ₹{cpl} / lead</div>
+                  </div>
                 </div>
-                <div className="text-2xl font-black text-purple-600 mt-1.5">1,756</div>
-                <div className="text-[11px] text-slate-500 mt-2">Blended CPL: ₹498.86 / verified lead</div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Filter & Search Toolbar */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -1336,120 +1376,132 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
             {/* Campaign Cards List */}
             <div className="space-y-4">
-              {activeCampaigns
-                .filter(c => {
-                  if (campaignPlatformFilter === 'GOOGLE') return c.platform === 'Google Ads';
-                  if (campaignPlatformFilter === 'META') return c.platform === 'Meta Ads';
-                  return true;
-                })
-                .filter(c => {
-                  if (!campaignSearchQuery) return true;
-                  const q = campaignSearchQuery.toLowerCase();
-                  return (
-                    c.name.toLowerCase().includes(q) ||
-                    c.id.toLowerCase().includes(q) ||
-                    c.targetAudience.toLowerCase().includes(q) ||
-                    c.channel.toLowerCase().includes(q)
-                  );
-                })
-                .map((camp) => (
-                  <div
-                    key={camp.id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition space-y-4"
-                  >
-                    {/* Campaign Card Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500">
-                            {camp.id}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              camp.platform === 'Google Ads'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
-                                : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/40'
-                            }`}
-                          >
-                            {camp.platform} • {camp.channel}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {camp.status}
-                          </span>
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                          {camp.name}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                          <span>Target Cluster:</span>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">{camp.targetAudience}</span>
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => showToast(`Audited tracking tags for ${camp.id}: 100% CAPI & GA4 synced`)}
-                          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Inspect Tags</span>
-                        </button>
-                        <button
-                          onClick={() => setActiveSubTab('deliverables')}
-                          className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-rose-200 dark:border-rose-900/40 cursor-pointer"
-                        >
-                          <Package className="w-3.5 h-3.5" />
-                          <span>Ad Creatives</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 4-Metric Data Strip */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                      <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Spend / Budget</div>
-                        <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                          ₹{camp.spendMtd.toLocaleString()}
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
-                          <span>Cap: ₹{camp.monthlyBudget.toLocaleString()}</span>
-                          <span className="font-bold text-rose-600">{((camp.spendMtd / camp.monthlyBudget) * 100).toFixed(0)}%</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leads & CPL</div>
-                        <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                          {camp.leads.toLocaleString()} Leads
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                          CPL: <span className="font-bold text-slate-700 dark:text-slate-300">₹{camp.cpl}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Click & CTR Volume</div>
-                        <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                          {camp.clicks.toLocaleString()} Clicks
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                          CTR: <span className="font-bold text-emerald-600">{camp.ctr}%</span> • CPC: ₹{camp.cpc}
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Attributed Rev / ROAS</div>
-                        <div className="text-sm font-black text-emerald-600 mt-1">
-                          ₹{camp.attributedRev.toLocaleString()}
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                          ROAS: <span className="font-black text-blue-600">{camp.roas.toFixed(2)}x</span>
-                        </div>
-                      </div>
-                    </div>
+              {activeCampaigns.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <BarChart2 className="w-6 h-6" />
                   </div>
-                ))}
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">No Active Ad Campaigns</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    There are no running Google Ads or Meta Ads campaigns linked to this client account. Connect ad network integrations to track real-time telemetry.
+                  </p>
+                </div>
+              ) : (
+                activeCampaigns
+                  .filter(c => {
+                    if (campaignPlatformFilter === 'GOOGLE') return c.platform === 'Google Ads';
+                    if (campaignPlatformFilter === 'META') return c.platform === 'Meta Ads';
+                    return true;
+                  })
+                  .filter(c => {
+                    if (!campaignSearchQuery) return true;
+                    const q = campaignSearchQuery.toLowerCase();
+                    return (
+                      c.name.toLowerCase().includes(q) ||
+                      c.id.toLowerCase().includes(q) ||
+                      c.targetAudience.toLowerCase().includes(q) ||
+                      c.channel.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((camp) => (
+                    <div
+                      key={camp.id}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition space-y-4"
+                    >
+                      {/* Campaign Card Header */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500">
+                              {camp.id}
+                            </span>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                camp.platform === 'Google Ads'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
+                                  : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/40'
+                              }`}
+                            >
+                              {camp.platform} • {camp.channel}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {camp.status}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                            {camp.name}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <span>Target Cluster:</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{camp.targetAudience}</span>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => showToast(`Audited tracking tags for ${camp.id}: 100% CAPI & GA4 synced`)}
+                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Inspect Tags</span>
+                          </button>
+                          <button
+                            onClick={() => setActiveSubTab('deliverables')}
+                            className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-rose-200 dark:border-rose-900/40 cursor-pointer"
+                          >
+                            <Package className="w-3.5 h-3.5" />
+                            <span>Ad Creatives</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 4-Metric Data Strip */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Spend / Budget</div>
+                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                            ₹{camp.spendMtd.toLocaleString()}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                            <span>Cap: ₹{camp.monthlyBudget.toLocaleString()}</span>
+                            <span className="font-bold text-rose-600">{((camp.spendMtd / camp.monthlyBudget) * 100).toFixed(0)}%</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leads & CPL</div>
+                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                            {camp.leads.toLocaleString()} Leads
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            CPL: <span className="font-bold text-slate-700 dark:text-slate-300">₹{camp.cpl}</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Click & CTR Volume</div>
+                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                            {camp.clicks.toLocaleString()} Clicks
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            CTR: <span className="font-bold text-emerald-600">{camp.ctr}%</span> • CPC: ₹{camp.cpc}
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Attributed Rev / ROAS</div>
+                          <div className="text-sm font-black text-emerald-600 mt-1">
+                            ₹{camp.attributedRev.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            ROAS: <span className="font-black text-blue-600">{camp.roas.toFixed(2)}x</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         ) : (
@@ -1475,7 +1527,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 text-xs font-semibold flex items-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition cursor-pointer"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Live Campaigns (4)</span>
+                    <span>Live Campaigns ({activeCampaigns.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveSubTab('performance')}

@@ -767,7 +767,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                   <span>Export Reconciled CSV</span>
                 </button>
                 <button
-                  onClick={() => showToast('Payment gateway credentials synchronized with Razorpay & Stripe APIs', 'info')}
+                  onClick={() => showToast('Payment gateway credentials synchronized with Razorpay, Paytm PG & Stripe APIs', 'info')}
                   className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition cursor-pointer"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -1480,8 +1480,10 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                 <label className="font-semibold block mb-1">Payment Method & Gateway</label>
                 <select className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700">
                   <option>Bank Transfer (NEFT/RTGS)</option>
-                  <option>Corporate Card (Razorpay)</option>
-                  <option>UPI Commercial (Axis VPA)</option>
+                  <option>Razorpay Gateway (Card / UPI / NetBanking)</option>
+                  <option>Paytm PG (UPI Intent / Cards / Wallet / NetBanking)</option>
+                  <option>Stripe International (USD/EUR Card)</option>
+                  <option>UPI Commercial (Axis / ICICI VPA)</option>
                   <option>SWIFT / Fedwire (Cross-Border)</option>
                 </select>
               </div>

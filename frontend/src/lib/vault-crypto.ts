@@ -1,14 +1,11 @@
 /**
- * OptiVir CRM - Enterprise Credential Vault & Cryptographic Architecture
+ * OptiVir CRM - Credential Vault & Delegation Architecture Definitions
  * 
- * Architectural Guarantees:
- * 1. Key Isolation: Master encryption keys are managed externally via KMS / AWS Secrets Manager
- *    or environment variables (VAULT_MASTER_KEY), NEVER co-located in the same database table
- *    or stored alongside ciphertext.
- * 2. Envelope Cipher: Uses AES-256-GCM (Galois/Counter Mode) authenticated encryption with
- *    unique 96-bit initialization vectors (IV) and 128-bit authentication tags per record.
- * 3. Delegation-First Policy: Platforms supporting Partner/Manager Access (Meta Business Manager,
- *    Google Ads MCC, Shopify Collaborator) use delegated asset IDs rather than storing credentials.
+ * Policy:
+ * 1. Delegation-First Policy: Platforms supporting Partner/Manager Access (Meta Business Manager,
+ *    Google Ads MCC, Shopify Collaborator) use delegated partner IDs with zero raw credential exposure.
+ * 2. Fallback Storage Notice: Server-side KMS envelope encryption (AES-256-GCM) is currently under
+ *    development. To protect sensitive credentials, client-side secret storage is disabled in preview.
  */
 
 export interface EncryptedVaultRecord {
@@ -16,12 +13,12 @@ export interface EncryptedVaultRecord {
   clientId: string;
   platform: string;
   identifier: string; // Username, email, or account ID
-  ciphertext: string;
-  iv: string;
-  authTag: string;
+  ciphertext?: string;
+  iv?: string;
+  authTag?: string;
   accessLevel: 'Admin' | 'Standard' | 'Read-Only';
   notes?: string;
-  keyId: string; // Identifier of the KMS key version used (not the secret key itself)
+  keyId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,7 +58,8 @@ export function isDelegatedPlatform(platformKey: string): boolean {
 }
 
 /**
- * Simulates client-side payload verification with KMS envelope isolation
+ * Returns the current vault integration status.
+ * Vault backend KMS integration is pending; direct password storage is disabled.
  */
 export function verifyKeyIsolation(): {
   isSecure: boolean;
@@ -70,15 +68,15 @@ export function verifyKeyIsolation(): {
   keyStatus: string;
 } {
   return {
-    isSecure: true,
-    kmsProvider: 'AWS KMS / Env-Isolated Master Envelope',
-    algorithm: 'AES-256-GCM (Authenticated)',
-    keyStatus: 'Active (Rotated every 90 days)'
+    isSecure: false,
+    kmsProvider: 'Pending Backend KMS / Secrets Manager Integration',
+    algorithm: 'Planned: Server-Side AES-256-GCM',
+    keyStatus: 'Disabled (Delegation-First Active)'
   };
 }
 
 /**
- * Creates an audit log entry whenever a credential or delegation asset is accessed
+ * Creates a local audit trail event (backend audit logging handles production events)
  */
 export function createVaultAuditEntry(
   assetId: string,
@@ -92,7 +90,7 @@ export function createVaultAuditEntry(
     action,
     operatorEmail,
     operatorRole,
-    ipAddress: '127.0.0.1',
+    ipAddress: 'client-audit-session',
     timestamp: new Date().toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',

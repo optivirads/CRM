@@ -131,6 +131,12 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
     );
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / rowsPerPage));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validCurrentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + rowsPerPage, filteredContacts.length);
+  const paginatedContacts = filteredContacts.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
       {/* ========================================================================= */}
@@ -528,7 +534,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
                 </td>
               </tr>
             ) : (
-              filteredContacts.map((ct) => {
+              paginatedContacts.map((ct) => {
                 const isSelected = selectedContacts.includes(ct.id);
                 return (
                   <tr
@@ -626,12 +632,17 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
         {/* Pagination Bar */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">
           <div className="flex items-center gap-3">
-            <span>Showing {filteredContacts.length > 0 ? 1 : 0}-{filteredContacts.length} of {filteredContacts.length} contacts</span>
+            <span>
+              Showing {filteredContacts.length > 0 ? startIndex + 1 : 0}-{endIndex} of {filteredContacts.length} contacts
+            </span>
             <div className="flex items-center gap-1">
               <span>Rows per page:</span>
               <select
                 value={rowsPerPage}
-                onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
                 className="bg-slate-50 dark:bg-[#080E18] border border-[#E2E6EC] dark:border-[#152238] rounded px-2 py-0.5 text-xs text-[#0B1727] dark:text-white"
               >
                 <option value={10}>10</option>
@@ -643,26 +654,18 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => {
-                if (currentPage > 1) {
-                  setCurrentPage(currentPage - 1);
-                  showToast(`Navigated to page ${currentPage - 1}`, 'info');
-                }
-              }}
-              disabled={currentPage === 1}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer"
+              onClick={() => setCurrentPage(Math.max(1, validCurrentPage - 1))}
+              disabled={validCurrentPage === 1}
+              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer text-slate-700 dark:text-slate-300"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {[1, 2, 3].map((page) => (
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
-                onClick={() => {
-                  setCurrentPage(page);
-                  showToast(`Navigated to page ${page}`, 'info');
-                }}
+                onClick={() => setCurrentPage(page)}
                 className={`px-2.5 py-1 rounded font-bold cursor-pointer transition ${
-                  currentPage === page
+                  validCurrentPage === page
                     ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
                     : 'hover:bg-slate-100 dark:hover:bg-[#111E34] text-slate-700 dark:text-slate-300'
                 }`}
@@ -670,29 +673,10 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
                 {page}
               </button>
             ))}
-            <span className="px-1 text-slate-400">...</span>
             <button
-              onClick={() => {
-                setCurrentPage(50);
-                showToast('Navigated to page 50', 'info');
-              }}
-              className={`px-2.5 py-1 rounded font-bold cursor-pointer transition ${
-                currentPage === 50
-                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                  : 'hover:bg-slate-100 dark:hover:bg-[#111E34] text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              50
-            </button>
-            <button
-              onClick={() => {
-                if (currentPage < 50) {
-                  setCurrentPage(currentPage + 1);
-                  showToast(`Navigated to page ${currentPage + 1}`, 'info');
-                }
-              }}
-              disabled={currentPage === 50}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer"
+              onClick={() => setCurrentPage(Math.min(totalPages, validCurrentPage + 1))}
+              disabled={validCurrentPage === totalPages}
+              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer text-slate-700 dark:text-slate-300"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

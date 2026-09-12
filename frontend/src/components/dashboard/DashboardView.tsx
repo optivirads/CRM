@@ -271,7 +271,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
                     className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2.5 text-[#0B1727] dark:text-white group transition"
                   >
                     <div className="p-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600">
-                      <BarChart2 className="w-4 h-4" />
+                      <BarChart3 className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="font-semibold">Export QBR Dossier</div>

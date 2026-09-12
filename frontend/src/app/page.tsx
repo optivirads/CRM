@@ -30,6 +30,7 @@ export default function Home() {
   const [mounted, setMounted] = React.useState(false);
   const { user, token, isLoading, canAccessTab, activePersona } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavItem>('dashboard');
+  const [selectedClient360Id, setSelectedClient360Id] = useState<string | undefined>(undefined);
   const [invoiceTransferData, setInvoiceTransferData] = useState<any>(null);
   const [openCreateInvoiceTrigger, setOpenCreateInvoiceTrigger] = useState(false);
 
@@ -183,7 +184,12 @@ export default function Home() {
                   onCreateInvoice={handleOpenCreateInvoice}
                 />
               )}
-              {currentTab === 'client-360' && <Client360View onBackToList={() => setCurrentTab('clients')} />}
+              {currentTab === 'client-360' && (
+                <Client360View
+                  clientId={selectedClient360Id}
+                  onBackToList={() => setCurrentTab('clients')}
+                />
+              )}
               {currentTab === 'leads' && <LeadsView onNavigate={(tab: any) => setCurrentTab(tab)} />}
               {currentTab === 'contacts' && <ContactsView onNavigate={(tab: any) => setCurrentTab(tab)} />}
               {currentTab === 'companies' && <CompaniesView />}
@@ -200,13 +206,19 @@ export default function Home() {
               )}
               {currentTab === 'clients' && (
                 <ClientsListView
-                  onOpenClient360={() => setCurrentTab('client-360')}
+                  onOpenClient360={(cid) => {
+                    setSelectedClient360Id(cid);
+                    setCurrentTab('client-360');
+                  }}
                   onNavigate={(tab) => setCurrentTab(tab)}
                 />
               )}
               {currentTab === 'onboarding' && (
                 <ClientOnboardingView
-                  onOpenClient360={() => setCurrentTab('client-360')}
+                  onOpenClient360={(cid) => {
+                    setSelectedClient360Id(cid);
+                    setCurrentTab('client-360');
+                  }}
                   onNavigate={(tab) => setCurrentTab(tab)}
                 />
               )}

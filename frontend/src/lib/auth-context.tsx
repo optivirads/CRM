@@ -148,8 +148,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.setItem('optivir_persona_id', persona.id);
       localStorage.setItem('optivir_user', JSON.stringify(updatedUser));
-      if (!localStorage.getItem('optivir_token')) {
-        const dummyToken = `ov_jwt_${persona.role}_${Date.now()}`;
+      if (!localStorage.getItem('optivir_token') && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+        const dummyToken = `ov_jwt_demo_${persona.role}_${Date.now()}`;
         localStorage.setItem('optivir_token', dummyToken);
         setToken(dummyToken);
       }
@@ -230,9 +230,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, pass: string) => {
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
+
     try {
       const res = await api.login(email, pass);
-      if (res.success && res.data) {
+      if (res && res.success && res.data) {
         localStorage.setItem('optivir_token', res.data.token);
         localStorage.setItem('optivir_user', JSON.stringify(res.data.user));
         localStorage.setItem('optivir_org', JSON.stringify(res.data.organization));
@@ -244,44 +246,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setOrganization(res.data.organization);
         return;
       }
-    } catch (apiErr) {
-      console.warn('API login error, proceeding with local credentials verification:', apiErr);
+      throw new Error((res as any)?.message || 'Authentication failed. Please verify your email and password.');
+    } catch (apiErr: any) {
+      if (!isDemoMode) {
+        // Secure production behavior: never bypass auth on error or failed response
+        throw new Error(apiErr?.message || 'Authentication failed. Please verify your credentials.');
+      }
+
+      console.warn('API login failed. Proceeding with local credentials verification in DEMO mode only:', apiErr);
+
+      // Local fallback for standalone mode / demo evaluation ONLY when NEXT_PUBLIC_DEMO_MODE is true
+      const matchedPersona = AGENCY_PERSONAS.find(
+        (p) => p.email.toLowerCase() === email.trim().toLowerCase()
+      );
+
+      if (!matchedPersona) {
+        throw new Error('Evaluation persona not found. In demo mode, select an evaluation persona.');
+      }
+
+      const [firstName, ...rest] = matchedPersona.name.split(' ');
+      const fallbackUser: User = {
+        id: `usr-${matchedPersona.role}`,
+        email: matchedPersona.email,
+        firstName,
+        lastName: rest.join(' '),
+        designation: matchedPersona.designation,
+        role: matchedPersona.role,
+        roleName: matchedPersona.roleLabel,
+        isOwner: matchedPersona.role === 'owner'
+      };
+
+      const fallbackOrg: Organization = {
+        id: 'org-1',
+        name: 'OptiVir CRM Global',
+        slug: 'optivir-crm',
+        currency: 'INR'
+      };
+
+      const tokenVal = `ov_jwt_demo_${matchedPersona.role}_${Date.now()}`;
+      localStorage.setItem('optivir_token', tokenVal);
+      localStorage.setItem('optivir_user', JSON.stringify(fallbackUser));
+      localStorage.setItem('optivir_org', JSON.stringify(fallbackOrg));
+      localStorage.setItem('optivir_persona_id', matchedPersona.id);
+
+      setActivePersona(matchedPersona);
+      setToken(tokenVal);
+      setUser(fallbackUser);
+      setOrganization(fallbackOrg);
     }
-
-    // Local fallback for standalone mode / demo evaluation
-    const matchedPersona = AGENCY_PERSONAS.find(
-      (p) => p.email.toLowerCase() === email.trim().toLowerCase()
-    ) || AGENCY_PERSONAS[0];
-
-    const [firstName, ...rest] = matchedPersona.name.split(' ');
-    const fallbackUser: User = {
-      id: `usr-${matchedPersona.role}`,
-      email: matchedPersona.email,
-      firstName,
-      lastName: rest.join(' '),
-      designation: matchedPersona.designation,
-      role: matchedPersona.role,
-      roleName: matchedPersona.roleLabel,
-      isOwner: matchedPersona.role === 'owner'
-    };
-
-    const fallbackOrg: Organization = {
-      id: 'org-1',
-      name: 'OptiVir CRM Global',
-      slug: 'optivir-crm',
-      currency: 'INR'
-    };
-
-    const tokenVal = `ov_jwt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    localStorage.setItem('optivir_token', tokenVal);
-    localStorage.setItem('optivir_user', JSON.stringify(fallbackUser));
-    localStorage.setItem('optivir_org', JSON.stringify(fallbackOrg));
-    localStorage.setItem('optivir_persona_id', matchedPersona.id);
-
-    setActivePersona(matchedPersona);
-    setToken(tokenVal);
-    setUser(fallbackUser);
-    setOrganization(fallbackOrg);
   };
 
   const logout = () => {

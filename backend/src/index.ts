@@ -1,6 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 
 import authRoutes from './routes/auth.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -12,8 +14,6 @@ import financeRoutes from './routes/finance.routes';
 import marketingRoutes from './routes/marketing.routes';
 import activitiesRoutes from './routes/activities.routes';
 import reportsRoutes from './routes/reports.routes';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,9 +29,12 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const cleanOrigin = origin.replace(/\/$/, '');
+    const isOptivirVercel = cleanOrigin.endsWith('.vercel.app') && 
+      (cleanOrigin.includes('optivir') || process.env.NODE_ENV !== 'production');
+
     if (
       allowedOrigins.includes(cleanOrigin) ||
-      cleanOrigin.endsWith('.vercel.app') ||
+      isOptivirVercel ||
       cleanOrigin === 'http://localhost:3000'
     ) {
       return callback(null, true);

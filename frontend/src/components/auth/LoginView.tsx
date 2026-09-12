@@ -27,6 +27,7 @@ import {
 
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
   const [email, setEmail] = useState('optivirads@gmail.com');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,6 +55,7 @@ export const LoginView: React.FC = () => {
   };
 
   const handleQuickPersonaSelect = async (personaId: string) => {
+    if (!isDemoMode) return;
     const persona = AGENCY_PERSONAS.find((p) => p.id === personaId);
     if (!persona) return;
     setEmail(persona.email);
@@ -343,36 +345,38 @@ export const LoginView: React.FC = () => {
               </button>
             </form>
 
-            {/* Quick Demo Persona Switcher */}
-            <div className="pt-3 border-t border-white/10 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Evaluation Personas</span>
-                </span>
-                <span className="text-[10px] text-slate-400">1-Click Instant Login</span>
-              </div>
+            {/* Quick Demo Persona Switcher (Evaluation / Demo Mode Only) */}
+            {isDemoMode && (
+              <div className="pt-3 border-t border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Evaluation Personas</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">1-Click Instant Login</span>
+                </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {AGENCY_PERSONAS.slice(0, 4).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={isLoading}
-                    onClick={() => handleQuickPersonaSelect(p.id)}
-                    className="flex items-center space-x-2 p-2 rounded-xl bg-slate-950/45 hover:bg-slate-900/70 border border-white/10 hover:border-rose-500/40 text-left transition group cursor-pointer backdrop-blur-md shadow-xs"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition border border-white/5">
-                      {getPersonaIcon(p.role)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-semibold text-slate-200 truncate">{p.name}</div>
-                      <div className="text-[9px] text-slate-400 truncate">{p.roleLabel.split('/')[0]}</div>
-                    </div>
-                  </button>
-                ))}
+                <div className="grid grid-cols-2 gap-2">
+                  {AGENCY_PERSONAS.slice(0, 4).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => handleQuickPersonaSelect(p.id)}
+                      className="flex items-center space-x-2 p-2 rounded-xl bg-slate-950/45 hover:bg-slate-900/70 border border-white/10 hover:border-rose-500/40 text-left transition group cursor-pointer backdrop-blur-md shadow-xs"
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition border border-white/5">
+                        {getPersonaIcon(p.role)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-slate-200 truncate">{p.name}</div>
+                        <div className="text-[9px] text-slate-400 truncate">{p.roleLabel.split('/')[0]}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Trust & Security Footnote */}

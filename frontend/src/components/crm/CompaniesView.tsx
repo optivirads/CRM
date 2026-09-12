@@ -76,6 +76,33 @@ export const CompaniesView: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'value'>('newest');
 
+  const filteredCompanies = companies.filter((c) => {
+    if (activeTab === 'clients' && c.accountStatus !== 'Active Client') return false;
+    if (activeTab === 'prospects' && c.accountStatus !== 'Prospect') return false;
+    if (activeTab === 'atrisk' && c.accountStatus !== 'At Risk') return false;
+    if (activeTab === 'my' && c.ownerName !== 'Alex Morgan') return false;
+    if (activeTab === 'enterprise' && !c.clientValue.includes('L') && !c.clientValue.includes('Cr')) return false;
+    if (activeTab === 'renewals' && !c.renewal.toLowerCase().includes('day') && !c.renewal.toLowerCase().includes('month')) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const match =
+        c.name.toLowerCase().includes(q) ||
+        c.domain.toLowerCase().includes(q) ||
+        c.industry.toLowerCase().includes(q) ||
+        c.ownerName.toLowerCase().includes(q) ||
+        c.primaryContact.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / rowsPerPage));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validCurrentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + rowsPerPage, filteredCompanies.length);
+  const paginatedCompanies = filteredCompanies.slice(startIndex, endIndex);
+
   const handleToggleSort = () => {
     if (sortBy === 'newest') {
       setSortBy('name');
@@ -514,7 +541,7 @@ export const CompaniesView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-            {companies.length === 0 ? (
+            {filteredCompanies.length === 0 ? (
               <tr>
                 <td colSpan={11} className="p-12 text-center text-slate-500">
                   <Building2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
@@ -523,7 +550,7 @@ export const CompaniesView: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              companies.map((comp) => {
+              paginatedCompanies.map((comp) => {
                 const isSelected = selectedCompanies.includes(comp.id);
                 return (
                   <tr
@@ -627,12 +654,17 @@ export const CompaniesView: React.FC = () => {
         {/* Pagination Bar */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">
           <div className="flex items-center gap-3">
-            <span>Showing {companies.length > 0 ? 1 : 0}-{companies.length} of {companies.length} companies</span>
+            <span>
+              Showing {filteredCompanies.length > 0 ? startIndex + 1 : 0}-{endIndex} of {filteredCompanies.length} companies
+            </span>
             <div className="flex items-center gap-1">
               <span>Rows per page:</span>
               <select
                 value={rowsPerPage}
-                onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
                 className="bg-slate-50 dark:bg-[#080E18] border border-[#E2E6EC] dark:border-[#152238] rounded px-2 py-0.5 text-xs text-[#0B1727] dark:text-white"
               >
                 <option value={10}>10</option>
@@ -644,26 +676,18 @@ export const CompaniesView: React.FC = () => {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => {
-                if (currentPage > 1) {
-                  setCurrentPage(currentPage - 1);
-                  showToast(`Navigated to page ${currentPage - 1}`, 'info');
-                }
-              }}
-              disabled={currentPage === 1}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer"
+              onClick={() => setCurrentPage(Math.max(1, validCurrentPage - 1))}
+              disabled={validCurrentPage === 1}
+              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer text-slate-700 dark:text-slate-300"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {[1, 2, 3].map((page) => (
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
-                onClick={() => {
-                  setCurrentPage(page);
-                  showToast(`Navigated to page ${page}`, 'info');
-                }}
+                onClick={() => setCurrentPage(page)}
                 className={`px-2.5 py-1 rounded font-bold cursor-pointer transition ${
-                  currentPage === page
+                  validCurrentPage === page
                     ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
                     : 'hover:bg-slate-100 dark:hover:bg-[#111E34] text-slate-700 dark:text-slate-300'
                 }`}
@@ -671,29 +695,10 @@ export const CompaniesView: React.FC = () => {
                 {page}
               </button>
             ))}
-            <span className="px-1 text-slate-400">...</span>
             <button
-              onClick={() => {
-                setCurrentPage(18);
-                showToast('Navigated to page 18', 'info');
-              }}
-              className={`px-2.5 py-1 rounded font-bold cursor-pointer transition ${
-                currentPage === 18
-                  ? 'bg-[#0B1727] dark:bg-[#1E293B] text-white shadow-xs'
-                  : 'hover:bg-slate-100 dark:hover:bg-[#111E34] text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              18
-            </button>
-            <button
-              onClick={() => {
-                if (currentPage < 18) {
-                  setCurrentPage(currentPage + 1);
-                  showToast(`Navigated to page ${currentPage + 1}`, 'info');
-                }
-              }}
-              disabled={currentPage === 18}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer"
+              onClick={() => setCurrentPage(Math.min(totalPages, validCurrentPage + 1))}
+              disabled={validCurrentPage === totalPages}
+              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#111E34] disabled:opacity-40 cursor-pointer text-slate-700 dark:text-slate-300"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
