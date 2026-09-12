@@ -80,6 +80,7 @@ export const TasksView: React.FC = () => {
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskAssignedDate, setNewTaskAssignedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const fetchTasks = async () => {
     try {
@@ -103,8 +104,10 @@ export const TasksView: React.FC = () => {
           priority: t.priority || 'Medium',
           status: t.status === 'Completed' ? 'Done' : (t.status === 'In Progress' ? 'In Progress' : 'To Do'),
           statusBg: t.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString() : 'Next Week',
-          timelineStart: 'Today',
+          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString() : 'No Due Date',
+          timelineStart: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString() : (t.start_date ? new Date(t.start_date).toLocaleDateString() : 'Today'),
+          assignedDate: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString() : (t.start_date ? new Date(t.start_date).toLocaleDateString() : ''),
+          dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString() : '',
           timelineUrgent: t.priority === 'Urgent' || t.priority === 'High',
           timeActual: '0.0h',
           timeEst: '8.0h',
@@ -138,6 +141,7 @@ export const TasksView: React.FC = () => {
         title: newTaskTitle.trim(),
         description: newTaskDesc.trim() || undefined,
         priority: newTaskPriority,
+        assigned_date: newTaskAssignedDate || undefined,
         due_date: newTaskDueDate || undefined
       });
       if (res.success) {
@@ -146,6 +150,7 @@ export const TasksView: React.FC = () => {
         setNewTaskTitle('');
         setNewTaskDesc('');
         setNewTaskDueDate('');
+        setNewTaskAssignedDate(new Date().toISOString().split('T')[0]);
         fetchTasks();
       }
     } catch (err: any) {
@@ -782,9 +787,11 @@ export const TasksView: React.FC = () => {
                                     : 'text-slate-800 dark:text-slate-200'
                                 }`}
                               >
-                                {task.timeline}
+                                Due: {task.timeline}
                               </div>
-                              <div className="text-[11px] text-slate-400">{task.timelineStart}</div>
+                              <div className="text-[11px] text-slate-400">
+                                Assigned: {task.timelineStart}
+                              </div>
                             </div>
                           </td>
 
@@ -955,9 +962,16 @@ export const TasksView: React.FC = () => {
                 </div>
                 <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
                 <div>
+                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Assigned Date</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 mt-0.5 block">
+                    {activeTask.assignedDate || activeTask.timelineStart || 'Today'}
+                  </span>
+                </div>
+                <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
+                <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Due Date</span>
                   <span className="font-bold text-rose-600 dark:text-rose-400 mt-0.5 block">
-                    Today, 10 Sep 2026
+                    {activeTask.dueDate || activeTask.timeline || 'No Due Date'}
                   </span>
                 </div>
               </div>
@@ -1329,13 +1343,13 @@ export const TasksView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Priority</label>
                   <select
                     value={newTaskPriority}
                     onChange={(e) => setNewTaskPriority(e.target.value as any)}
-                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
                   >
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
@@ -1344,12 +1358,21 @@ export const TasksView: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block font-semibold mb-1">Assigned Date</label>
+                  <input
+                    type="date"
+                    value={newTaskAssignedDate}
+                    onChange={(e) => setNewTaskAssignedDate(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+                <div>
                   <label className="block font-semibold mb-1">Due Date</label>
                   <input
                     type="date"
                     value={newTaskDueDate}
                     onChange={(e) => setNewTaskDueDate(e.target.value)}
-                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
                   />
                 </div>
               </div>
