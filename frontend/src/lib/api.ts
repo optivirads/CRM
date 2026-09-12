@@ -393,6 +393,17 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  async fetchAdAccounts(payload: { integrationId?: string; accessToken?: string; partnerId?: string }) {
+    return this.request<{ success: boolean; data: any[]; message?: string }>('/integrations/ad-accounts/fetch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getAdAccountDetails(adAccountId: string) {
+    return this.request<{ success: boolean; data: any; message?: string }>(`/integrations/ad-accounts/${adAccountId}/details`);
+  }
 }
 
 export const api = new ApiClient();
