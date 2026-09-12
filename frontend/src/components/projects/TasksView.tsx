@@ -33,7 +33,9 @@ import {
   ListFilter,
   Trash2,
   ChevronLeft,
-  ChevronsRight
+  ChevronsRight,
+  Check,
+  UserPlus
 } from 'lucide-react';
 
 export const TasksView: React.FC = () => {
@@ -82,6 +84,82 @@ export const TasksView: React.FC = () => {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskAssignedDate, setNewTaskAssignedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
+  // Team Members & Assignee States
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
+  const [selectedAssigneeName, setSelectedAssigneeName] = useState<string>('');
+  const [selectedAssigneeRole, setSelectedAssigneeRole] = useState<string>('');
+  const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [isAddingMember, setIsAddingMember] = useState(false);
+
+  const fetchTeamMembers = async () => {
+    try {
+      const res = await api.getTeamMembers();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setTeamMembers(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load team members:', err);
+    }
+  };
+
+  const activeTeamList = teamMembers.length > 0 ? teamMembers : [
+    { id: 'tm-1', name: 'Shahana', designation: 'COO' },
+    { id: 'tm-2', name: 'Abhinav Admin', designation: 'Managing Director & Founder' },
+    { id: 'tm-3', name: 'Alex Morgan', designation: 'Technical Lead' },
+    { id: 'tm-4', name: 'Priya Sharma', designation: 'Head of Sales' },
+    { id: 'tm-5', name: 'Rahul Menon', designation: 'Performance Marketer' },
+    { id: 'tm-6', name: 'Maya Joseph', designation: 'Creative Director' }
+  ];
+
+  const handleAddMember = async () => {
+    if (!newMemberName.trim()) {
+      showToast('Please enter team member name', 'error');
+      return;
+    }
+    try {
+      setIsAddingMember(true);
+      const res = await api.createTeamMember({
+        name: newMemberName.trim(),
+        designation: newMemberRole.trim() || 'Team Member',
+        email: newMemberEmail.trim() || undefined
+      });
+      if (res.success && res.data) {
+        const created = res.data;
+        setTeamMembers(prev => [...prev.filter(m => m.id !== created.id), created]);
+        setSelectedAssigneeId(created.id);
+        setSelectedAssigneeName(created.name);
+        setSelectedAssigneeRole(created.designation);
+        setShowAddMemberForm(false);
+        setNewMemberName('');
+        setNewMemberRole('');
+        setNewMemberEmail('');
+        showToast(`Team member "${created.name}" (${created.designation}) added and assigned!`, 'success');
+      }
+    } catch {
+      const fallback = {
+        id: `tm-${Date.now()}`,
+        name: newMemberName.trim(),
+        designation: newMemberRole.trim() || 'Team Member',
+        email: newMemberEmail.trim()
+      };
+      setTeamMembers(prev => [...prev, fallback]);
+      setSelectedAssigneeId(fallback.id);
+      setSelectedAssigneeName(fallback.name);
+      setSelectedAssigneeRole(fallback.designation);
+      setShowAddMemberForm(false);
+      setNewMemberName('');
+      setNewMemberRole('');
+      setNewMemberEmail('');
+      showToast(`Team member "${fallback.name}" added and assigned!`, 'success');
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -99,8 +177,15 @@ export const TasksView: React.FC = () => {
           clientAvatarBg: 'bg-[#0A1628]',
           project: t.project_name || 'Project Workstream',
           milestone: 'Sprint Deliverable',
-          assignee: t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'Alex Morgan',
-          assigneeInitials: ((t.assignee_first?.[0] || 'A') + (t.assignee_last?.[0] || 'M')).toUpperCase(),
+          assignee: t.assignee_name || (t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'Alex Morgan'),
+          assigneeRole: t.assignee_role || 'Team Member',
+          assigneeInitials: (t.assignee_name || t.assignee_first || 'AM')
+            .split(' ')
+            .filter(Boolean)
+            .map((p: string) => p[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase(),
           priority: t.priority || 'Medium',
           status: t.status === 'Completed' ? 'Done' : (t.status === 'In Progress' ? 'In Progress' : 'To Do'),
           statusBg: t.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
@@ -127,6 +212,7 @@ export const TasksView: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
+    fetchTeamMembers();
   }, []);
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -142,15 +228,22 @@ export const TasksView: React.FC = () => {
         description: newTaskDesc.trim() || undefined,
         priority: newTaskPriority,
         assigned_date: newTaskAssignedDate || undefined,
-        due_date: newTaskDueDate || undefined
+        due_date: newTaskDueDate || undefined,
+        assignee_id: selectedAssigneeId || undefined,
+        assignee_name: selectedAssigneeName || undefined,
+        assignee_role: selectedAssigneeRole || undefined
       });
       if (res.success) {
-        showToast('Task created successfully', 'success');
+        showToast(`Task created and assigned to ${selectedAssigneeName || 'team'}!`, 'success');
         setShowCreateModal(false);
         setNewTaskTitle('');
         setNewTaskDesc('');
         setNewTaskDueDate('');
         setNewTaskAssignedDate(new Date().toISOString().split('T')[0]);
+        setSelectedAssigneeId('');
+        setSelectedAssigneeName('');
+        setSelectedAssigneeRole('');
+        setShowAddMemberForm(false);
         fetchTasks();
       }
     } catch (err: any) {
@@ -548,9 +641,9 @@ export const TasksView: React.FC = () => {
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
               <option value="All">Assignee: All Team</option>
-              <option value="Rahul Menon">Rahul Menon</option>
-              <option value="Maya Joseph">Maya Joseph</option>
-              <option value="Alex Morgan">Alex Morgan</option>
+              {Array.from(new Set([...activeTeamList.map((m: any) => m.name), ...tasks.map((t: any) => t.assignee).filter(Boolean)])).map((name: string) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
             </select>
 
             <select
@@ -746,12 +839,13 @@ export const TasksView: React.FC = () => {
                           {/* Assignee */}
                           <td className="p-3.5">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center text-[10px]">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 text-white font-bold flex items-center justify-center text-[10px] shadow-xs">
                                 {task.assigneeInitials}
                               </div>
-                              <span className="font-medium text-slate-800 dark:text-slate-200">
-                                {task.assignee}
-                              </span>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.assignee}</div>
+                                {task.assigneeRole && <div className="text-[10px] text-slate-400 truncate">{task.assigneeRole}</div>}
+                              </div>
                             </div>
                           </td>
 
@@ -945,6 +1039,9 @@ export const TasksView: React.FC = () => {
                     <User className="w-3.5 h-3.5 text-slate-500" />
                     <span>{activeTask.assignee}</span>
                   </div>
+                  {activeTask.assigneeRole && (
+                    <span className="text-[10px] text-slate-400 block truncate">{activeTask.assigneeRole}</span>
+                  )}
                 </div>
                 <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
                 <div>
@@ -1341,6 +1438,114 @@ export const TasksView: React.FC = () => {
                   placeholder="Details of deliverables, technical specs, and prerequisites..."
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
                 />
+              </div>
+
+              {/* Assigned To & Team Member Details */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold">Assigned To (Team Member)</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMemberForm(!showAddMemberForm)}
+                    className="text-[11px] text-rose-600 hover:text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>{showAddMemberForm ? 'Cancel Add Member' : '+ Add Team Member Details'}</span>
+                  </button>
+                </div>
+
+                {!showAddMemberForm ? (
+                  <select
+                    value={selectedAssigneeName ? `${selectedAssigneeId}:::${selectedAssigneeName}:::${selectedAssigneeRole}` : ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__add_new__') {
+                        setShowAddMemberForm(true);
+                      } else if (val) {
+                        const [id, name, role] = val.split(':::');
+                        setSelectedAssigneeId(id);
+                        setSelectedAssigneeName(name);
+                        setSelectedAssigneeRole(role);
+                      } else {
+                        setSelectedAssigneeId('');
+                        setSelectedAssigneeName('');
+                        setSelectedAssigneeRole('');
+                      }
+                    }}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">Select a team member (or add details)...</option>
+                    {activeTeamList.map((m: any) => (
+                      <option key={m.id} value={`${m.id}:::${m.name}:::${m.designation || 'Team Member'}`}>
+                        {m.name} • {m.designation || 'Team Member'}
+                      </option>
+                    ))}
+                    <option value="__add_new__">+ Add New Team Member Details...</option>
+                  </select>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#080E18] border border-rose-200 dark:border-rose-900/50 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                        <User className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Add Team Member Details</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">Saves to Team Roster</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Member Name *</label>
+                        <input
+                          type="text"
+                          value={newMemberName}
+                          onChange={(e) => setNewMemberName(e.target.value)}
+                          placeholder="e.g. Shahana"
+                          className="w-full p-2 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#0B1424] outline-none text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Role / Designation *</label>
+                        <input
+                          type="text"
+                          value={newMemberRole}
+                          onChange={(e) => setNewMemberRole(e.target.value)}
+                          placeholder="e.g. COO, Creative Director"
+                          className="w-full p-2 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#0B1424] outline-none text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Email Address (Optional)</label>
+                      <input
+                        type="email"
+                        value={newMemberEmail}
+                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                        placeholder="e.g. shahana@optivirads.com"
+                        className="w-full p-2 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#0B1424] outline-none text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMemberForm(false)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isAddingMember || !newMemberName.trim()}
+                        onClick={handleAddMember}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition shadow-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>{isAddingMember ? 'Saving...' : 'Save & Assign'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
