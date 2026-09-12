@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useToast } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 import {
   BarChart3,
   TrendingUp,
@@ -34,10 +36,16 @@ import {
   Clock,
   Settings2,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 
 export const MarketingView: React.FC = () => {
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingCampaign, setDeletingCampaign] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   // Simulator subviews
   const [simulatorView, setSimulatorView] = useState<
     '1. Marketing Performance Dashboard' |
@@ -218,6 +226,85 @@ export const MarketingView: React.FC = () => {
 
   // Client Campaign Performance Ledger Data
   const [campaignsList, setCampaignsList] = useState<CampaignItem[]>([]);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getCampaigns();
+      if (res.success && Array.isArray(res.data)) {
+        setCampaignsList(res.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          platform: c.platform || 'Google Ads',
+          client: c.client_name || 'Enterprise Account',
+          pod: 'Growth Pod Alpha',
+          spend: `₹${Number(c.budget || 0).toLocaleString('en-IN')}`,
+          leads: '0',
+          conversions: '0',
+          revenue: '₹0',
+          roas: c.target_roas ? `${c.target_roas}x` : '4.0x',
+          trend: 'up',
+          status: c.status ? c.status.toUpperCase() : 'ACTIVE',
+          statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+        })));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch campaigns:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const handleCreateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCampaignName.trim()) {
+      showToast('Campaign title is required', 'error');
+      return;
+    }
+    const budgetNum = parseFloat(newCampaignBudget.replace(/[^0-9.]/g, '')) || 50000;
+    try {
+      setIsCreating(true);
+      const res = await api.createCampaign({
+        name: newCampaignName.trim(),
+        platform: newCampaignPlatform,
+        budget: budgetNum,
+        target_roas: parseFloat(newCampaignTargetRoas) || 4.0,
+        status: 'active'
+      });
+      if (res.success) {
+        showToast('Campaign launched and persisted to database', 'success');
+        setShowNewCampaignModal(false);
+        setNewCampaignName('');
+        setNewCampaignBudget('');
+        fetchCampaigns();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create campaign', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const confirmDeleteCampaign = async () => {
+    if (!deletingCampaign) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteCampaign(deletingCampaign.id);
+      if (res.success) {
+        showToast(`Campaign "${deletingCampaign.name}" deleted successfully`, 'success');
+        setDeletingCampaign(null);
+        fetchCampaigns();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete campaign', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const filteredCampaigns = campaignsList.filter(c =>
     c.name.toLowerCase().includes(campaignSearch.toLowerCase()) ||
@@ -1037,12 +1124,13 @@ export const MarketingView: React.FC = () => {
                   <th className="p-3.5 text-right">ROAS</th>
                   <th className="p-3.5 text-center">7D VELOCITY</th>
                   <th className="p-3.5 text-center">HEALTH STATUS</th>
+                  <th className="p-3.5 text-right">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
                 {filteredCampaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-12 text-center text-slate-500">
+                    <td colSpan={10} className="p-12 text-center text-slate-500">
                       <Target className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
                       <div className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No campaigns found</div>
                       <div className="text-xs text-slate-400 mt-1">Launch a new marketing campaign or sync external ad accounts.</div>
@@ -1096,6 +1184,15 @@ export const MarketingView: React.FC = () => {
                           {c.status}
                         </span>
                       </td>
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => setDeletingCampaign(c)}
+                          className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 transition"
+                          title={`Delete ${c.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1125,11 +1222,7 @@ export const MarketingView: React.FC = () => {
             </div>
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                triggerAction(`Campaign "${newCampaignName}" initiated with ₹${newCampaignBudget} budget!`);
-                setShowNewCampaignModal(false);
-              }}
+              onSubmit={handleCreateCampaign}
               className="space-y-4 text-xs"
             >
               <div>
@@ -1184,6 +1277,7 @@ export const MarketingView: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    placeholder="50,000"
                     value={newCampaignBudget}
                     onChange={(e) => setNewCampaignBudget(e.target.value)}
                     className="w-full bg-[#F8FAFC] dark:bg-[#0A101C] border border-[#E2E6EC] dark:border-[#152238] rounded-lg p-2.5 text-xs text-[#0B1727] dark:text-white"
@@ -1213,12 +1307,46 @@ export const MarketingView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold"
+                  disabled={isCreating}
+                  className="px-5 py-2 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold disabled:opacity-50"
                 >
-                  Launch Campaign
+                  {isCreating ? 'Launching...' : 'Launch Campaign'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Campaign Confirmation Modal */}
+      {deletingCampaign && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Campaign</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete campaign <span className="font-bold text-slate-900 dark:text-white">{deletingCampaign.name}</span>? This will permanently remove the campaign from the database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingCampaign(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCampaign}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

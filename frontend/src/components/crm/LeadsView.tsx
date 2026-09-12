@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   Users2,
   Plus,
@@ -40,7 +41,8 @@ import {
   UserPlus,
   Edit2,
   DollarSign,
-  Briefcase
+  Briefcase,
+  AlertTriangle
 } from 'lucide-react';
 import { LeadDetailView, LeadDetailData } from './LeadDetailView';
 
@@ -65,6 +67,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [leads, setLeads] = useState<LeadDetailData[]>(INITIAL_LEADS);
+  const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -75,6 +78,62 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [deletingLead, setDeletingLead] = useState<LeadDetailData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getLeads();
+      if (res.success && Array.isArray(res.data)) {
+        setLeads(res.data.map((l: any) => {
+          const fullName = `${l.first_name || ''} ${l.last_name || ''}`.trim() || 'Unnamed Lead';
+          const initials = ((l.first_name?.[0] || '') + (l.last_name?.[0] || 'L')).toUpperCase() || 'LD';
+          return {
+            id: l.id,
+            name: fullName,
+            initials: initials,
+            email: l.email || 'No email',
+            phone: l.phone || 'No phone',
+            location: 'Bengaluru, KA, India',
+            company: l.company_name || 'Individual Prospect',
+            companySubtitle: 'Enterprise Prospect',
+            designation: 'Decision Maker',
+            status: l.status === 'Won' ? 'Qualified' : (l.status === 'Lost' ? 'Archived' : (l.status || 'New Lead')),
+            priority: (l.priority === 'High' || l.priority === 'Low' ? l.priority : 'Medium') as 'High' | 'Medium' | 'Low',
+            estimatedValue: l.lead_value ? `₹${Number(l.lead_value).toLocaleString('en-IN')}` : '₹0',
+            owner: l.owner_first_name ? `${l.owner_first_name} ${l.owner_last_name || ''}`.trim() : 'Alex Morgan',
+            ownerRole: 'Enterprise Account Exec',
+            source: l.source_name || 'Website',
+            service: l.service_interest || 'Performance Marketing',
+            createdDate: l.created_at ? new Date(l.created_at).toLocaleDateString() : 'Today',
+            lastContact: 'Recently',
+            nextFollowUp: l.next_followup_at ? new Date(l.next_followup_at).toLocaleDateString() : '',
+            campaign: l.campaign || 'Inbound',
+            budget: l.lead_value ? `₹${Number(l.lead_value).toLocaleString('en-IN')}` : '₹50K+',
+            decisionAuthority: 'High (Sign-off)',
+            timeline: 'Within 30 Days',
+            painPoint: '',
+            targetObjective: l.notes || 'Pipeline Lead Conversion',
+            fitScore: 85,
+            engagementScore: 70,
+            firmographicScore: 80,
+            velocityScore: 75,
+            tags: Array.isArray(l.tags) && l.tags.length > 0 ? l.tags : ['#Inbound', '#Qualified']
+          };
+        }));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch leads:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -159,58 +218,93 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleCreateLeadSubmit = (e: React.FormEvent) => {
+  const handleCreateLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newLeadForm.name || !newLeadForm.company) return;
+    if (!newLeadForm.name.trim()) {
+      showToast('Lead name is required', 'error');
+      return;
+    }
 
-    const initials = newLeadForm.name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+    const nameParts = newLeadForm.name.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
 
-    const created: LeadDetailData = {
-      id: `lead-${Date.now()}`,
-      name: newLeadForm.name,
-      initials: initials || 'NL',
-      email: newLeadForm.email,
-      phone: `+91 ${newLeadForm.phone}`,
-      location: 'Bengaluru, KA, India',
-      company: newLeadForm.company,
-      companySubtitle: newLeadForm.companyDetails,
-      designation: newLeadForm.jobTitle,
-      status: 'Qualified',
-      priority: newLeadForm.priority === 'Urgent' ? 'High' : (newLeadForm.priority as any),
-      estimatedValue: `₹${newLeadForm.pipelineValue}`,
-      owner: 'Alex Morgan',
-      ownerRole: 'Sr. Enterprise AE',
-      source: newLeadForm.source,
-      service: newLeadForm.service,
-      createdDate: 'Today',
-      lastContact: 'Just now',
-      nextFollowUp: 'Tomorrow - 11:00 AM',
-      campaign: newLeadForm.campaign,
-      budget: '₹1.00L – ₹1.50L',
-      decisionAuthority: 'High (Sign-off)',
-      timeline: newLeadForm.timeline,
-      painPoint: newLeadForm.painPoints,
-      targetObjective: newLeadForm.strategicObjective,
-      fitScore: 85,
-      engagementScore: 36,
-      firmographicScore: 28,
-      velocityScore: 21,
-      tags: ['#New-Opportunity', '#Enterprise-Tier', '#Immediate-Review']
-    };
+    try {
+      setIsCreating(true);
+      const res = await api.createLead({
+        first_name: firstName,
+        last_name: lastName || '',
+        company_name: newLeadForm.company.trim() || undefined,
+        email: newLeadForm.email.trim() || undefined,
+        phone: newLeadForm.phone.trim() || undefined,
+        campaign: newLeadForm.campaign.trim() || undefined,
+        service_interest: newLeadForm.service,
+        lead_value: Number(newLeadForm.pipelineValue) || 0,
+        priority: newLeadForm.priority === 'Urgent' ? 'High' : newLeadForm.priority,
+        notes: newLeadForm.strategicObjective || newLeadForm.painPoints || undefined
+      });
 
-    setLeads([created, ...leads]);
-    setShowCreateDrawer(false);
+      if (res.success) {
+        showToast(`Lead "${newLeadForm.name}" created successfully`);
+        setShowCreateDrawer(false);
+        setNewLeadForm({
+          name: '',
+          jobTitle: '',
+          source: 'Website',
+          campaign: '',
+          service: 'Performance Marketing',
+          priority: 'Medium',
+          email: '',
+          phone: '',
+          channel: 'Email',
+          company: '',
+          companyDomain: '',
+          companyDetails: '',
+          pipelineValue: '',
+          timeline: 'Within 30 Days',
+          strategicObjective: '',
+          painPoints: ''
+        });
+        fetchLeads();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create lead', 'error');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleDeleteSelected = () => {
-    if (!confirm(`Delete ${selectedLeads.length} selected lead records?`)) return;
-    setLeads(leads.filter((l) => !selectedLeads.includes(l.id)));
-    setSelectedLeads([]);
+  const confirmDeleteLead = async () => {
+    if (!deletingLead) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteLead(deletingLead.id);
+      if (res.success) {
+        showToast(`Lead "${deletingLead.name}" deleted successfully`);
+        setDeletingLead(null);
+        fetchLeads();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete lead', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedLeads.length === 0) return;
+    if (!confirm(`Permanently delete ${selectedLeads.length} selected lead records from the database?`)) return;
+    try {
+      setIsDeleting(true);
+      await Promise.all(selectedLeads.map((id) => api.deleteLead(id)));
+      showToast(`Successfully deleted ${selectedLeads.length} leads`);
+      setSelectedLeads([]);
+      fetchLeads();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete selected leads', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getSourceBadge = (source: string) => {
@@ -717,12 +811,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
               <th className="p-4 font-bold">SOURCE</th>
               <th className="p-4 font-bold">SERVICE REQUESTED</th>
               <th className="p-4 font-bold text-center">STATUS</th>
+              <th className="p-4 font-bold text-center">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
             {filteredLeads.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-12 text-center text-slate-500">
+                <td colSpan={8} className="p-12 text-center text-slate-500">
                   <Users2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No leads found</p>
                   <p className="text-xs text-slate-400 mt-1">Create your first prospect lead using the Create Lead button.</p>
@@ -796,6 +891,21 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
                   {/* Status Pill */}
                   <td className="p-4 text-center">
                     {getStatusPill(lead.status)}
+                  </td>
+
+                  {/* Actions Column */}
+                  <td className="p-4 text-center">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingLead(lead);
+                      }}
+                      title="Delete Lead"
+                      className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               );
@@ -1237,6 +1347,39 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingLead && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Lead</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete lead <span className="font-bold text-slate-900 dark:text-white">{deletingLead.name}</span> ({deletingLead.company})? This action will remove the lead and all associated notes from the database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingLead(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteLead}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

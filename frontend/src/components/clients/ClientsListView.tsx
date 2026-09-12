@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   Briefcase,
   Building2,
@@ -42,7 +43,8 @@ import {
   ChevronsRight,
   RefreshCw,
   ShieldCheck,
-  Rocket
+  Rocket,
+  AlertTriangle
 } from 'lucide-react';
 
 interface ClientsListViewProps {
@@ -154,29 +156,51 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newAccountManager, setNewAccountManager] = useState('Alex Morgan');
   const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('annual_retainer');
   const [newContractVal, setNewContractVal] = useState('₹18.5L / yr');
+  const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Client accounts data with localStorage support
-  const [clients, setClients] = useState<ClientAccount[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('optivir_clients');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((c: any) => !['c1', 'c2', 'c3', 'c4', 'c5'].includes(c.id));
-          }
-        } catch (e) { }
-      }
-    }
-    return DEFAULT_CLIENT_ACCOUNTS;
-  });
+  // Client accounts data from PostgreSQL
+  const [clients, setClients] = useState<ClientAccount[]>([]);
 
-  // Sync clients to localStorage
-  React.useEffect(() => {
+  const fetchClients = async () => {
     try {
-      localStorage.setItem('optivir_clients', JSON.stringify(clients));
-    } catch (e) { }
-  }, [clients]);
+      setLoading(true);
+      const res = await api.getClients();
+      if (res.success && Array.isArray(res.data)) {
+        setClients(res.data.map((c: any) => ({
+          id: c.id,
+          name: c.company_name || 'Client Account',
+          domain: c.website || `${(c.company_name || 'client').toLowerCase().replace(/\s+/g, '')}.com`,
+          avatarBg: 'bg-[#0A1628]',
+          avatarText: (c.company_name || 'CL').substring(0, 2).toUpperCase(),
+          industry: c.industry || 'Technology',
+          primaryContact: c.contact_first ? `${c.contact_first} ${c.contact_last || ''}`.trim() : (c.contact_email || 'Primary Contact'),
+          contactRole: 'Lead Stakeholder',
+          accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'Alex Morgan',
+          amInitials: 'AM',
+          amBg: 'bg-[#0A1628]',
+          servicesCount: '3 Services',
+          activeProjects: `${c.project_count || 0} Active`,
+          contractValue: c.contract_value ? `₹${Number(c.contract_value).toLocaleString('en-IN')}` : '₹0',
+          healthStatus: c.health_status || 'Healthy',
+          renewal: c.renewal_date ? new Date(c.renewal_date).toLocaleDateString() : 'Dec 2026',
+          lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Recently',
+          billingStatus: c.status === 'Active' ? 'Paid' : (c.status || 'Active'),
+          isAtRisk: c.health_status === 'At-Risk'
+        })));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch clients:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   const toggleSelectAll = () => {
     if (selectedClients.length === clients.length) {
@@ -192,58 +216,69 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     );
   };
 
-  const handleCreateClient = (e: React.FormEvent) => {
+  const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompanyName) return;
+    if (!newCompanyName.trim()) return;
 
-    let computedVal = newContractVal;
-    let renewalVal = 'Dec 2027';
-    let serviceLabel = '2 Services';
+    try {
+      setIsCreating(true);
+      const parsedVal = parseFloat(newContractVal.replace(/[^0-9.]/g, '')) || 100000;
+      const res = await api.createClient({
+        company_name: newCompanyName.trim(),
+        contract_value: parsedVal,
+        billing_frequency: newBillingModel === 'annual_retainer' ? 'annual' : 'monthly',
+        health_status: 'Healthy',
+        status: 'Active'
+      });
 
-    if (newBillingModel === 'on_demand') {
-      computedVal = 'On-Demand / As-Needed';
-      renewalVal = 'On-Demand (As Needed)';
-      serviceLabel = 'Ad-Hoc Campaigns';
-    } else if (newBillingModel === 'pay_as_you_go') {
-      computedVal = 'Pay-As-You-Go';
-      renewalVal = 'Campaign-Based';
-      serviceLabel = 'Pay-As-You-Go Ads';
-    } else if (newBillingModel === 'one_time') {
-      computedVal = computedVal || 'One-Time Project';
-      renewalVal = 'Fixed Scope';
-      serviceLabel = 'One-Time Scope';
+      if (res.success) {
+        showToast(`Client account created for ${newCompanyName}!`, 'success');
+        setShowAddModal(false);
+        setNewCompanyName('');
+        setNewDomain('');
+        setNewPrimaryContact('');
+        setNewBillingModel('annual_retainer');
+        setNewContractVal('₹18.5L / yr');
+        fetchClients();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create client', 'error');
+    } finally {
+      setIsCreating(false);
     }
+  };
 
-    const newClient: ClientAccount = {
-      id: `c-${Date.now()}`,
-      name: newCompanyName,
-      domain: newDomain || `${newCompanyName.toLowerCase().replace(/\s+/g, '')}.com`,
-      avatarBg: 'bg-[#0A1628]',
-      avatarText: newCompanyName.substring(0, 2).toUpperCase(),
-      industry: newIndustry,
-      primaryContact: newPrimaryContact || 'Primary Contact',
-      contactRole: 'Operations Lead',
-      accountManager: newAccountManager,
-      amInitials: newAccountManager.split(' ').map((n) => n[0]).join(''),
-      amBg: 'bg-[#0A1628]',
-      servicesCount: serviceLabel,
-      activeProjects: '1 Active',
-      contractValue: computedVal,
-      healthStatus: 'Healthy',
-      renewal: renewalVal,
-      lastActivity: 'Just now',
-      billingStatus: 'Current',
-      isAtRisk: false,
-    };
+  const confirmDeleteClient = async () => {
+    if (!deletingClient) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteClient(deletingClient.id);
+      if (res.success) {
+        showToast(`Client "${deletingClient.name}" deleted successfully`);
+        setDeletingClient(null);
+        fetchClients();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete client', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-    setClients([newClient, ...clients]);
-    setShowAddModal(false);
-    setNewCompanyName('');
-    setNewDomain('');
-    setNewPrimaryContact('');
-    setNewBillingModel('annual_retainer');
-    setNewContractVal('₹18.5L / yr');
-    showToast(`Client account created for ${newClient.name}!`, 'success');
+  const handleDeleteSelected = async () => {
+    if (selectedClients.length === 0) return;
+    if (!confirm(`Delete ${selectedClients.length} selected clients from the database?`)) return;
+    try {
+      setIsDeleting(true);
+      await Promise.all(selectedClients.map((id) => api.deleteClient(id)));
+      showToast(`Successfully deleted ${selectedClients.length} clients`);
+      setSelectedClients([]);
+      fetchClients();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete selected clients', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Filtered clients
@@ -891,16 +926,12 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                 Export
               </button>
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedClients.length} selected clients?`)) {
-                    setClients(clients.filter((c) => !selectedClients.includes(c.id)));
-                    setSelectedClients([]);
-                  }
-                }}
-                className="px-3 py-1 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded text-xs font-bold transition flex items-center gap-1"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-3 py-1 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded text-xs font-bold transition flex items-center gap-1 disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Delete Selected</span>
+                <span>{isDeleting ? 'Deleting...' : 'Delete Selected'}</span>
               </button>
               <button
                 onClick={() => setSelectedClients([])}
@@ -921,7 +952,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   <th className="p-3.5 pl-4 w-10">
                     <input
                       type="checkbox"
-                      checked={selectedClients.length === clients.length}
+                      checked={selectedClients.length === clients.length && clients.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                     />
@@ -936,13 +967,14 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   <th className="p-3.5">HEALTH STATUS</th>
                   <th className="p-3.5">RENEWAL</th>
                   <th className="p-3.5">LAST ACTIVITY</th>
-                  <th className="p-3.5 pr-4">BILLING</th>
+                  <th className="p-3.5">BILLING</th>
+                  <th className="p-3.5 pr-4 text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-normal">
                 {filteredClients.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="p-12 text-center text-slate-500">
+                    <td colSpan={13} className="p-12 text-center text-slate-500">
                       <Briefcase className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                       <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No clients found</p>
                       <p className="text-xs text-slate-400 mt-1">Add your first enterprise client using + Add Client.</p>
@@ -1112,7 +1144,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Billing */}
-                      <td className="p-3.5 pr-4">
+                      <td className="p-3.5">
                         {client.billingOverdue ? (
                           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                             {client.billingStatus}
@@ -1122,6 +1154,21 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                             Current
                           </span>
                         )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-3.5 pr-4 text-center">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingClient(client);
+                          }}
+                          title="Delete Client"
+                          className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1331,6 +1378,39 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                 className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold shadow-md transition"
               >
                 Create Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingClient && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Client Account</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete <span className="font-bold text-slate-900 dark:text-white">{deletingClient.name}</span>? This will archive the client account and remove active links to projects, invoices, and campaigns in the CRM database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingClient(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteClient}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>

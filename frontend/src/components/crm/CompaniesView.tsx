@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { api } from '@/lib/api';
 import {
   Building2,
   TrendingUp,
@@ -24,7 +25,9 @@ import {
   Users2,
   ShieldCheck,
   Tag,
-  Briefcase
+  Briefcase,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
@@ -72,9 +75,93 @@ export const CompaniesView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newCompany, setNewCompany] = useState({ name: '', industry: '', domain: '' });
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingCompany, setDeletingCompany] = useState<CompanyRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'value'>('newest');
+
+  const fetchCompanies = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getCompanies();
+      if (res.success && Array.isArray(res.data)) {
+        setCompanies(res.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          domain: c.website || c.domain || (c.name ? c.name.toLowerCase().replace(/\s+/g, '') + '.com' : 'company.com'),
+          initials: c.name ? c.name.substring(0, 2).toUpperCase() : 'CO',
+          logoBg: 'bg-blue-600',
+          isVerified: true,
+          industry: c.industry || 'Technology',
+          primaryContact: c.email || 'N/A',
+          primaryRole: 'Primary Contact',
+          contactsCount: Number(c.contact_count || 0),
+          ownerInitials: 'AM',
+          ownerName: c.owner_first ? `${c.owner_first} ${c.owner_last || ''}`.trim() : 'Alex Morgan',
+          ownerBg: 'bg-indigo-600',
+          accountStatus: c.status === 'active' ? 'Active Client' : (c.status === 'prospect' ? 'Prospect' : 'Active Client'),
+          activeDeals: `${c.deal_count || 0} Deals`,
+          clientValue: '₹0',
+          renewal: '30 days',
+          lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Recently'
+        })));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch companies:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCompanies();
+  }, []);
+
+  const handleCreateCompany = async () => {
+    if (!newCompany.name.trim()) {
+      showToast('Please enter company name', 'error');
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const res = await api.createCompany({
+        name: newCompany.name.trim(),
+        industry: newCompany.industry.trim() || 'Technology',
+        website: newCompany.domain.trim() || undefined
+      });
+      if (res.success) {
+        showToast(`Company "${newCompany.name}" created successfully in database`);
+        setShowCreateModal(false);
+        setNewCompany({ name: '', industry: '', domain: '' });
+        fetchCompanies();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create company', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const confirmDeleteCompany = async () => {
+    if (!deletingCompany) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteCompany(deletingCompany.id);
+      if (res.success) {
+        showToast(`Company "${deletingCompany.name}" deleted from database`);
+        setCompanies(prev => prev.filter(c => c.id !== deletingCompany.id));
+        setDeletingCompany(null);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete company', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const filteredCompanies = companies.filter((c) => {
     if (activeTab === 'clients' && c.accountStatus !== 'Active Client') return false;
@@ -538,12 +625,13 @@ export const CompaniesView: React.FC = () => {
               <th className="p-4 font-bold">CLIENT VALUE</th>
               <th className="p-4 font-bold">RENEWAL</th>
               <th className="p-4 font-bold">LAST ACTIVITY</th>
+              <th className="p-4 font-bold text-center">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
             {filteredCompanies.length === 0 ? (
               <tr>
-                <td colSpan={11} className="p-12 text-center text-slate-500">
+                <td colSpan={12} className="p-12 text-center text-slate-500">
                   <Building2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No companies found</p>
                   <p className="text-xs text-slate-400 mt-1">Create your first company account using Create Company.</p>
@@ -576,27 +664,35 @@ export const CompaniesView: React.FC = () => {
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-[#0B1727] dark:text-white hover:text-[#DC2626] cursor-pointer">
+                            <span className="font-bold text-[#0B1727] dark:text-white text-xs">
                               {comp.name}
                             </span>
                             {comp.isVerified && (
-                              <Check className="w-3.5 h-3.5 text-slate-400 stroke-[2.5]" />
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             )}
                           </div>
-                          <span className="text-[11px] text-[#8492A6] block">{comp.domain}</span>
+                          <span className="text-slate-400 text-[11px] block">
+                            {comp.domain}
+                          </span>
                         </div>
                       </div>
                     </td>
 
                     {/* Industry */}
-                    <td className="p-4 text-[#5A6A80] dark:text-[#94A3B8]">
+                    <td className="p-4 font-medium text-slate-600 dark:text-slate-300">
                       {comp.industry}
                     </td>
 
                     {/* Primary Contact */}
                     <td className="p-4">
-                      <p className="font-semibold text-[#0B1727] dark:text-white">{comp.primaryContact}</p>
-                      <p className="text-[11px] text-[#8492A6]">{comp.primaryRole}</p>
+                      <div>
+                        <span className="font-semibold text-[#0B1727] dark:text-white text-xs block">
+                          {comp.primaryContact}
+                        </span>
+                        <span className="text-slate-400 text-[11px] block">
+                          {comp.primaryRole}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Contacts Count */}
@@ -643,6 +739,17 @@ export const CompaniesView: React.FC = () => {
                     {/* Last Activity */}
                     <td className="p-4 text-slate-500 text-[11px]">
                       {comp.lastActivity}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => setDeletingCompany(comp)}
+                        className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 hover:text-rose-700 transition cursor-pointer"
+                        title="Delete Company"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -722,22 +829,91 @@ export const CompaniesView: React.FC = () => {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold mb-1">Company Name *</label>
-                <input type="text" placeholder="e.g. Enterprise Global Corp" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                <input
+                  type="text"
+                  placeholder="e.g. Enterprise Global Corp"
+                  value={newCompany.name}
+                  onChange={e => setNewCompany({ ...newCompany, name: e.target.value })}
+                  className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Industry</label>
-                  <input type="text" placeholder="Technology" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="text"
+                    placeholder="Technology"
+                    value={newCompany.industry}
+                    onChange={e => setNewCompany({ ...newCompany, industry: e.target.value })}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Domain</label>
-                  <input type="text" placeholder="company.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="text"
+                    placeholder="company.com"
+                    value={newCompany.domain}
+                    onChange={e => setNewCompany({ ...newCompany, domain: e.target.value })}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
-                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
-                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 bg-[#DC2626] text-white font-semibold rounded-lg">Save Company</button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  onClick={handleCreateCompany}
+                  className="px-4 py-2 bg-[#DC2626] text-white font-semibold rounded-lg cursor-pointer hover:bg-[#b91c1c] disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isCreating && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isCreating ? 'Saving...' : 'Save Company'}</span>
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingCompany && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Delete Company</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Are you sure you want to delete <strong className="text-slate-900 dark:text-white">{deletingCompany.name}</strong>? This action will remove it from active records.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingCompany(null)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteCompany}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isDeleting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isDeleting ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
             </div>
           </div>
         </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   Receipt,
   Plus,
@@ -73,6 +74,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
   const [newExpEntity, setNewExpEntity] = useState('');
   const [uploadedReceiptName, setUploadedReceiptName] = useState<string | null>(null);
 
+  // Invoice Form State
+  const [newInvClient, setNewInvClient] = useState('');
+  const [newInvNumber, setNewInvNumber] = useState('');
+  const [newInvAmount, setNewInvAmount] = useState('');
+  const [newInvDueDate, setNewInvDueDate] = useState('');
+  const [newInvNotes, setNewInvNotes] = useState('');
+
+  const [loading, setLoading] = useState(true);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [isCreatingExpense, setIsCreatingExpense] = useState(false);
+  const [deletingInvoice, setDeletingInvoice] = useState<any | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   interface ExpenseItem {
     id: string;
     date: string;
@@ -123,6 +138,176 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
   const [expensesList, setExpensesList] = useState<ExpenseItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [paymentsList, setPaymentsList] = useState<PaymentItem[]>([]);
+
+  const fetchFinanceData = async () => {
+    try {
+      setLoading(true);
+      const [invRes, payRes, expRes] = await Promise.all([
+        api.getInvoices().catch(() => ({ success: false, data: [] })),
+        api.getPayments().catch(() => ({ success: false, data: [] })),
+        api.getExpenses().catch(() => ({ success: false, data: [] }))
+      ]);
+
+      if (invRes.success && Array.isArray(invRes.data)) {
+        setInvoices(invRes.data.map((inv: any) => ({
+          id: inv.id,
+          invoiceNumber: inv.invoice_number || `INV-${(inv.id || '').slice(0, 4)}`,
+          termBadge: 'Net 30',
+          isOverdueBadge: inv.status === 'Overdue',
+          clientName: inv.client_name || 'Client Account',
+          gstin: '29ABCDE1234F1Z5',
+          refProposal: 'Commercial SOW',
+          dateIssued: inv.issue_date ? new Date(inv.issue_date).toLocaleDateString() : 'Today',
+          dateDue: inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '30 Days',
+          amountGstInc: `₹${Number(inv.total || 0).toLocaleString('en-IN')}`,
+          amountPaid: `₹${Number(inv.paid_amount || 0).toLocaleString('en-IN')}`,
+          balanceDue: `₹${Number(inv.balance_amount !== undefined ? inv.balance_amount : inv.total || 0).toLocaleString('en-IN')}`,
+          status: inv.status || 'Pending',
+          statusColor: inv.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200',
+          isOverdue: inv.status === 'Overdue'
+        })));
+      }
+
+      if (payRes.success && Array.isArray(payRes.data)) {
+        setPaymentsList(payRes.data.map((p: any) => ({
+          id: p.id,
+          clientName: p.client_name || 'Client Account',
+          gstin: '29ABCDE1234F1Z5',
+          linkedInvoice: p.invoice_number || 'INV-REF',
+          invoicePart: 'Payment Ref',
+          dateTimestamp: p.payment_date ? new Date(p.payment_date).toLocaleDateString() : 'Recently',
+          method: p.payment_method || 'Bank Transfer',
+          icon: 'bank',
+          amountReceived: `₹${Number(p.amount || 0).toLocaleString('en-IN')}`,
+          amountColor: 'text-emerald-600'
+        })));
+      }
+
+      if (expRes.success && Array.isArray(expRes.data)) {
+        setExpensesList(expRes.data.map((e: any) => ({
+          id: e.id,
+          date: e.date ? new Date(e.date).toLocaleDateString() : 'Today',
+          submitter: e.vendor || 'Agency Operations',
+          avatarText: (e.vendor || 'EX').substring(0, 2).toUpperCase(),
+          category: e.category || 'Paid Media',
+          entity: 'Client Workstream',
+          description: e.description || 'Deliverable Disbursement',
+          amount: `₹${Number(e.amount || 0).toLocaleString('en-IN')}`,
+          receiptName: 'receipt_verified.pdf',
+          receiptSize: '1.2 MB',
+          status: 'Approved',
+          statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200'
+        })));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch finance records:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFinanceData();
+  }, []);
+
+  const handleCreateInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newInvClient.trim()) {
+      showToast('Client name is required', 'error');
+      return;
+    }
+    const amt = parseFloat(newInvAmount.replace(/[^0-9.]/g, '')) || 50000;
+    try {
+      setIsCreatingInvoice(true);
+      const res = await api.createInvoice({
+        client_name: newInvClient.trim(),
+        invoice_number: newInvNumber.trim() || undefined,
+        total: amt,
+        subtotal: amt,
+        due_date: newInvDueDate || undefined,
+        notes: newInvNotes.trim() || undefined
+      });
+      if (res.success) {
+        showToast('Invoice generated and saved successfully', 'success');
+        setShowCreateInvoiceModal(false);
+        setNewInvClient('');
+        setNewInvNumber('');
+        setNewInvAmount('');
+        setNewInvDueDate('');
+        setNewInvNotes('');
+        fetchFinanceData();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create invoice', 'error');
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
+  const handleCreateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(newExpAmount.replace(/[^0-9.]/g, '')) || 0;
+    if (amt <= 0) {
+      showToast('Please enter a valid expense amount', 'error');
+      return;
+    }
+    try {
+      setIsCreatingExpense(true);
+      const res = await api.createExpense({
+        category: newExpCategory,
+        amount: amt,
+        vendor: newExpEntity || 'Vendor',
+        description: newExpDesc || undefined
+      });
+      if (res.success) {
+        showToast('Expense recorded successfully in database', 'success');
+        setShowCreateExpenseModal(false);
+        setNewExpAmount('');
+        setNewExpDesc('');
+        setNewExpEntity('');
+        setUploadedReceiptName(null);
+        fetchFinanceData();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to record expense', 'error');
+    } finally {
+      setIsCreatingExpense(false);
+    }
+  };
+
+  const confirmDeleteInvoice = async () => {
+    if (!deletingInvoice) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteInvoice(deletingInvoice.id);
+      if (res.success) {
+        showToast(`Invoice ${deletingInvoice.invoiceNumber} deleted successfully`);
+        setDeletingInvoice(null);
+        fetchFinanceData();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete invoice', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!deletingExpense) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteExpense(deletingExpense.id);
+      if (res.success) {
+        showToast('Expense record deleted successfully');
+        setDeletingExpense(null);
+        fetchFinanceData();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete expense', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
@@ -614,6 +799,16 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                                 title={`Download ${inv.invoiceNumber} PDF`}
                               >
                                 <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingInvoice(inv);
+                                }}
+                                className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 transition"
+                                title={`Delete ${inv.invoiceNumber}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </td>
@@ -1276,42 +1471,51 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                           </td>
 
                           <td className="p-3.5 pr-4 text-right">
-                            {exp.status === 'Pending Approval' ? (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => {
-                                    setExpensesList(prev =>
-                                      prev.map(item =>
-                                        item.id === exp.id
-                                          ? { ...item, status: 'Approved', statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200' }
-                                          : item
-                                      )
-                                    );
-                                    showToast(`Expense ${exp.id} Approved & Ledger Updated!`, 'success');
-                                  }}
-                                  className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer"
-                                >
-                                  Approve ✓
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setExpensesList(prev =>
-                                      prev.map(item =>
-                                        item.id === exp.id
-                                          ? { ...item, status: 'Rejected', statusColor: 'text-rose-700 bg-rose-50 border-rose-200' }
-                                          : item
-                                      )
-                                    );
-                                    showToast(`Expense ${exp.id} Rejected.`, 'info');
-                                  }}
-                                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-rose-50 text-rose-600 font-bold text-[11px] border border-slate-200 transition cursor-pointer"
-                                >
-                                  Reject ✕
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 text-[11px] font-medium">Reconciled</span>
-                            )}
+                            <div className="flex items-center justify-end gap-1.5">
+                              {exp.status === 'Pending Approval' ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setExpensesList(prev =>
+                                        prev.map(item =>
+                                          item.id === exp.id
+                                            ? { ...item, status: 'Approved', statusColor: 'text-emerald-700 bg-emerald-50 border-emerald-200' }
+                                            : item
+                                        )
+                                      );
+                                      showToast(`Expense ${exp.id} Approved & Ledger Updated!`, 'success');
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer"
+                                  >
+                                    Approve ✓
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setExpensesList(prev =>
+                                        prev.map(item =>
+                                          item.id === exp.id
+                                            ? { ...item, status: 'Rejected', statusColor: 'text-rose-700 bg-rose-50 border-rose-200' }
+                                            : item
+                                        )
+                                      );
+                                      showToast(`Expense ${exp.id} Rejected.`, 'info');
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-slate-100 hover:bg-rose-50 text-rose-600 font-bold text-[11px] border border-slate-200 transition cursor-pointer"
+                                  >
+                                    Reject ✕
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-slate-400 text-[11px] font-medium">Reconciled</span>
+                              )}
+                              <button
+                                onClick={() => setDeletingExpense(exp)}
+                                className="p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 transition"
+                                title="Delete Expense"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1420,29 +1624,162 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const newExp = {
-                    id: `EXP-2026-0${expensesList.length + 43}`,
-                    date: 'Today',
-                    submitter: 'Alex Morgan',
-                    avatarText: 'AM',
-                    category: newExpCategory,
-                    entity: newExpEntity,
-                    description: newExpDesc || 'Operational disbursement',
-                    amount: newExpAmount,
-                    receiptName: uploadedReceiptName || 'receipt_attached.pdf',
-                    receiptSize: '1.2 MB',
-                    status: 'Pending Approval',
-                    statusColor: 'text-amber-700 bg-amber-50 border-amber-200',
-                  };
-                  setExpensesList([newExp, ...expensesList]);
-                  setShowCreateExpenseModal(false);
-                  setUploadedReceiptName(null);
-                  showToast('Expense logged and submitted for managerial approval!', 'success');
-                }}
-                className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer hover:bg-[#991B1B] transition"
+                onClick={handleCreateExpense}
+                disabled={isCreatingExpense}
+                className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer hover:bg-[#991B1B] transition disabled:opacity-50"
               >
-                Submit Expense
+                {isCreatingExpense ? 'Submitting...' : 'Submit Expense'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Invoice Modal */}
+      {showCreateInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">Generate Commercial Invoice</h3>
+              <button onClick={() => setShowCreateInvoiceModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateInvoice} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold block mb-1">Client Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Apex Global Solutions"
+                  value={newInvClient}
+                  onChange={(e) => setNewInvClient(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Invoice Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. INV-2026-001 (auto if blank)"
+                    value={newInvNumber}
+                    onChange={(e) => setNewInvNumber(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Total Amount (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 150000"
+                    value={newInvAmount}
+                    onChange={(e) => setNewInvAmount(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="font-semibold block mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={newInvDueDate}
+                  onChange={(e) => setNewInvDueDate(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="font-semibold block mb-1">Terms / Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Payment due within 30 days. GST 18% inclusive."
+                  value={newInvNotes}
+                  onChange={(e) => setNewInvNotes(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateInvoiceModal(false)}
+                  className="px-4 py-2 border rounded-lg text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingInvoice}
+                  className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer transition disabled:opacity-50"
+                >
+                  {isCreatingInvoice ? 'Generating...' : 'Save & Issue Invoice'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Invoice Confirmation Modal */}
+      {deletingInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Invoice</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete invoice <span className="font-bold text-slate-900 dark:text-white">{deletingInvoice.invoiceNumber}</span> for <span className="font-bold text-slate-900 dark:text-white">{deletingInvoice.clientName}</span>? This will remove the invoice record from the database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingInvoice(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteInvoice}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Expense Confirmation Modal */}
+      {deletingExpense && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Expense</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete expense <span className="font-bold text-slate-900 dark:text-white">{deletingExpense.category}</span> ({deletingExpense.amount})? This will permanently remove the record from the database ledger.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingExpense(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteExpense}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>

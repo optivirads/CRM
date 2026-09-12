@@ -135,16 +135,24 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
     return;
   }
 
+  const rawStatus = String(status).trim().toLowerCase().replace(/_/g, ' ');
+  let normalizedStatus = 'To Do';
+  if (rawStatus === 'completed' || rawStatus === 'done') normalizedStatus = 'Completed';
+  else if (rawStatus === 'in progress' || rawStatus === 'inprogress') normalizedStatus = 'In Progress';
+  else if (rawStatus === 'review' || rawStatus === 'in review') normalizedStatus = 'Review';
+  else if (rawStatus === 'blocked') normalizedStatus = 'Blocked';
+  else if (rawStatus === 'cancelled' || rawStatus === 'canceled') normalizedStatus = 'Cancelled';
+
   try {
     const result = await db.query(`
       UPDATE tasks 
       SET 
-        status = $1,
-        completed_at = CASE WHEN $1 = 'Completed' THEN NOW() ELSE NULL END,
+        status = $1::varchar,
+        completed_at = CASE WHEN $1::varchar = 'Completed' THEN NOW() ELSE NULL END,
         updated_by = $2
       WHERE id = $3 AND organization_id = $4
       RETURNING *;
-    `, [status, userId, taskId, orgId]);
+    `, [normalizedStatus, userId, taskId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Task not found' });
@@ -204,6 +212,139 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 
     await recordAuditLog(orgId, userId, 'DELETE', 'projects', projectId, null, null, req);
     res.json({ success: true, message: 'Project successfully deleted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Create Project
+router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { name, description, client_id, client_name, budget, priority, status, start_date, end_date } = req.body;
+
+  if (!name || !name.trim()) {
+    res.status(400).json({ success: false, message: 'Project name is required' });
+    return;
+  }
+
+  try {
+    let resolvedClientId = client_id;
+    if (!resolvedClientId && client_name) {
+      const clientRes = await db.query(`
+        SELECT c.id FROM clients c
+        JOIN companies comp ON c.company_id = comp.id
+        WHERE c.organization_id = $1 AND comp.name ILIKE $2 AND c.deleted_at IS NULL
+        LIMIT 1;
+      `, [orgId, client_name.trim()]);
+      resolvedClientId = clientRes.rows[0]?.id;
+    }
+
+    if (!resolvedClientId) {
+      const fallbackClient = await db.query('SELECT id FROM clients WHERE organization_id = $1 AND deleted_at IS NULL LIMIT 1;', [orgId]);
+      resolvedClientId = fallbackClient.rows[0]?.id;
+    }
+
+    if (!resolvedClientId) {
+      // Create a default company and client for this project if none exist yet
+      const comp = await db.query(`
+        INSERT INTO companies (organization_id, name, created_by)
+        VALUES ($1, 'Internal Operations', $2) RETURNING id;
+      `, [orgId, userId]);
+      const newCl = await db.query(`
+        INSERT INTO clients (organization_id, company_id, created_by)
+        VALUES ($1, $2, $3) RETURNING id;
+      `, [orgId, comp.rows[0].id, userId]);
+      resolvedClientId = newCl.rows[0].id;
+    }
+
+    const result = await db.query(`
+      INSERT INTO projects (
+        organization_id, client_id, name, description, project_manager_id,
+        budget, priority, status, start_date, end_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *;
+    `, [
+      orgId, resolvedClientId, name.trim(), description || null, userId,
+      budget || 0, priority || 'Medium', status || 'Active', start_date || new Date(), end_date || null, userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'projects', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Project
+router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const projectId = req.params.id;
+  const { name, description, budget, spent, status, priority, progress, start_date, end_date } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [projectId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Project not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE projects
+      SET 
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        budget = COALESCE($3, budget),
+        spent = COALESCE($4, spent),
+        status = COALESCE($5, status),
+        priority = COALESCE($6, priority),
+        progress = COALESCE($7, progress),
+        start_date = COALESCE($8, start_date),
+        end_date = COALESCE($9, end_date),
+        updated_by = $10
+      WHERE id = $11 AND organization_id = $12
+      RETURNING *;
+    `, [name, description, budget, spent, status, priority, progress, start_date, end_date, userId, projectId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'projects', projectId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// General Update Task (Title, description, priority, due date, assignee)
+router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const taskId = req.params.id;
+  const { title, description, priority, status, due_date, assignee_id } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [taskId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE tasks
+      SET 
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        priority = COALESCE($3, priority),
+        status = COALESCE($4, status),
+        due_date = COALESCE($5, due_date),
+        assignee_id = COALESCE($6, assignee_id),
+        completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
+        updated_by = $7
+      WHERE id = $8 AND organization_id = $9
+      RETURNING *;
+    `, [title, description, priority, status, due_date, assignee_id, userId, taskId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

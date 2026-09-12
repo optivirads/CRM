@@ -267,4 +267,86 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
+// Create Client
+router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { company_id, company_name, primary_contact_id, contract_value, billing_frequency, health_status, status, renewal_date, start_date, notes } = req.body;
+
+  try {
+    let resolvedCompanyId = company_id;
+    if (!resolvedCompanyId && company_name) {
+      const compRes = await db.query(`
+        INSERT INTO companies (organization_id, name, created_by)
+        VALUES ($1, $2, $3)
+        ON CONFLICT DO NOTHING
+        RETURNING id;
+      `, [orgId, company_name.trim(), userId]);
+      resolvedCompanyId = compRes.rows[0]?.id;
+      if (!resolvedCompanyId) {
+        const existing = await db.query('SELECT id FROM companies WHERE organization_id = $1 AND name ILIKE $2 LIMIT 1;', [orgId, company_name.trim()]);
+        resolvedCompanyId = existing.rows[0]?.id;
+      }
+    }
+
+    if (!resolvedCompanyId) {
+      res.status(400).json({ success: false, message: 'Company is required to create a client' });
+      return;
+    }
+
+    const result = await db.query(`
+      INSERT INTO clients (
+        organization_id, company_id, primary_contact_id, account_manager_id, contract_value,
+        billing_frequency, health_status, status, start_date, renewal_date, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *;
+    `, [
+      orgId, resolvedCompanyId, primary_contact_id || null, userId, contract_value || 0,
+      billing_frequency || 'monthly', health_status || 'Healthy', status || 'Active',
+      start_date || new Date(), renewal_date || null, notes || null, userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'clients', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Client
+router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const clientId = req.params.id;
+  const { status, health_status, health_score, contract_value, billing_frequency, renewal_date, notes } = req.body;
+
+  try {
+    const current = await db.query('SELECT * FROM clients WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [clientId, orgId]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
+    const updated = await db.query(`
+      UPDATE clients
+      SET 
+        status = COALESCE($1, status),
+        health_status = COALESCE($2, health_status),
+        health_score = COALESCE($3, health_score),
+        contract_value = COALESCE($4, contract_value),
+        billing_frequency = COALESCE($5, billing_frequency),
+        renewal_date = COALESCE($6, renewal_date),
+        notes = COALESCE($7, notes),
+        updated_by = $8
+      WHERE id = $9 AND organization_id = $10
+      RETURNING *;
+    `, [status, health_status, health_score, contract_value, billing_frequency, renewal_date, notes, userId, clientId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'clients', clientId, current.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

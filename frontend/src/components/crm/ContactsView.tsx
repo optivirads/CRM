@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Users2,
   TrendingUp,
@@ -27,10 +27,12 @@ import {
   Building2,
   Calendar,
   Share2,
-  ArrowRightCircle
+  ArrowRightCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 
 interface ContactItem {
   id: string;
@@ -69,14 +71,110 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contacts, setContacts] = useState<ContactItem[]>(INITIAL_CONTACTS);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [simulatorStep, setSimulatorStep] = useState('1. Contacts List');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newContact, setNewContact] = useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+    jobTitle: '',
+    email: '',
+    phone: '',
+    isDecisionMaker: false
+  });
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingContact, setDeletingContact] = useState<ContactItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'company'>('newest');
+
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getContacts();
+      if (res.success && Array.isArray(res.data)) {
+        setContacts(res.data.map((ct: any) => {
+          const fullName = `${ct.first_name || ''} ${ct.last_name || ''}`.trim() || ct.name || 'Unnamed Contact';
+          const initials = ((ct.first_name?.[0] || '') + (ct.last_name?.[0] || 'C')).toUpperCase() || 'CT';
+          return {
+            id: ct.id,
+            name: fullName,
+            initials: initials,
+            isVerified: true,
+            roleTag: ct.is_decision_maker ? 'Decision Maker' : (ct.designation || 'Enterprise Contact'),
+            company: ct.company_name || 'Independent',
+            companySize: '11-50',
+            jobTitle: ct.designation || ct.job_title || 'Lead Contact',
+            email: ct.email || 'No email',
+            phone: ct.phone || 'No phone',
+            type: (ct.type || 'Prospect') as 'Prospect' | 'Client' | 'Partner',
+            ownerInitials: 'AM',
+            ownerName: 'Sales Lead',
+            ownerColor: 'bg-emerald-600'
+          };
+        }));
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch contacts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  const handleCreateContact = async () => {
+    if (!newContact.firstName.trim() || !newContact.email.trim()) {
+      showToast('First Name and Email are required', 'error');
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const res = await api.createContact({
+        first_name: newContact.firstName.trim(),
+        last_name: newContact.lastName.trim(),
+        company_name: newContact.company.trim() || undefined,
+        designation: newContact.jobTitle.trim() || undefined,
+        email: newContact.email.trim(),
+        phone: newContact.phone.trim() || undefined,
+        is_decision_maker: newContact.isDecisionMaker
+      });
+      if (res.success) {
+        showToast(`Contact "${newContact.firstName}" created successfully`);
+        setShowCreateModal(false);
+        setNewContact({ firstName: '', lastName: '', company: '', jobTitle: '', email: '', phone: '', isDecisionMaker: false });
+        fetchContacts();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create contact', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const confirmDeleteContact = async () => {
+    if (!deletingContact) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteContact(deletingContact.id);
+      if (res.success) {
+        showToast(`Contact "${deletingContact.name}" deleted successfully`);
+        setDeletingContact(null);
+        fetchContacts();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete contact', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleToggleSort = () => {
     if (sortBy === 'newest') {
@@ -89,7 +187,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
       showToast('Sorted contacts by company name', 'info');
     } else {
       setSortBy('newest');
-      setContacts(INITIAL_CONTACTS);
+      fetchContacts();
       showToast('Sorted contacts by newest added', 'info');
     }
   };
@@ -522,12 +620,13 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
               <th className="p-4 font-bold">PHONE</th>
               <th className="p-4 font-bold">TYPE</th>
               <th className="p-4 font-bold">OWNER</th>
+              <th className="p-4 font-bold text-center">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
             {filteredContacts.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-12 text-center text-slate-500">
+                <td colSpan={9} className="p-12 text-center text-slate-500">
                   <Users2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No contacts found</p>
                   <p className="text-xs text-slate-400 mt-1">Add your first client or prospect contact.</p>
@@ -622,6 +721,20 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
                         </span>
                       </div>
                     </td>
+
+                    {/* Action Column */}
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingContact(ct);
+                        }}
+                        title="Delete Contact"
+                        className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -698,34 +811,135 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
               </button>
             </div>
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Full Name *</label>
-                <input type="text" placeholder="Full Name" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    value={newContact.firstName}
+                    onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })}
+                    placeholder="e.g. Rahul"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={newContact.lastName}
+                    onChange={(e) => setNewContact({ ...newContact, lastName: e.target.value })}
+                    placeholder="e.g. Sharma"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Company</label>
-                  <input type="text" placeholder="Company Name" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="text"
+                    value={newContact.company}
+                    onChange={(e) => setNewContact({ ...newContact, company: e.target.value })}
+                    placeholder="e.g. Acme Tech"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Job Title</label>
-                  <input type="text" placeholder="Job Title" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="text"
+                    value={newContact.jobTitle}
+                    onChange={(e) => setNewContact({ ...newContact, jobTitle: e.target.value })}
+                    placeholder="e.g. Chief Marketing Officer"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Email *</label>
-                  <input type="email" placeholder="contact@company.com" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="email"
+                    value={newContact.email}
+                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                    placeholder="contact@company.com"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Phone</label>
-                  <input type="text" placeholder="+91 98765 43210" className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none" />
+                  <input
+                    type="text"
+                    value={newContact.phone}
+                    onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
-                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
-                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 bg-[#DC2626] text-white font-semibold rounded-lg">Save Contact</button>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="decisionMakerCheck"
+                  checked={newContact.isDecisionMaker}
+                  onChange={(e) => setNewContact({ ...newContact, isDecisionMaker: e.target.checked })}
+                  className="rounded text-rose-600 focus:ring-rose-500"
+                />
+                <label htmlFor="decisionMakerCheck" className="text-xs font-semibold cursor-pointer">
+                  Key Decision Maker
+                </label>
               </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={isCreating}
+                  className="px-4 py-2 border rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateContact}
+                  disabled={isCreating}
+                  className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold rounded-lg disabled:opacity-50 transition"
+                >
+                  {isCreating ? 'Saving...' : 'Save Contact'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingContact && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Contact</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete <span className="font-bold text-slate-900 dark:text-white">{deletingContact.name}</span>? This action will remove the contact from the CRM database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingContact(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteContact}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
             </div>
           </div>
         </div>

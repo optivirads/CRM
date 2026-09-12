@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   CheckSquare,
   Clock,
@@ -46,7 +47,7 @@ export const TasksView: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'detail' | 'calendar'>('list');
 
   // Filter Tabs
-  const [activeFilterTab, setActiveFilterTab] = useState('my');
+  const [activeFilterTab, setActiveFilterTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState('All');
   const [selectedAssignee, setSelectedAssignee] = useState('All');
@@ -68,8 +69,127 @@ export const TasksView: React.FC = () => {
   // Subtask checkbox state
   const [subtasksState, setSubtasksState] = useState<any[]>([]);
 
-  // Tasks dataset matching Reference Image 4
+  // Tasks dataset matching PostgreSQL
   const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getTasks();
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map((t: any) => ({
+          id: t.id,
+          code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
+          title: t.title || 'Untitled Deliverable',
+          description: t.description || '',
+          subtasksCount: '0/3 Subtasks',
+          subtasksBadge: t.status === 'Completed' ? 'Completed' : (t.status === 'In Progress' ? 'In Progress' : 'Pending'),
+          clientName: t.company_name || 'Client Account',
+          clientAvatar: (t.company_name || 'CL').substring(0, 2).toUpperCase(),
+          clientAvatarBg: 'bg-[#0A1628]',
+          project: t.project_name || 'Project Workstream',
+          milestone: 'Sprint Deliverable',
+          assignee: t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'Alex Morgan',
+          assigneeInitials: ((t.assignee_first?.[0] || 'A') + (t.assignee_last?.[0] || 'M')).toUpperCase(),
+          priority: t.priority || 'Medium',
+          status: t.status === 'Completed' ? 'Done' : (t.status === 'In Progress' ? 'In Progress' : 'To Do'),
+          statusBg: t.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString() : 'Next Week',
+          timelineStart: 'Today',
+          timelineUrgent: t.priority === 'Urgent' || t.priority === 'High',
+          timeActual: '0.0h',
+          timeEst: '8.0h',
+          timePercent: t.status === 'Completed' ? 100 : 0
+        }));
+        setTasks(mapped);
+        if (mapped.length > 0 && !activeTask) {
+          setActiveTask(mapped[0]);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch tasks:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) {
+      showToast('Task title is required', 'error');
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const res = await api.createTask({
+        title: newTaskTitle.trim(),
+        description: newTaskDesc.trim() || undefined,
+        priority: newTaskPriority,
+        due_date: newTaskDueDate || undefined
+      });
+      if (res.success) {
+        showToast('Task created successfully', 'success');
+        setShowCreateModal(false);
+        setNewTaskTitle('');
+        setNewTaskDesc('');
+        setNewTaskDueDate('');
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create task', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!deletingTask) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteTask(deletingTask.id);
+      if (res.success) {
+        showToast(`Task "${deletingTask.title}" deleted successfully`);
+        setDeletingTask(null);
+        if (activeTask?.id === deletingTask.id) {
+          setActiveTask(null);
+        }
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete task', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedTasks.length === 0) return;
+    if (!confirm(`Delete ${selectedTasks.length} selected tasks from database?`)) return;
+    try {
+      setIsDeleting(true);
+      await Promise.all(selectedTasks.map((id) => api.deleteTask(id)));
+      showToast(`Successfully deleted ${selectedTasks.length} tasks`);
+      setSelectedTasks([]);
+      fetchTasks();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete tasks', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Set default active task
   useEffect(() => {
@@ -254,35 +374,7 @@ export const TasksView: React.FC = () => {
               <span>Automations</span>
             </button>
             <button
-              onClick={() => {
-                const newTask = {
-                  id: `t-${Date.now()}`,
-                  code: `#OPT-${Math.floor(1000 + Math.random() * 9000)}`,
-                  title: 'New Commercial Deliverable Spec',
-                  subtasksCount: '0/3 Subtasks',
-                  subtasksBadge: 'Pending Kickoff',
-                  clientName: 'Client Account',
-                  clientAvatar: 'CL',
-                  clientAvatarBg: 'bg-[#0A1628]',
-                  project: 'Enterprise Retainer',
-                  milestone: 'Sprint Planning',
-                  assignee: 'OptiVir Lead',
-                  assigneeInitials: 'OP',
-                  priority: 'Medium',
-                  status: 'In Progress',
-                  statusBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-                  timeline: 'Next Week',
-                  timelineStart: 'Today',
-                  timelineUrgent: false,
-                  timeActual: '0.0h',
-                  timeEst: '8.0h',
-                  timePercent: 0,
-                };
-                setTasks([newTask, ...tasks]);
-                setActiveTask(newTask);
-                setViewMode('detail');
-                showToast('Draft task initialized in workspace detail', 'success');
-              }}
+              onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -523,16 +615,12 @@ export const TasksView: React.FC = () => {
                 Add Tag
               </button>
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedTasks.length} tasks?`)) {
-                    setTasks(tasks.filter((t) => !selectedTasks.includes(t.id)));
-                    setSelectedTasks([]);
-                  }
-                }}
-                className="px-3 py-1 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded font-bold transition flex items-center gap-1"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-3 py-1 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded font-bold transition flex items-center gap-1 disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Delete</span>
+                <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
               </button>
             </div>
           </div>
@@ -548,7 +636,7 @@ export const TasksView: React.FC = () => {
                     <th className="p-3.5 pl-4 w-10">
                       <input
                         type="checkbox"
-                        checked={selectedTasks.length === tasks.length}
+                        checked={selectedTasks.length === tasks.length && tasks.length > 0}
                         onChange={toggleSelectAll}
                         className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                       />
@@ -560,7 +648,8 @@ export const TasksView: React.FC = () => {
                     <th className="p-3.5">PRIORITY</th>
                     <th className="p-3.5">STATUS</th>
                     <th className="p-3.5">TIMELINE</th>
-                    <th className="p-3.5 pr-4">TIME (ACT/EST)</th>
+                    <th className="p-3.5">TIME (ACT/EST)</th>
+                    <th className="p-3.5 pr-4 text-center">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -700,7 +789,7 @@ export const TasksView: React.FC = () => {
                           </td>
 
                           {/* Time (Act/Est) */}
-                          <td className="p-3.5 pr-4">
+                          <td className="p-3.5">
                             <div className="w-24 space-y-1">
                               <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
                                 {task.timeActual} / {task.timeEst}
@@ -716,6 +805,21 @@ export const TasksView: React.FC = () => {
                                 ></div>
                               </div>
                             </div>
+                          </td>
+
+                          {/* Action Cell */}
+                          <td className="p-3.5 pr-4 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingTask(task);
+                              }}
+                              title="Delete Task"
+                              className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1186,6 +1290,123 @@ export const TasksView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Create Task Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-[#DC2626]" />
+                <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Create New Deliverable / Task</h3>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-black dark:hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTask} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Task Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="e.g. Implement conversion tracking tag & pixel validation"
+                  className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="Details of deliverables, technical specs, and prerequisites..."
+                  className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Priority</label>
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={newTaskDueDate}
+                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold rounded-lg disabled:opacity-50"
+                >
+                  {isCreating ? 'Saving...' : 'Create Task'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingTask && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Task</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete task <span className="font-bold text-slate-900 dark:text-white">{deletingTask.title}</span> ({deletingTask.code})? This action will remove the task record from the database.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingTask(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteTask}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
