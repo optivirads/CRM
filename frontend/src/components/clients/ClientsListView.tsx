@@ -99,113 +99,7 @@ export interface ClientAccount {
   isAtRisk: boolean;
 }
 
-export const DEFAULT_CLIENT_ACCOUNTS: ClientAccount[] = [
-  {
-    id: 'c1',
-    name: 'Zenith DTC Brands',
-    domain: 'zenithbrands.in',
-    avatarBg: 'bg-[#DC2626]',
-    avatarText: 'ZB',
-    industry: 'E-Commerce',
-    primaryContact: 'Arjun Mehta',
-    contactRole: 'VP of Marketing',
-    accountManager: 'Alex Morgan',
-    amInitials: 'AM',
-    amBg: 'bg-[#0A1628]',
-    servicesCount: '3 Services',
-    activeProjects: '2 Active',
-    contractValue: '₹18.5L / yr',
-    healthStatus: 'Healthy',
-    renewal: 'Nov 2027',
-    lastActivity: '12m ago',
-    billingStatus: 'Current',
-    isAtRisk: false,
-  },
-  {
-    id: 'c2',
-    name: 'Astra Health Tech',
-    domain: 'astrahealth.com',
-    avatarBg: 'bg-[#2563EB]',
-    avatarText: 'AH',
-    industry: 'Healthcare',
-    primaryContact: 'Priya Sharma',
-    contactRole: 'Chief Commercial Officer',
-    accountManager: 'Maya Joseph',
-    amInitials: 'MJ',
-    amBg: 'bg-[#0A1628]',
-    servicesCount: '4 Services',
-    activeProjects: '3 Active',
-    contractValue: '₹33.0L / yr',
-    healthStatus: 'Healthy',
-    renewal: 'Jan 2028',
-    lastActivity: '1h ago',
-    billingStatus: 'Current',
-    isAtRisk: false,
-  },
-  {
-    id: 'c3',
-    name: 'UrbanKulture Apparels',
-    domain: 'urbankulture.in',
-    avatarBg: 'bg-[#16A34A]',
-    avatarText: 'UK',
-    industry: 'Retail',
-    primaryContact: 'Vikram Joshi',
-    contactRole: 'Founder & CEO',
-    accountManager: 'Alex Morgan',
-    amInitials: 'AM',
-    amBg: 'bg-[#0A1628]',
-    servicesCount: '1 Service (Ad-Hoc Ads)',
-    activeProjects: '1 Active',
-    contractValue: 'On-Demand / As-Needed',
-    healthStatus: 'Healthy',
-    renewal: 'On-Demand Active',
-    lastActivity: '2h ago',
-    billingStatus: 'Current',
-    isAtRisk: false,
-  },
-  {
-    id: 'c4',
-    name: 'Kavach FinTech',
-    domain: 'kavachfin.in',
-    avatarBg: 'bg-[#D97706]',
-    avatarText: 'KF',
-    industry: 'Financial Services',
-    primaryContact: 'Rohan Deshmukh',
-    contactRole: 'Head of Growth',
-    accountManager: 'Maya Joseph',
-    amInitials: 'MJ',
-    amBg: 'bg-[#0A1628]',
-    servicesCount: '1 Service (Search PPC)',
-    activeProjects: '1 Active',
-    contractValue: 'Pay-As-You-Go',
-    healthStatus: 'Healthy',
-    renewal: 'Campaign-Based',
-    lastActivity: '3h ago',
-    billingStatus: 'Current',
-    isAtRisk: false,
-  },
-  {
-    id: 'c5',
-    name: 'Nexa Mobility',
-    domain: 'nexamobility.io',
-    avatarBg: 'bg-[#7C3AED]',
-    avatarText: 'NM',
-    industry: 'Technology',
-    primaryContact: 'Siddharth Varma',
-    contactRole: 'COO',
-    accountManager: 'Marcus Vance',
-    amInitials: 'MV',
-    amBg: 'bg-[#0A1628]',
-    servicesCount: '2 Services',
-    activeProjects: '1 Active',
-    contractValue: '₹15.0L / yr',
-    healthStatus: 'Healthy',
-    renewal: 'Oct 2027',
-    lastActivity: '1d ago',
-    billingStatus: 'Current',
-    isAtRisk: false,
-  }
-];
+export const DEFAULT_CLIENT_ACCOUNTS: ClientAccount[] = [];
 
 export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient360, onNavigate }) => {
   // View mode toggle
@@ -268,7 +162,9 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((c: any) => !['c1', 'c2', 'c3', 'c4', 'c5'].includes(c.id));
+          }
         } catch (e) { }
       }
     }
@@ -744,7 +640,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <span className="font-medium">Total Clients</span>
               <Building2 className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">142</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">{clients.length}</div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
               <span className="font-semibold text-slate-700 dark:text-slate-300">Accounts</span>
               <span>• 100% portfolio base</span>
@@ -758,9 +654,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">128</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {clients.filter(c => c.healthStatus === 'Healthy').length}
+              </span>
               <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                90.1%
+                {clients.length > 0 ? `${Math.round((clients.filter(c => c.healthStatus === 'Healthy').length / clients.length) * 100)}%` : '0%'}
               </span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
@@ -776,9 +674,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <TrendingUp className="w-4 h-4 text-blue-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">9</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {clients.filter(c => c.lastActivity.includes('m ago') || c.lastActivity.includes('h ago')).length}
+              </span>
               <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                +14.2% MoM
+                Live
               </span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
@@ -793,9 +693,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <AlertCircle className="w-4 h-4 text-rose-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">7</span>
+              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+                {clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk').length}
+              </span>
               <span className="text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-800">
-                Critical SLA
+                SLA Alert
               </span>
             </div>
             <div className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1 flex items-center gap-1">
@@ -811,13 +713,15 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <Calendar className="w-4 h-4 text-amber-500" />
             </div>
             <div className="flex items-baseline gap-2 mt-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">14</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                {clients.filter(c => c.renewalUrgent).length}
+              </span>
               <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                 &lt; 60 Days
               </span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              Total value ₹48.2L
+              Upcoming cycles
             </div>
           </div>
         </div>
@@ -825,14 +729,12 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         {/* 4. Filter Pills Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
-            { id: 'all', label: 'All Clients (142)' },
-            { id: 'my', label: 'My Clients (48)' },
-            { id: 'healthy', label: 'Healthy (118)' },
-            { id: 'attention', label: 'Attention Needed (17)' },
-            { id: 'at_risk', label: '● At Risk (7)', isAlert: true },
-            { id: 'renewals', label: 'Renewals Upcoming (14)' },
-            { id: 'high_val', label: 'High Value (26)' },
-            { id: 'new', label: 'New Clients (9)' },
+            { id: 'all', label: `All Clients (${clients.length})` },
+            { id: 'my', label: `My Clients (${clients.filter(c => c.accountManager.includes('Alex')).length})` },
+            { id: 'healthy', label: `Healthy (${clients.filter(c => c.healthStatus === 'Healthy').length})` },
+            { id: 'attention', label: `Attention Needed (${clients.filter(c => c.healthStatus === 'Attention Needed').length})` },
+            { id: 'at_risk', label: `● At Risk (${clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk').length})`, isAlert: true },
+            { id: 'renewals', label: `Renewals Upcoming (${clients.filter(c => c.renewalUrgent).length})` },
           ].map((tab) => (
             <button
               key={tab.id}

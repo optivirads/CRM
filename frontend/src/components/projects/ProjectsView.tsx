@@ -31,144 +31,9 @@ import {
   DollarSign
 } from 'lucide-react';
 
-export const DEFAULT_CLIENT_COMPANIES = [
-  'Zenith DTC Brands',
-  'Astra Health Tech',
-  'UrbanKulture Apparels',
-  'NexaScale Logistics',
-  'FinEdge Wealth Advisors',
-  'Auric Living Luxury Real Estate',
-  'BioPure Nutra Labs',
-  'SparkVibe Media Network',
-];
+export const DEFAULT_CLIENT_COMPANIES: string[] = [];
 
-export const DEFAULT_PROJECTS = [
-  {
-    id: 'p-1',
-    code: 'P-2026-402',
-    name: 'Omnichannel DTC ROAS Acceleration',
-    scopeType: 'Meta + Google Ads Retainer',
-    clientName: 'Zenith DTC Brands',
-    clientAvatarText: 'ZB',
-    clientAvatarBg: 'bg-[#DC2626]',
-    clientAvatarTextColor: 'text-white',
-    leadPM: 'Maya Joseph',
-    leadInitials: 'MJ',
-    status: 'Active',
-    statusBg: 'bg-emerald-50 text-emerald-700',
-    health: 'Healthy (96)',
-    healthStatus: 'healthy',
-    progressPercent: 68,
-    sprint: 'Sprint 3/4',
-    budget: '₹4,50,000',
-    spent: '₹2,90,000 (64%)',
-    deadline: '28 Oct 2026',
-    deadlineSub: 'On track for Q4 sprint',
-    deadlineUrgent: false,
-    tasksCompleted: 18,
-    tasksTotal: 24,
-  },
-  {
-    id: 'p-2',
-    code: 'P-2026-405',
-    name: 'Meta CAPI & Server-Side Tracking Pipeline',
-    scopeType: 'Technical CRO & Analytics',
-    clientName: 'Astra Health Tech',
-    clientAvatarText: 'AH',
-    clientAvatarBg: 'bg-[#2563EB]',
-    clientAvatarTextColor: 'text-white',
-    leadPM: 'Alex Morgan',
-    leadInitials: 'AM',
-    status: 'Active',
-    statusBg: 'bg-blue-50 text-blue-700',
-    health: 'Healthy (91)',
-    healthStatus: 'healthy',
-    progressPercent: 42,
-    sprint: 'Sprint 2/4',
-    budget: '₹2,75,000',
-    spent: '₹1,15,000 (41%)',
-    deadline: '15 Nov 2026',
-    deadlineSub: 'DNS & Gateway configured',
-    deadlineUrgent: false,
-    tasksCompleted: 10,
-    tasksTotal: 22,
-  },
-  {
-    id: 'p-3',
-    code: 'P-2026-408',
-    name: 'Festive Flash Sale & Ad-Hoc Scaling',
-    scopeType: 'On-Demand Ads / As-Needed',
-    clientName: 'UrbanKulture Apparels',
-    clientAvatarText: 'UK',
-    clientAvatarBg: 'bg-[#16A34A]',
-    clientAvatarTextColor: 'text-white',
-    leadPM: 'Alex Morgan',
-    leadInitials: 'AM',
-    status: 'Active',
-    statusBg: 'bg-amber-50 text-amber-700',
-    health: 'Healthy (94)',
-    healthStatus: 'healthy',
-    progressPercent: 85,
-    sprint: 'Sprint 4/4',
-    budget: '₹1,20,000 (Ad-Hoc)',
-    spent: '₹1,02,000 (85%)',
-    deadline: '20 Oct 2026',
-    deadlineSub: 'Peak event campaign live',
-    deadlineUrgent: false,
-    tasksCompleted: 17,
-    tasksTotal: 20,
-  },
-  {
-    id: 'p-4',
-    code: 'P-2026-411',
-    name: 'B2B High-Intent Search & Pipeline Sprint',
-    scopeType: 'Google Ads & LinkedIn Retainer',
-    clientName: 'NexaScale Logistics',
-    clientAvatarText: 'NL',
-    clientAvatarBg: 'bg-[#D97706]',
-    clientAvatarTextColor: 'text-white',
-    leadPM: 'Rahul Menon',
-    leadInitials: 'RM',
-    status: 'Active',
-    statusBg: 'bg-amber-50 text-amber-700',
-    health: 'Attention (78)',
-    healthStatus: 'attention',
-    progressPercent: 30,
-    sprint: 'Sprint 1/4',
-    budget: '₹3,10,000',
-    spent: '₹95,000 (30%)',
-    deadline: '05 Nov 2026',
-    deadlineSub: 'Waiting on creative approvals',
-    deadlineUrgent: true,
-    tasksCompleted: 6,
-    tasksTotal: 18,
-  },
-  {
-    id: 'p-5',
-    code: 'P-2026-415',
-    name: 'HNW Wealth Acquisition Funnel',
-    scopeType: 'Performance SOW',
-    clientName: 'FinEdge Wealth Advisors',
-    clientAvatarText: 'FE',
-    clientAvatarBg: 'bg-[#9333EA]',
-    clientAvatarTextColor: 'text-white',
-    leadPM: 'Maya Joseph',
-    leadInitials: 'MJ',
-    status: 'Active',
-    statusBg: 'bg-purple-50 text-purple-700',
-    health: 'Healthy (89)',
-    healthStatus: 'healthy',
-    progressPercent: 55,
-    sprint: 'Sprint 2/4',
-    budget: '₹2,40,000',
-    spent: '₹1,32,000 (55%)',
-    deadline: '30 Nov 2026',
-    deadlineSub: 'Landing page V2 converting at 4.2%',
-    deadlineUrgent: false,
-    tasksCompleted: 12,
-    tasksTotal: 20,
-  }
-];
+export const DEFAULT_PROJECTS: any[] = [];
 
 export const ProjectsView: React.FC = () => {
   const { showToast } = useToast();
@@ -197,14 +62,17 @@ export const ProjectsView: React.FC = () => {
         const saved = localStorage.getItem('optivir_client_companies');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-        const savedAccounts = localStorage.getItem('optivir_client_accounts');
-        if (savedAccounts) {
-          const parsed = JSON.parse(savedAccounts);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const names = parsed.map((a: any) => a.name).filter(Boolean);
-            return Array.from(new Set([...names, ...DEFAULT_CLIENT_COMPANIES]));
+            return parsed.filter((c: string) => ![
+              'Zenith DTC Brands',
+              'Astra Health Tech',
+              'UrbanKulture Apparels',
+              'NexaScale Logistics',
+              'FinEdge Wealth Advisors',
+              'Auric Living Luxury Real Estate',
+              'BioPure Nutra Labs',
+              'SparkVibe Media Network',
+            ].includes(c));
           }
         }
       } catch (e) {}
@@ -217,7 +85,7 @@ export const ProjectsView: React.FC = () => {
   // Add Project Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [newClientName, setNewClientName] = useState(DEFAULT_CLIENT_COMPANIES[0]);
+  const [newClientName, setNewClientName] = useState('');
   const [newScopeType, setNewScopeType] = useState('Meta + Google Ads Retainer');
   const [newLeadPM, setNewLeadPM] = useState('Maya Joseph');
   const [newBudget, setNewBudget] = useState('₹2,50,000');
@@ -230,7 +98,9 @@ export const ProjectsView: React.FC = () => {
         const saved = localStorage.getItem('optivir_projects_list');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((p: any) => !['p-1', 'p-2', 'p-3', 'p-4', 'p-5'].includes(p.id));
+          }
         }
       } catch (e) {}
     }
@@ -537,10 +407,11 @@ export const ProjectsView: React.FC = () => {
                 ₹
               </div>
             </div>
-            <div className="text-2xl font-black tracking-tight mt-1.5">₹13.95L</div>
+            <div className="text-2xl font-black tracking-tight mt-1.5">
+              {projects.length === 0 ? '₹0' : `₹${(projects.reduce((acc, p) => acc + (parseInt(p.budget?.replace(/[^0-9]/g, '')) || 0), 0) / 100000).toFixed(2)}L`}
+            </div>
             <div className="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
-              <span>Burned: <strong>₹7.34L</strong></span>
-              <span className="text-emerald-400 font-bold">52%</span>
+              <span>Delivery Burn Active</span>
             </div>
           </div>
         </div>
@@ -996,7 +867,7 @@ export const ProjectsView: React.FC = () => {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                {[1, 2, 3, 5].map((p) => (
+                {Array.from({ length: Math.max(1, Math.ceil(filteredProjects.length / 25)) }, (_, i) => i + 1).map((p) => (
                   <button
                     key={p}
                     onClick={() => setCurrentPage(p)}
@@ -1010,8 +881,8 @@ export const ProjectsView: React.FC = () => {
                   </button>
                 ))}
                 <button 
-                  onClick={() => setCurrentPage((p) => Math.min(5, p + 1))}
-                  disabled={currentPage === 5}
+                  onClick={() => setCurrentPage((p) => Math.min(Math.max(1, Math.ceil(filteredProjects.length / 25)), p + 1))}
+                  disabled={currentPage >= Math.max(1, Math.ceil(filteredProjects.length / 25))}
                   className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />

@@ -97,10 +97,30 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>(`/sales/deals${pipelineId ? `?pipelineId=${pipelineId}` : ''}`);
   }
 
+  async createDeal(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/sales/deals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateDeal(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/sales/deals/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async updateDealStage(id: string, stageId: string) {
     return this.request<{ success: boolean; data: any }>(`/sales/deals/${id}/stage`, {
       method: 'PATCH',
       body: JSON.stringify({ stageId }),
+    });
+  }
+
+  async deleteDeal(id: string) {
+    return this.request<{ success: boolean; message: string; id?: string }>(`/sales/deals/${id}`, {
+      method: 'DELETE',
     });
   }
 
@@ -202,10 +222,6 @@ class ApiClient {
 
   async deleteContact(id: string) {
     return this.request<{ success: boolean; message: string }>(`/crm/contacts/${id}`, { method: 'DELETE' });
-  }
-
-  async deleteDeal(id: string) {
-    return this.request<{ success: boolean; message: string }>(`/sales/deals/${id}`, { method: 'DELETE' });
   }
 
   async deleteTask(id: string) {

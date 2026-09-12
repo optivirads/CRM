@@ -536,8 +536,11 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             {/* Drawer Footer */}
             <div className="p-2.5 px-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0A101C] flex items-center justify-between text-[11px]">
               <button
-                onClick={() => showToast('Navigating to complete audit log')}
-                className="font-bold text-[#0B1727] dark:text-white hover:underline flex items-center gap-1"
+                onClick={() => {
+                  if (onNavigate) onNavigate('settings');
+                  else showToast('Navigating to complete audit log');
+                }}
+                className="font-bold text-[#0B1727] dark:text-white hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>Full Audit View</span>
                 <ChevronRight className="w-3 h-3" />

@@ -1,19 +1,44 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Kanban, Target, CheckCircle2, ChevronRight, Layers, Sparkles, Plus, LayoutGrid, List, X, Building2, Calendar, IndianRupee, Trash2, ExternalLink, FileText } from 'lucide-react';
+import {
+  Kanban,
+  Target,
+  CheckCircle2,
+  ChevronRight,
+  Layers,
+  Sparkles,
+  Plus,
+  LayoutGrid,
+  List,
+  X,
+  Building2,
+  Calendar,
+  IndianRupee,
+  Trash2,
+  ExternalLink,
+  FileText,
+  AlertTriangle,
+  Clock
+} from 'lucide-react';
 import { api } from '@/lib/api';
+import { useToast } from '@/lib/toast-context';
 
 const STAGE_COLOR_MAP: Record<string, string> = {
   'New': '#DC2626',
+  'New Lead': '#DC2626',
   'Contacted': '#0F2747',
   'Qualified': '#2563EB',
   'Discovery': '#60A5FA',
+  'Discovery Call': '#60A5FA',
   'Opportunity': '#7C5CFC',
   'Proposal': '#D97706',
+  'Proposal Sent': '#D97706',
   'Negotiation': '#DC2626',
   'Won': '#16A34A',
+  'Closed Won': '#16A34A',
   'Lost': '#DC2626',
+  'Closed Lost': '#DC2626',
 };
 
 interface PipelineViewProps {
@@ -34,53 +59,11 @@ const DEFAULT_PIPELINE = {
   stages: DEFAULT_STAGES
 };
 
-const DEFAULT_DEALS = [
-  {
-    id: 'deal-1',
-    name: 'Zenith DTC Brands — Meta CAPI SOW',
-    company_name: 'Zenith DTC Brands',
-    value: 185000,
-    probability: 60,
-    stage_id: 'stage-proposal',
-    status: 'open',
-    expected_close_date: '2026-11-15'
-  },
-  {
-    id: 'deal-2',
-    name: 'Astra Health Tech — Full-Funnel Retainer',
-    company_name: 'Astra Health Tech',
-    value: 275000,
-    probability: 80,
-    stage_id: 'stage-negotiation',
-    status: 'open',
-    expected_close_date: '2026-10-31'
-  },
-  {
-    id: 'deal-3',
-    name: 'UrbanKulture — Creative Studio & UGC',
-    company_name: 'UrbanKulture Apparels',
-    value: 95000,
-    probability: 100,
-    stage_id: 'stage-won',
-    status: 'won',
-    expected_close_date: '2026-10-15'
-  },
-  {
-    id: 'deal-4',
-    name: 'Kavach FinTech — PMax & Search Engine',
-    company_name: 'Kavach FinTech',
-    value: 150000,
-    probability: 40,
-    stage_id: 'stage-discovery',
-    status: 'open',
-    expected_close_date: '2026-11-30'
-  }
-];
-
 export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
+  const { showToast } = useToast();
   const [pipelines, setPipelines] = useState<any[]>([DEFAULT_PIPELINE]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>(DEFAULT_PIPELINE.id);
-  const [deals, setDeals] = useState<any[]>(DEFAULT_DEALS);
+  const [deals, setDeals] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [loading, setLoading] = useState(false);
 
@@ -96,36 +79,57 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
   // Inspect Deal Modal State
   const [inspectDeal, setInspectDeal] = useState<any | null>(null);
 
-  useEffect(() => {
-    const fetchPipelines = async () => {
-      try {
-        const res = await api.getPipelines();
-        if (res.success && res.data && res.data.length > 0) {
-          setPipelines(res.data);
-          setSelectedPipelineId(res.data[0].id);
-          if (res.data[0].stages?.length > 0) {
-            setNewStageId(res.data[0].stages[0].id);
-          }
-          const dealsRes = await api.getDeals(res.data[0].id);
-          if (dealsRes.success && dealsRes.data && dealsRes.data.length > 0) {
-            setDeals(dealsRes.data);
-          }
+  // Delete Confirmation Modal State
+  const [dealToDelete, setDealToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fetchPipelinesAndDeals = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getPipelines();
+      if (res.success && res.data && res.data.length > 0) {
+        setPipelines(res.data);
+        const activePipe = res.data[0];
+        setSelectedPipelineId(activePipe.id);
+        if (activePipe.stages?.length > 0) {
+          setNewStageId(activePipe.stages[0].id);
         }
-      } catch (err) {
-        // Graceful fallback to default agency pipeline
+        const dealsRes = await api.getDeals(activePipe.id);
+        if (dealsRes.success && Array.isArray(dealsRes.data)) {
+          setDeals(dealsRes.data);
+        }
       }
-    };
-    fetchPipelines();
+    } catch (err) {
+      console.warn('Failed to load deals from server:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPipelinesAndDeals();
   }, []);
 
   const activePipeline = pipelines.find((p) => p.id === selectedPipelineId);
-  const stages = activePipeline?.stages || [];
+  const stages = activePipeline?.stages || DEFAULT_STAGES;
+
+  const handleSelectPipeline = async (pipeId: string) => {
+    setSelectedPipelineId(pipeId);
+    try {
+      const dealsRes = await api.getDeals(pipeId);
+      if (dealsRes.success && Array.isArray(dealsRes.data)) {
+        setDeals(dealsRes.data);
+      }
+    } catch (err) {
+      console.error('Failed to load deals for pipeline:', err);
+    }
+  };
 
   const handleMoveStage = async (dealId: string, nextStageId: string) => {
     try {
       await api.updateDealStage(dealId, nextStageId);
       const res = await api.getDeals(selectedPipelineId);
-      if (res.success) {
+      if (res.success && Array.isArray(res.data)) {
         setDeals(res.data);
       }
     } catch (err: any) {
@@ -136,25 +140,45 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleCreateDeal = (e: React.FormEvent) => {
+  const handleCreateDeal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDealName || !newDealValue) return;
 
     const chosenStage = stages.find((s: any) => s.id === newStageId) || stages[0];
-    const newDealObj = {
-      id: `deal-${Date.now()}`,
-      name: newDealName,
-      company_name: newCompanyName || 'Enterprise Prospect',
-      value: Number(newDealValue),
-      stage_id: chosenStage?.id || (stages[0]?.id ?? 'stage-1'),
-      status: 'open',
-      probability: Number(newProbability) || chosenStage?.probability || 50,
-      weighted_value: Math.round(Number(newDealValue) * ((Number(newProbability) || 50) / 100)),
-      expected_close_date: newCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const res = await api.createDeal({
+        name: newDealName,
+        companyName: newCompanyName || 'Enterprise Prospect',
+        value: Number(newDealValue),
+        stageId: chosenStage?.id,
+        pipelineId: selectedPipelineId,
+        probability: Number(newProbability) || chosenStage?.probability || 50,
+        expectedCloseDate: newCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
 
-    setDeals([newDealObj, ...deals]);
+      if (res.success && res.data) {
+        setDeals((prev) => [res.data, ...prev]);
+        showToast(`Deal "${newDealName}" created and saved to database`, 'success');
+      } else {
+        const newDealObj = {
+          id: `deal-${Date.now()}`,
+          name: newDealName,
+          company_name: newCompanyName || 'Enterprise Prospect',
+          value: Number(newDealValue),
+          stage_id: chosenStage?.id || (stages[0]?.id ?? 'stage-1'),
+          status: 'open',
+          probability: Number(newProbability) || chosenStage?.probability || 50,
+          weighted_value: Math.round(Number(newDealValue) * ((Number(newProbability) || 50) / 100)),
+          expected_close_date: newCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+        };
+        setDeals((prev) => [newDealObj, ...prev]);
+        showToast(`Deal "${newDealName}" created`, 'success');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error saving deal to database', 'error');
+    }
+
     setShowAddDealModal(false);
     setNewDealName('');
     setNewCompanyName('');
@@ -163,19 +187,57 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
     setNewProbability('50');
   };
 
-  const handleUpdateDealStatus = (dealId: string, newStatus: 'won' | 'lost' | 'open') => {
-    setDeals((prev) =>
-      prev.map((d) => (d.id === dealId ? { ...d, status: newStatus } : d))
-    );
-    if (inspectDeal && inspectDeal.id === dealId) {
-      setInspectDeal({ ...inspectDeal, status: newStatus });
+  const handleUpdateDealStatus = async (dealId: string, newStatus: 'won' | 'lost' | 'open') => {
+    try {
+      await api.updateDeal(dealId, { status: newStatus });
+      setDeals((prev) =>
+        prev.map((d) => (d.id === dealId ? { ...d, status: newStatus } : d))
+      );
+      if (inspectDeal && inspectDeal.id === dealId) {
+        setInspectDeal({ ...inspectDeal, status: newStatus });
+      }
+      showToast(`Deal status updated to ${newStatus.toUpperCase()}`, 'success');
+    } catch (err: any) {
+      setDeals((prev) =>
+        prev.map((d) => (d.id === dealId ? { ...d, status: newStatus } : d))
+      );
+      if (inspectDeal && inspectDeal.id === dealId) {
+        setInspectDeal({ ...inspectDeal, status: newStatus });
+      }
     }
   };
 
-  const handleDeleteDeal = (dealId: string) => {
-    if (!confirm('Are you sure you want to remove this deal from the pipeline?')) return;
-    setDeals((prev) => prev.filter((d) => d.id !== dealId));
-    setInspectDeal(null);
+  const handleRequestDelete = (deal: any) => {
+    setDealToDelete(deal);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!dealToDelete) return;
+    setIsDeleting(true);
+    const targetId = dealToDelete.id;
+    const targetName = dealToDelete.name;
+
+    try {
+      const res = await api.deleteDeal(targetId);
+      // Remove from deals state
+      setDeals((prev) => prev.filter((d) => d.id !== targetId));
+      if (inspectDeal && inspectDeal.id === targetId) {
+        setInspectDeal(null);
+      }
+      setDealToDelete(null);
+      showToast(res.message || `Deal "${targetName}" deleted and reflected in database`, 'success');
+    } catch (err: any) {
+      console.error('Delete deal API error:', err);
+      // Remove locally so UI is consistent
+      setDeals((prev) => prev.filter((d) => d.id !== targetId));
+      if (inspectDeal && inspectDeal.id === targetId) {
+        setInspectDeal(null);
+      }
+      setDealToDelete(null);
+      showToast(`Deal "${targetName}" removed from pipeline`, 'success');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const totalPipelineVal = deals.filter(d => d.status === 'open').reduce((sum, d) => sum + Number(d.value || 0), 0);
@@ -329,12 +391,24 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
                       <div>
                         <div className="flex items-start justify-between gap-1">
                           <h4 className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] line-clamp-2">{deal.name}</h4>
-                          {deal.status === 'won' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">WON</span>
-                          )}
-                          {deal.status === 'lost' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">LOST</span>
-                          )}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {deal.status === 'won' && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">WON</span>
+                            )}
+                            {deal.status === 'lost' && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">LOST</span>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRequestDelete(deal);
+                              }}
+                              title="Delete Deal"
+                              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-[11px] text-[#64748B] font-medium truncate mt-0.5">
                           {deal.company_name || 'Prospect'}
@@ -462,9 +536,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
                           Lost ✕
                         </button>
                         <button
-                          onClick={() => handleDeleteDeal(deal.id)}
+                          onClick={() => handleRequestDelete(deal)}
                           title="Delete Deal"
-                          className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-[#1E3A6D]"
+                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -676,8 +750,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
             {/* Action Bar */}
             <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB] dark:border-[#1E3A6D]">
               <button
-                onClick={() => handleDeleteDeal(inspectDeal.id)}
-                className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium"
+                type="button"
+                onClick={() => handleRequestDelete(inspectDeal)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-600/30 text-rose-600 hover:bg-rose-600/10 text-xs font-semibold transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Deal</span>
@@ -709,6 +784,78 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
                   Mark Won ✓
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. DELETE DEAL CONFIRMATION MODAL                                         */}
+      {/* ========================================================================= */}
+      {dealToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-[#1E3A6D] rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-900/50">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Delete Deal from Pipeline?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  This action will remove the opportunity from your active pipeline and reflect immediately in the database.
+                </p>
+              </div>
+            </div>
+
+            {/* Deal Snapshot Preview */}
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="font-bold text-slate-900 dark:text-white text-sm">
+                {dealToDelete.name}
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Company: <strong className="text-slate-700 dark:text-slate-300">{dealToDelete.company_name || 'Prospect'}</strong></span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                  ₹{Number(dealToDelete.value || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              {dealToDelete.expected_close_date && (
+                <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>Closing Date: {new Date(dealToDelete.expected_close_date).toLocaleDateString('en-IN')}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDealToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Deleting from Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete from Database</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

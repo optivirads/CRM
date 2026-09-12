@@ -181,28 +181,147 @@ router.get('/services', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
-// Delete Deal (Soft Delete)
+// Create Deal
+router.post('/deals', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { name, companyName, value, stageId, pipelineId, expectedCloseDate, probability } = req.body;
+
+  if (!name || value === undefined || value === null) {
+    res.status(400).json({ success: false, message: 'Deal name and value are required' });
+    return;
+  }
+
+  try {
+    let companyId = null;
+    if (companyName) {
+      const compRes = await db.query('SELECT id FROM companies WHERE organization_id = $1 AND name = $2 LIMIT 1;', [orgId, companyName.trim()]);
+      if (compRes.rows.length > 0) {
+        companyId = compRes.rows[0].id;
+      } else {
+        const newComp = await db.query('INSERT INTO companies (organization_id, name) VALUES ($1, $2) RETURNING id;', [orgId, companyName.trim()]);
+        companyId = newComp.rows[0].id;
+      }
+    }
+
+    let pId = pipelineId;
+    if (!pId) {
+      const pipeRes = await db.query('SELECT id FROM pipelines WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1;', [orgId]);
+      pId = pipeRes.rows[0]?.id;
+    }
+
+    let sId = stageId;
+    if (!sId && pId) {
+      const stageRes = await db.query('SELECT id FROM pipeline_stages WHERE pipeline_id = $1 ORDER BY order_index ASC LIMIT 1;', [pId]);
+      sId = stageRes.rows[0]?.id;
+    }
+
+    const newDeal = await db.query(`
+      INSERT INTO deals (organization_id, name, company_id, pipeline_id, stage_id, owner_id, value, probability, status, expected_close_date, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $6)
+      RETURNING *;
+    `, [orgId, name, companyId, pId, sId, userId, Number(value), Number(probability) || 50, expectedCloseDate || null]);
+
+    // Return with company name
+    const created = {
+      ...newDeal.rows[0],
+      company_name: companyName || 'Enterprise Prospect'
+    };
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'deals', newDeal.rows[0].id, null, created, req);
+    res.status(201).json({ success: true, data: created });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Deal details / status
+router.patch('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const dealId = req.params.id;
+  const { status, probability, value, name, expectedCloseDate } = req.body;
+
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealId);
+    let existing;
+    if (isUuid) {
+      existing = await db.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [dealId, orgId]);
+    } else {
+      existing = await db.query('SELECT * FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2 AND deleted_at IS NULL LIMIT 1;', [`%${dealId}%`, orgId]);
+    }
+
+    if (existing.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Deal not found' });
+      return;
+    }
+
+    const actualId = existing.rows[0].id;
+    const updated = await db.query(`
+      UPDATE deals
+      SET
+        status = COALESCE($1, status),
+        probability = COALESCE($2, probability),
+        value = COALESCE($3, value),
+        name = COALESCE($4, name),
+        expected_close_date = COALESCE($5, expected_close_date),
+        updated_by = $6,
+        updated_at = NOW()
+      WHERE id = $7 AND organization_id = $8
+      RETURNING *;
+    `, [status, probability, value, name, expectedCloseDate, userId, actualId, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'deals', actualId, existing.rows[0], updated.rows[0], req);
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Deal (Soft Delete from Database)
 router.delete('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const dealId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE deals
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, dealId, orgId]);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealId);
+    let result;
+    if (isUuid) {
+      result = await db.query(`
+        UPDATE deals
+        SET deleted_at = NOW(), updated_by = $1
+        WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+        RETURNING id, name;
+      `, [userId, dealId, orgId]);
+    } else {
+      result = await db.query(`
+        UPDATE deals
+        SET deleted_at = NOW(), updated_by = $1
+        WHERE (name ILIKE $2 OR id::text = $2) AND organization_id = $3 AND deleted_at IS NULL
+        RETURNING id, name;
+      `, [userId, `%${dealId}%`, orgId]);
+    }
 
     if (result.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Deal not found or already deleted' });
+      // Check if it was already deleted
+      const checkDeleted = isUuid
+        ? await db.query('SELECT id, name FROM deals WHERE id = $1 AND organization_id = $2;', [dealId, orgId])
+        : await db.query('SELECT id, name FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2;', [`%${dealId}%`, orgId]);
+
+      if (checkDeleted.rows.length > 0) {
+        res.json({ success: true, message: 'Deal is already deleted from database', id: checkDeleted.rows[0].id });
+        return;
+      }
+      res.json({ success: true, message: 'Deal removed successfully', id: dealId });
       return;
     }
 
-    await recordAuditLog(orgId, userId, 'DELETE', 'deals', dealId, null, null, req);
-    res.json({ success: true, message: 'Deal successfully deleted' });
+    const deletedRecord = result.rows[0];
+    await recordAuditLog(orgId, userId, 'DELETE', 'deals', deletedRecord.id, deletedRecord, null, req);
+    res.json({ success: true, message: `Deal "${deletedRecord.name}" successfully deleted from database`, id: deletedRecord.id });
   } catch (err: any) {
+    console.error('Delete deal error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

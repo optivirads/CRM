@@ -73,79 +73,12 @@ export const DEFAULT_SERVICE_TIERS = [
   'Headless CRO & Technical Sprint'
 ];
 
-export const DEFAULT_ONBOARDING_ACCOUNTS: OnboardingAccount[] = [
-  {
-    id: 'onb-1',
-    name: 'Zenith DTC Brands',
-    domain: 'zenithbrands.in',
-    avatarText: 'ZB',
-    contractTier: 'Meta CAPI & Server-Side Tracking',
-    contractValue: '₹1,85,000 / mo',
-    am: 'Alex Morgan',
-    pm: 'Elena Rostova',
-    currentStage: 'Asset & Delegation Handoff',
-    stageIndex: 1,
-    daysInOnboarding: 4,
-    totalDaysTarget: 14,
-    completedSteps: 8,
-    totalSteps: 24,
-    hasBlocker: false,
-    primaryContact: {
-      name: 'Arjun Mehta',
-      role: 'VP Marketing',
-      email: 'arjun@zenithbrands.in',
-    }
-  },
-  {
-    id: 'onb-2',
-    name: 'Astra Health Tech',
-    domain: 'astrahealth.com',
-    avatarText: 'AH',
-    contractTier: 'Omnichannel Growth Retainer',
-    contractValue: '₹2,75,000 / mo',
-    am: 'Maya Joseph',
-    pm: 'Elena Rostova',
-    currentStage: 'Strategy & Tracking Kickoff',
-    stageIndex: 2,
-    daysInOnboarding: 7,
-    totalDaysTarget: 14,
-    completedSteps: 14,
-    totalSteps: 24,
-    hasBlocker: false,
-    primaryContact: {
-      name: 'Priya Sharma',
-      role: 'Chief Commercial Officer',
-      email: 'priya@astrahealth.com',
-    }
-  },
-  {
-    id: 'onb-3',
-    name: 'UrbanKulture Apparels',
-    domain: 'urbankulture.in',
-    avatarText: 'UK',
-    contractTier: 'Ad-Hoc / On-Demand Ads SOW',
-    contractValue: 'On-Demand / As-Needed',
-    am: 'Alex Morgan',
-    pm: 'Elena Rostova',
-    currentStage: 'Sales Handoff & Intake',
-    stageIndex: 0,
-    daysInOnboarding: 2,
-    totalDaysTarget: 7,
-    completedSteps: 4,
-    totalSteps: 24,
-    hasBlocker: false,
-    primaryContact: {
-      name: 'Vikram Joshi',
-      role: 'Founder & CEO',
-      email: 'vikram@urbankulture.in',
-    }
-  }
-];
+export const DEFAULT_ONBOARDING_ACCOUNTS: OnboardingAccount[] = [];
 
 export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOpenClient360, onNavigate }) => {
   const { showToast } = useToast();
   // Active selected client for detail view
-  const [selectedClientId, setSelectedClientId] = useState<string>('onb-1');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
 
   // Detail Subtab: 'handoff' | 'assets' | 'strategy' | 'blockers' | 'timeline'
   const [detailTab, setDetailTab] = useState<'handoff' | 'assets' | 'strategy' | 'blockers' | 'timeline'>('handoff');
@@ -190,7 +123,9 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((a: any) => !['onb-1', 'onb-2', 'onb-3'].includes(a.id));
+          }
         } catch (e) { }
       }
     }
@@ -585,32 +520,29 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
                     </span>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Proposal Ref:</span>
-                      <strong className="text-slate-800 dark:text-slate-200">QUO-2026-089 (CAPI Cloud)</strong>
+                      <strong className="text-slate-800 dark:text-slate-200">SOW-{selectedClient.id.toUpperCase()}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Contract Value:</span>
-                      <strong className="text-emerald-600 dark:text-emerald-400 font-bold">₹18,50,000 / mo + GST</strong>
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{selectedClient.contractValue}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Billing Model:</span>
-                      <span>Monthly Advance (Net 15)</span>
+                      <span className="text-slate-500">Tier / Scope:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedClient.contractTier}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Kickoff Advance Recd:</span>
-                      <span className="text-emerald-600 font-semibold">₹9,25,000 via NEFT ✓</span>
+                      <span className="text-slate-500">Account Lead:</span>
+                      <span className="text-slate-800 dark:text-slate-200">{selectedClient.am}</span>
                     </div>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0E1A2E] border border-slate-100 dark:border-slate-800 space-y-2">
                     <span className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px] block">
-                      Key Commercial Deliverables
+                      Commercial Deliverables
                     </span>
-                    <ul className="space-y-1.5 text-slate-700 dark:text-slate-300 list-disc list-inside">
-                      <li>Server-side Conversion API (CAPI) on Google Cloud Run</li>
-                      <li>GA4 BigQuery raw event pipeline with 100% attribution</li>
-                      <li>Enterprise CRM bidirectional contact sync with OptiVir</li>
-                      <li>Executive Weekly Dashboard with Automated ROAS Alerts</li>
-                    </ul>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Deliverables defined under <strong>{selectedClient.contractTier}</strong>. Workstreams and SLA checklists are synchronized directly with delivery pods.
+                    </p>
                   </div>
                 </div>
 
