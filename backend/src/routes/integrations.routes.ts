@@ -100,7 +100,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
             data: { entity: data.entity, count: data.count }
           });
         } else {
-          res.status(apiRes.status >= 500 ? 502 : 400).json({
+          res.json({
             success: false,
             message: `Razorpay Authentication Failed (${apiRes.status})`,
             details: data?.error?.description || data?.error?.code || 'Invalid Key ID or Key Secret credentials.',
@@ -114,7 +114,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
       case 'int-stripe': {
         const { secretKey } = credentials;
         if (!secretKey) {
-          res.status(400).json({ success: false, message: 'Stripe Secret Key is required' });
+          res.json({ success: false, message: 'Stripe Secret Key is required', details: 'Please enter a valid Stripe Secret Key starting with sk_live_ or sk_test_.' });
           return;
         }
 
@@ -135,7 +135,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
             data: { livemode: data.livemode, currency }
           });
         } else {
-          res.status(apiRes.status >= 500 ? 502 : 400).json({
+          res.json({
             success: false,
             message: `Stripe Handshake Failed (${apiRes.status})`,
             details: data?.error?.message || 'Invalid Stripe Secret Key.',
@@ -184,35 +184,111 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
       // 4. META BUSINESS MANAGER / GRAPH API
       case 'int-meta': {
-        const { partnerId, accessToken, pixelId } = credentials;
+        const { partnerId, accessToken, adAccountId, pixelId } = credentials;
         if (!accessToken) {
-          res.status(400).json({ success: false, message: 'System User Access Token is required for Meta' });
+          res.json({
+            success: false,
+            message: 'System User Access Token Required',
+            details: 'Please enter a valid Meta System User Access Token (starts with EAAB, EAAG, etc.).'
+          });
           return;
         }
 
-        const target = partnerId ? partnerId.trim() : 'me';
-        const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(target)}?fields=id,name,verification_status&access_token=${encodeURIComponent(accessToken.trim())}`;
-        
-        const apiRes = await fetch(url);
-        const latencyMs = Date.now() - startTime;
-        const data: any = await apiRes.json().catch(() => ({}));
+        const token = accessToken.trim();
 
-        if (apiRes.ok && !data.error) {
+        // 1. Validate token identity and permissions via /me
+        const meUrl = `https://graph.facebook.com/v20.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`;
+        const meRes = await fetch(meUrl);
+        const latencyMs = Date.now() - startTime;
+        const meData: any = await meRes.json().catch(() => ({}));
+
+        if (!meRes.ok || meData.error) {
+          const errMsg = meData?.error?.message || 'The provided System User token is invalid, expired, or has insufficient permissions.';
+          const errCode = meData?.error?.code ? ` (Meta Error Code: ${meData.error.code})` : '';
           res.json({
-            success: true,
-            message: 'Meta Graph API v20.0 Verified (200 OK)',
-            details: `Connected to Meta Partner: "${data.name || data.id}". Direct Graph API permissions active (${latencyMs}ms).`,
-            latencyMs,
-            data: { id: data.id, name: data.name }
-          });
-        } else {
-          res.status(apiRes.status >= 500 ? 502 : 400).json({
             success: false,
-            message: 'Meta Graph API Authentication Failed',
-            details: data?.error?.message || 'Invalid Meta System User Access Token or Partner ID.',
+            message: 'Meta Access Token Authentication Failed',
+            details: `${errMsg}${errCode}. Verify this token in Meta Business Settings > Users > System Users.`,
             latencyMs
           });
+          return;
         }
+
+        const actorName = meData.name || 'System User';
+        const actorId = meData.id;
+        const detailsParts: string[] = [`Token authenticated for "${actorName}" (ID: ${actorId})`];
+
+        // 2. Validate Ad Account if provided
+        const rawAd = (adAccountId || '').trim();
+        if (rawAd) {
+          const cleanAdId = rawAd.startsWith('act_') ? rawAd : `act_${rawAd}`;
+          try {
+            const actUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanAdId)}?fields=id,name,account_status,currency,timezone_name&access_token=${encodeURIComponent(token)}`;
+            const actRes = await fetch(actUrl);
+            const actData: any = await actRes.json().catch(() => ({}));
+            if (actRes.ok && !actData.error) {
+              const statusMap: Record<number, string> = { 1: 'ACTIVE', 2: 'DISABLED', 3: 'UNSETTLED', 7: 'PENDING_RISK_REVIEW' };
+              const statusStr = statusMap[actData.account_status] || 'STATUS_' + actData.account_status;
+              detailsParts.push(`Ad Account "${actData.name || cleanAdId}" verified (${statusStr}, ${actData.currency || 'INR'})`);
+            } else if (actData?.error?.message) {
+              detailsParts.push(`Ad Account note: ${actData.error.message}`);
+            }
+          } catch (e: any) {
+            detailsParts.push(`Ad Account note: ${e.message}`);
+          }
+        }
+
+        // 3. Validate Partner/Business ID if provided
+        const rawPartner = (partnerId || '').trim();
+        const rawAdDigits = rawAd.replace(/\D/g, '');
+        const partnerDigits = rawPartner.replace(/\D/g, '');
+
+        if (rawPartner && partnerDigits !== rawAdDigits) {
+          try {
+            const bizUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(rawPartner)}?fields=id,name&access_token=${encodeURIComponent(token)}`;
+            const bizRes = await fetch(bizUrl);
+            const bizData: any = await bizRes.json().catch(() => ({}));
+            if (bizRes.ok && !bizData.error) {
+              detailsParts.push(`Business Partner "${bizData.name || rawPartner}" verified`);
+            } else if (bizData?.error?.message) {
+              detailsParts.push(`Partner ID note: ${bizData.error.message}`);
+            }
+          } catch (e: any) {
+            // non-fatal
+          }
+        } else if (rawPartner && partnerDigits === rawAdDigits && rawAdDigits.length > 0) {
+          detailsParts.push(`Partner ID matched Ad Account ${rawAd || rawPartner}`);
+        }
+
+        // 4. Validate Pixel / CAPI Dataset if provided
+        const rawPixel = (pixelId || '').trim();
+        if (rawPixel) {
+          try {
+            const pxUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(rawPixel)}?fields=id,name&access_token=${encodeURIComponent(token)}`;
+            const pxRes = await fetch(pxUrl);
+            const pxData: any = await pxRes.json().catch(() => ({}));
+            if (pxRes.ok && !pxData.error) {
+              detailsParts.push(`CAPI Dataset/Pixel "${pxData.name || rawPixel}" verified`);
+            } else if (pxData?.error?.message) {
+              detailsParts.push(`Dataset note: ${pxData.error.message}`);
+            }
+          } catch (e: any) {
+            // non-fatal
+          }
+        }
+
+        res.json({
+          success: true,
+          message: 'Meta Graph API v20.0 Verified (200 OK)',
+          details: `${detailsParts.join(' • ')} (${latencyMs}ms).`,
+          latencyMs,
+          data: {
+            actorId,
+            actorName,
+            adAccountId: rawAd || undefined,
+            pixelId: rawPixel || undefined
+          }
+        });
         return;
       }
 
@@ -287,7 +363,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
             data: { name: data.shop?.name, domain: cleanDomain, currency: data.shop?.currency }
           });
         } else {
-          res.status(400).json({
+          res.json({
             success: false,
             message: 'Shopify Store Authentication Failed',
             details: typeof data.errors === 'string' ? data.errors : 'Unable to connect to Shopify store. Please check the myshopify domain and Admin access token.',
@@ -301,7 +377,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
       case 'int-slack': {
         const { botToken, channel } = credentials;
         if (!botToken) {
-          res.status(400).json({ success: false, message: 'Slack Bot User OAuth Token is required' });
+          res.json({ success: false, message: 'Slack Bot User OAuth Token is required', details: 'Bot token must start with xoxb-.' });
           return;
         }
 
@@ -324,7 +400,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
             data: { team: data.team, user: data.user, url: data.url }
           });
         } else {
-          res.status(400).json({
+          res.json({
             success: false,
             message: 'Slack Bot Authorization Failed',
             details: `Slack API error: ${data.error || 'invalid_auth'}. Ensure the token starts with xoxb- and has chat:write scopes.`,
@@ -338,7 +414,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
       case 'int-whatsapp': {
         const { wabaId, accessToken } = credentials;
         if (!wabaId || !accessToken) {
-          res.status(400).json({ success: false, message: 'Both WABA ID and Access Token are required for WhatsApp' });
+          res.json({ success: false, message: 'Both WABA ID and Access Token are required for WhatsApp' });
           return;
         }
 
@@ -355,7 +431,7 @@ router.post('/test', requireAuth, async (req: AuthenticatedRequest, res: Respons
             data: { id: data.id, name: data.name }
           });
         } else {
-          res.status(400).json({
+          res.json({
             success: false,
             message: 'WhatsApp Cloud API Error',
             details: data?.error?.message || 'Invalid WhatsApp Business Account ID or Access Token.',

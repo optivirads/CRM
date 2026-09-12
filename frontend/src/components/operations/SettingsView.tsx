@@ -2896,8 +2896,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               } catch (err: any) {
                                 setTestResult({
                                   success: false,
-                                  message: 'Connection Handshake Failed',
-                                  details: err?.message || 'Server-to-server connection test failed. Check network or credentials.'
+                                  message: err?.message || 'Connection Handshake Failed',
+                                  details: err?.details || err?.data?.details || 'Server-to-server connection test failed. Check network or credentials.'
                                 });
                               } finally {
                                 setIsTestingConnection(false);
@@ -2924,9 +2924,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 showToast('Please enter Stripe Secret Key');
                                 return;
                               }
-                              if (configuringInteg.id === 'int-meta' && (!integForm.partnerId || !integForm.accessToken)) {
-                                showToast('Please enter Business Partner ID and Access Token');
-                                return;
+                              if (configuringInteg.id === 'int-meta') {
+                                if (!integForm.accessToken) {
+                                  showToast('Please enter System User Access Token');
+                                  return;
+                                }
+                                if (!integForm.partnerId && !integForm.adAccountId) {
+                                  showToast('Please enter either Business Partner ID or Ad Account ID');
+                                  return;
+                                }
                               }
                               if (configuringInteg.id === 'int-google' && (!integForm.cid || !integForm.developerToken)) {
                                 showToast('Please enter Manager CID and Developer Token');
@@ -2953,7 +2959,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               if (configuringInteg.id === 'int-paytm') statusText = `Live • MID: ${integForm.mid.substring(0, 8)}...`;
                               else if (configuringInteg.id === 'int-razorpay') statusText = `Live • ${integForm.keyId.substring(0, 10)}...`;
                               else if (configuringInteg.id === 'int-stripe') statusText = `Active • Currency: ${integForm.currency || 'USD'}`;
-                              else if (configuringInteg.id === 'int-meta') statusText = `Active • Partner: ${integForm.partnerId}`;
+                              else if (configuringInteg.id === 'int-meta') statusText = `Active • ${integForm.adAccountId || `Partner: ${integForm.partnerId}`}`;
                               else if (configuringInteg.id === 'int-google') statusText = `Active • CID: ${integForm.cid}`;
                               else if (configuringInteg.id === 'int-shopify') statusText = `Linked • ${integForm.domain}`;
                               else if (configuringInteg.id === 'int-slack') statusText = `Active • ${integForm.channel || '#alerts'}`;

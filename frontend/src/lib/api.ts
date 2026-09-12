@@ -26,7 +26,10 @@ class ApiClient {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || `API error: ${response.status}`);
+      const err: any = new Error(data.message || `API error: ${response.status}`);
+      err.details = data.details;
+      err.data = data;
+      throw err;
     }
 
     return data;
