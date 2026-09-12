@@ -240,6 +240,39 @@ class ApiClient {
   async getExecutiveSummary() {
     return this.request<{ success: boolean; data: any }>('/reports/executive-summary');
   }
+
+  // Integrations Hub
+  async getIntegrations() {
+    return this.request<{ success: boolean; data: any[] }>('/integrations');
+  }
+
+  async testIntegration(integrationId: string, credentials: Record<string, string>) {
+    return this.request<{ success: boolean; message: string; details?: string; latencyMs?: number; data?: any }>('/integrations/test', {
+      method: 'POST',
+      body: JSON.stringify({ integrationId, credentials }),
+    });
+  }
+
+  async saveIntegration(payload: {
+    integrationId: string;
+    name?: string;
+    category?: string;
+    config?: Record<string, any>;
+    statusText?: string;
+    connected?: boolean;
+    metadata?: Record<string, any>;
+  }) {
+    return this.request<{ success: boolean; message: string; data?: any }>('/integrations/save', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async disconnectIntegration(integrationId: string) {
+    return this.request<{ success: boolean; message: string }>(`/integrations/${integrationId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiClient();
