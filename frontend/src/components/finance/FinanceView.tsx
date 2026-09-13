@@ -656,7 +656,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
             {/* Invoices High-Density Table */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[800px] text-left text-xs">
                   <thead className="bg-[#F8FAFC] dark:bg-[#0A101C] text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="p-3.5 pl-4 w-10">
@@ -1074,7 +1074,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
             {/* Payments Table */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[800px] text-left text-xs">
                   <thead className="bg-[#F8FAFC] dark:bg-[#0A101C] text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="p-3.5 pl-4">PAYMENT ID</th>
@@ -1362,7 +1362,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
             {/* Expenses Table */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[800px] text-left text-xs">
                   <thead className="bg-[#F8FAFC] dark:bg-[#0A101C] text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="p-3.5 pl-4">EXPENSE ID</th>

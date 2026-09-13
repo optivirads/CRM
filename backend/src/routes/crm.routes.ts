@@ -1,21 +1,65 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
+import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
 
 const router = Router();
+
+const createLeadSchema = z.object({
+  first_name: z.string().min(1, 'First name is required'),
+  last_name: z.string().optional().nullable(),
+  company_name: z.string().optional().nullable(),
+  email: z.string().email('Valid email is required').optional().or(z.literal('')).nullable(),
+  phone: z.string().optional().nullable(),
+  source_id: z.string().optional().nullable(),
+  campaign: z.string().optional().nullable(),
+  service_interest: z.string().optional().nullable(),
+  lead_value: z.union([z.number(), z.string()]).optional(),
+  priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).optional(),
+  next_followup_at: z.union([z.string(), z.date()]).optional().nullable(),
+  notes: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional()
+});
 
 // ============================================================================
 // 1. LEADS
 // ============================================================================
 
-// List Leads with filtering and search
+// List Leads with filtering, search and pagination
 router.get('/leads', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { status, priority, search, ownerId } = req.query;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
-    let query = `
+    let whereClause = `WHERE l.organization_id = $1 AND l.deleted_at IS NULL`;
+    const params: any[] = [orgId];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND l.status = $${params.length}`;
+    }
+    if (priority) {
+      params.push(priority);
+      whereClause += ` AND l.priority = $${params.length}`;
+    }
+    if (ownerId) {
+      params.push(ownerId);
+      whereClause += ` AND l.owner_id = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      whereClause += ` AND (l.first_name ILIKE $${params.length} OR l.last_name ILIKE $${params.length} OR l.company_name ILIKE $${params.length} OR l.email ILIKE $${params.length})`;
+    }
+
+    const countRes = await db.query(`SELECT COUNT(*) FROM leads l ${whereClause};`, params);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
+    const query = `
       SELECT 
         l.*,
         ls.name as source_name,
@@ -23,38 +67,29 @@ router.get('/leads', requireAuth, async (req: AuthenticatedRequest, res: Respons
       FROM leads l
       LEFT JOIN lead_sources ls ON l.source_id = ls.id
       LEFT JOIN users u ON l.owner_id = u.id
-      WHERE l.organization_id = $1 AND l.deleted_at IS NULL
+      ${whereClause}
+      ORDER BY l.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
-    const params: any[] = [orgId];
 
-    if (status) {
-      params.push(status);
-      query += ` AND l.status = $${params.length}`;
-    }
-    if (priority) {
-      params.push(priority);
-      query += ` AND l.priority = $${params.length}`;
-    }
-    if (ownerId) {
-      params.push(ownerId);
-      query += ` AND l.owner_id = $${params.length}`;
-    }
-    if (search) {
-      params.push(`%${search}%`);
-      query += ` AND (l.first_name ILIKE $${params.length} OR l.last_name ILIKE $${params.length} OR l.company_name ILIKE $${params.length} OR l.email ILIKE $${params.length})`;
-    }
-
-    query += ` ORDER BY l.created_at DESC;`;
-
-    const result = await db.query(query, params);
-    res.json({ success: true, data: result.rows });
+    const result = await db.query(query, [...params, limit, offset]);
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // Create Lead
-router.post('/leads', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/leads', requireAuth, validateBody(createLeadSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const {

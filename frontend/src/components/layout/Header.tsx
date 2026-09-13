@@ -37,6 +37,7 @@ interface HeaderProps {
   onQuickAction?: () => void;
   onNavigate?: (tab: any) => void;
   onCreateInvoice?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,7 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentTab = 'dashboard',
   onQuickAction,
   onNavigate,
-  onCreateInvoice
+  onCreateInvoice,
+  onToggleSidebar
 }) => {
   const { user, activePersona, switchPersona, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -109,31 +111,34 @@ export const Header: React.FC<HeaderProps> = ({
   const breadcrumb = getBreadcrumbLabel();
 
   return (
-    <header className="h-14 border-b border-[#E2E6EC] dark:border-[#152238] bg-[#FFFFFF] dark:bg-[#0A121F] px-6 flex items-center justify-between sticky top-0 z-50 transition-colors duration-200">
+    <header className="h-14 border-b border-[#E2E6EC] dark:border-[#152238] bg-[#FFFFFF] dark:bg-[#0A121F] px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 transition-colors duration-200">
       {/* 1. Left Breadcrumbs matching reference screenshot */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
-          onClick={() => onNavigate && onNavigate('dashboard')}
-          className="text-[#64748B] hover:text-[#0B1727] dark:hover:text-white p-1 rounded-md transition"
+          onClick={() => onToggleSidebar ? onToggleSidebar() : onNavigate && onNavigate('dashboard')}
+          className="text-[#64748B] hover:text-[#0B1727] dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34] transition"
+          title="Toggle Navigation Menu"
         >
-          <Menu className="w-4 h-4" />
+          <Menu className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs overflow-hidden">
           <button
             onClick={() => onNavigate && onNavigate('dashboard')}
-            className="flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer"
+            className="flex items-center gap-1.5 hover:opacity-85 transition cursor-pointer shrink-0"
             title="OptiVir CRM Dashboard"
           >
             <img
               src="/images/optivir-logo.png"
               alt="OptiVir CRM"
-              className="h-5.5 w-auto object-contain"
+              className="h-5 sm:h-5.5 w-auto object-contain"
             />
           </button>
+          <div className="hidden sm:flex items-center gap-1.5">
+            <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+            <span className="text-[#64748B] dark:text-[#94A3B8] font-medium">{breadcrumb.section}</span>
+          </div>
           <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
-          <span className="text-[#64748B] dark:text-[#94A3B8] font-medium">{breadcrumb.section}</span>
-          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
-          <span className="text-[#0B1727] dark:text-[#F8FAFC] font-semibold">{breadcrumb.page}</span>
+          <span className="text-[#0B1727] dark:text-[#F8FAFC] font-semibold truncate">{breadcrumb.page}</span>
         </div>
       </div>
 

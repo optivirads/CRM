@@ -3,6 +3,7 @@
 import React from 'react';
 import { Printer, Download, X, CheckCircle2, Building2, Receipt, Mail, Phone, Globe, QrCode, ShieldCheck } from 'lucide-react';
 import { numberToIndianWords } from '@/lib/numberToWords';
+import { downloadClientPdf } from '@/lib/downloadPdf';
 
 export interface InvoiceData {
   id: string;
@@ -34,20 +35,14 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
   };
 
   const handleDownloadPDF = () => {
-    const params = new URLSearchParams({
+    downloadClientPdf('invoice', {
+      id: invoice.id,
       number: invoice.invoice_number || 'INV-001',
       client: invoice.client_name || 'Client',
       total: String(invoice.total || 0),
       email: invoice.client_email || '',
       gstin: invoice.client_gstin || ''
     });
-    const downloadUrl = `/api/pdf/invoice?${params.toString()}`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `Invoice-${invoice.invoice_number || 'INV-001'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const totalNum = Number(invoice.total) || 0;

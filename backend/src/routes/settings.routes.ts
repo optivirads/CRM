@@ -1,10 +1,30 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import { db } from '../config/db';
-import { requireAuth, recordAuditLog } from '../middleware/auth';
+import { requireAuth, requireRole, requireOwner, requireOwnerOrRole, invalidateOrgSecurityCache, recordAuditLog } from '../middleware/auth';
+import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
 import { hashPassword } from '../utils/auth';
 
 const router = Router();
+
+const createUserSchema = z.object({
+  email: z.string().email('Valid email address is required'),
+  name: z.string().optional(),
+  role: z.string().min(1, 'Role is required').optional(),
+  designation: z.string().optional(),
+  team_id: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  allowed_tabs: z.array(z.string()).optional()
+});
+
+const securitySchema = z.object({
+  two_factor_enforced: z.boolean().optional(),
+  session_timeout: z.string().regex(/^(\d+)(m|h|d)$/i, 'Invalid timeout format (e.g. 15m, 1h, 7d)').optional(),
+  failed_lockout_limit: z.union([z.number().min(1).max(20), z.string()]).optional(),
+  ip_whitelist: z.array(z.string()).optional()
+});
 
 // ============================================================================
 // 1. ORGANIZATION IDENTITY
@@ -54,7 +74,7 @@ router.get('/organization', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-router.put('/organization', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/organization', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const {
     legal_name,
@@ -162,7 +182,7 @@ router.get('/regional', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
-router.put('/regional', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/regional', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { timezone, currency, date_format, fiscal_year, auto_shift_adjustment } = req.body;
 
@@ -389,7 +409,7 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-router.post('/users', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { name, email, role, designation, team_id, phone, password, allowed_tabs } = req.body;
 
@@ -477,7 +497,7 @@ router.post('/users', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
   const { role, designation, status, team_id, allowed_tabs } = req.body;
@@ -531,16 +551,10 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 });
 
 // Reset a user's password (by Administrator / Owner)
-router.post('/users/:id/reset-password', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
   const { password } = req.body;
-
-  const isSuper = req.user?.isOwner || req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.email?.toLowerCase() === 'optivirads@gmail.com';
-  if (!isSuper) {
-    res.status(403).json({ success: false, message: 'Only administrators and organization owners can reset passwords.' });
-    return;
-  }
 
   if (!password || typeof password !== 'string' || password.length < 6) {
     res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
@@ -575,7 +589,7 @@ router.post('/users/:id/reset-password', requireAuth, async (req: AuthenticatedR
   }
 });
 
-router.delete('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/users/:id', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
 
@@ -655,7 +669,7 @@ router.get('/roles', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-router.post('/roles', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/roles', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { name, description, permissions } = req.body;
 
@@ -704,7 +718,7 @@ router.post('/roles', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-router.put('/roles/:id/permissions', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/roles/:id/permissions', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const roleId = req.params.id;
   const { permissions } = req.body; // array of permission code strings or object map
@@ -758,7 +772,7 @@ router.put('/roles/:id/permissions', requireAuth, async (req: AuthenticatedReque
   }
 });
 
-router.delete('/roles/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/roles/:id', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const roleId = req.params.id;
 
@@ -851,7 +865,7 @@ router.get('/teams', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-router.post('/teams', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/teams', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { name, lead, target, description, color } = req.body;
 
@@ -900,7 +914,7 @@ router.post('/teams', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-router.patch('/teams/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.patch('/teams/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const teamId = req.params.id;
   const { name, target, description, leader_id } = req.body;
@@ -941,7 +955,7 @@ router.patch('/teams/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-router.delete('/teams/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/teams/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const teamId = req.params.id;
 
@@ -992,7 +1006,7 @@ router.get('/security', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
-router.put('/security', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/security', requireAuth, requireOwner, validateBody(securitySchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { two_factor_enforced, session_timeout, failed_lockout_limit, ip_whitelist } = req.body;
 
@@ -1016,6 +1030,9 @@ router.put('/security', requireAuth, async (req: AuthenticatedRequest, res: Resp
       SET settings = $1, updated_at = NOW()
       WHERE id = $2;
     `, [JSON.stringify(newSettings), orgId]);
+
+    // Invalidate the auth middleware security cache so new policy takes effect immediately
+    invalidateOrgSecurityCache(orgId);
 
     await recordAuditLog(
       orgId,
@@ -1107,7 +1124,7 @@ router.get('/pipelines', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-router.post('/pipelines', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/pipelines', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { name, is_default } = req.body;
 
@@ -1237,7 +1254,7 @@ router.patch('/stages/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-router.delete('/stages/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/stages/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const stageId = req.params.id;
 
@@ -1952,7 +1969,7 @@ router.get('/billing', requireAuth, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-router.put('/billing', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/billing', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { gstin, pan, state_code, bank_name, account_no, ifsc, invoice_prefix } = req.body;
 
@@ -2008,9 +2025,14 @@ router.put('/billing', requireAuth, async (req: AuthenticatedRequest, res: Respo
 
 router.get('/audit-logs', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
+    const countRes = await db.query('SELECT COUNT(*) FROM audit_logs WHERE organization_id = $1;', [orgId]);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
     const { rows } = await db.query(`
       SELECT 
         al.id,
@@ -2031,8 +2053,8 @@ router.get('/audit-logs', requireAuth, async (req: AuthenticatedRequest, res: Re
       LEFT JOIN roles r ON ou.role_id = r.id
       WHERE al.organization_id = $1
       ORDER BY al.created_at DESC
-      LIMIT $2;
-    `, [orgId, limit]);
+      LIMIT $2 OFFSET $3;
+    `, [orgId, limit, offset]);
 
     const formatted = rows.map(l => {
       const operatorName = l.first_name ? `${l.first_name} ${l.last_name || ''}`.trim() : (l.email || 'System Security Daemon');
@@ -2072,7 +2094,16 @@ router.get('/audit-logs', requireAuth, async (req: AuthenticatedRequest, res: Re
       };
     });
 
-    res.json({ success: true, data: formatted });
+    res.json({
+      success: true,
+      data: formatted,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     console.error('Fetch audit logs error:', err);
     res.status(500).json({ success: false, message: err.message });

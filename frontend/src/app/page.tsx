@@ -33,6 +33,7 @@ export default function Home() {
   const [selectedClient360Name, setSelectedClient360Name] = useState<string | undefined>(undefined);
   const [invoiceTransferData, setInvoiceTransferData] = useState<any>(null);
   const [openCreateInvoiceTrigger, setOpenCreateInvoiceTrigger] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Restore navigation state on initial mount from URL query params or localStorage
   React.useEffect(() => {
@@ -228,10 +229,15 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full bg-[#F8F9FB] dark:bg-[#060B13] text-[#0B1727] dark:text-[#F8FAFC] overflow-hidden font-sans transition-colors duration-200">
       {/* 1. Sidebar */}
-      <Sidebar currentTab={currentTab} onTabChange={navigateTo} />
+      <Sidebar
+        currentTab={currentTab}
+        onTabChange={navigateTo}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       {/* 2. Main Work Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
         <Header
           title={title}
           subtitle={subtitle}
@@ -239,6 +245,7 @@ export default function Home() {
           onQuickAction={() => navigateTo('leads')}
           onNavigate={navigateTo}
           onCreateInvoice={handleOpenCreateInvoice}
+          onToggleSidebar={() => setSidebarOpen(prev => !prev)}
         />
 
         {/* Scrollable View Area */}

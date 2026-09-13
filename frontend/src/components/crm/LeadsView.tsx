@@ -642,7 +642,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
       <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-4 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Search Box with ⌘F */}
-          <div className="relative flex-1 min-w-[280px]">
+          <div className="relative flex-1 min-w-full sm:min-w-[240px]">
             <Search className="w-3.5 h-3.5 text-[#8492A6] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -793,7 +793,8 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
       {/* 5. MAIN ENTERPRISE LEADS TABLE (Matching Image 1)                         */}
       {/* ========================================================================= */}
       <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl overflow-hidden shadow-xs">
-        <table className="w-full text-left text-xs text-[#0B1727] dark:text-[#CBD5E1]">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full min-w-[800px] text-left text-xs text-[#0B1727] dark:text-[#CBD5E1]">
           <thead className="bg-[#F8FAFC] dark:bg-[#0A101C] text-[#64748B] dark:text-[#94A3B8] text-[11px] uppercase tracking-wider border-b border-[#E2E6EC] dark:border-[#152238]">
             <tr>
               <th className="p-4 w-10 text-center">
@@ -912,6 +913,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
             }))}
           </tbody>
         </table>
+        </div>
 
         {/* 6. Pagination Bar (Matching Image 1) */}
         <div className="p-4 border-t border-[#E2E6EC] dark:border-[#152238] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#5A6A80] dark:text-[#94A3B8]">

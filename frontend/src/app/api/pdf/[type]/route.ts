@@ -37,18 +37,34 @@ function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
 // -------------------------------------------------------------
 // 1. TAX INVOICE PDF GENERATOR
 // -------------------------------------------------------------
-async function generateInvoicePDF(params: any): Promise<Buffer> {
+async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
   const promise = streamToBuffer(doc);
 
-  const invNumber = params.number || 'INV-2026-089';
-  const clientName = params.client || 'Client Organization';
-  const clientEmail = params.email || 'billing@client.com';
-  const clientGstin = params.gstin || '27AAACA1234A1Z1';
+  const invNumber = params.invoice_number || params.number || 'INV-2026-089';
+  const clientName = params.client_name || params.client || 'Client Organization';
+  const clientEmail = params.client_email || params.email || 'billing@client.com';
+  const clientGstin = params.client_gstin || params.gstin || '27AAACA1234A1Z1';
   const totalAmount = Number(params.total) || 177000;
-  const subtotal = Math.round(totalAmount / 1.18);
-  const cgst = Math.round(subtotal * 0.09);
-  const sgst = Math.round(subtotal * 0.09);
+  const subtotal = Number(params.subtotal) || Math.round(totalAmount / 1.18);
+  const tax = Number(params.tax) || Math.round(subtotal * 0.18);
+  const cgst = Math.round(tax / 2);
+  const sgst = Math.round(tax / 2);
+
+  const invoiceDateStr = params.invoice_date
+    ? new Date(params.invoice_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Oct 15, 2026';
+  const dueDateStr = params.due_date
+    ? new Date(params.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Oct 30, 2026';
+  const rawStatus = (params.status || 'Paid').toUpperCase();
+  const isPaid = rawStatus === 'PAID';
+
+  const orgName = orgData?.legal_name || orgData?.brand_name || orgData?.name || 'OptiVir Ads';
+  const orgWebsite = orgData?.domain_website || 'www.optivirads.com';
+  const orgEmail = orgData?.support_email || 'optivirads@gmail.com';
+  const orgPhone = orgData?.switchboard_phone || '+919995037109';
+  const orgGstin = orgData?.tax_gstin || '27AABCO1234F1Z5';
 
   // Top Accent Bar
   doc.rect(40, 40, 515, 6).fill(COLORS.crimson);
@@ -59,11 +75,11 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
     doc.roundedRect(52, 54, 130, 42, 4).fill('#FFFFFF');
     doc.image(LOGO_PATH, 57, 59, { width: 120 });
     doc.fillColor(COLORS.crimsonLight).fontSize(7.5).font('Helvetica-Bold').text('PERFORMANCE MARKETING & ENTERPRISE CRM', 195, 68);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 195, 80);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text(`${orgName} • ${orgEmail} • ${orgWebsite}`, 195, 80);
   } else {
-    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('OPTIVIR ADS', 55, 58);
+    doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text(orgName.toUpperCase(), 55, 58);
     doc.fillColor(COLORS.crimsonLight).fontSize(7.5).font('Helvetica-Bold').text('PERFORMANCE MARKETING & ENTERPRISE CRM', 55, 76);
-    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Ads • optivirads@gmail.com • www.optivirads.com', 55, 87);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text(`${orgName} • ${orgEmail} • ${orgWebsite}`, 55, 87);
   }
 
   // Invoice Title Right
@@ -76,17 +92,17 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   
   // Columns in metadata
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('INVOICE DATE', 52, y + 8);
-  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text('Oct 15, 2026', 52, y + 20);
+  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(invoiceDateStr, 52, y + 20);
 
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('PAYMENT DUE DATE', 160, y + 8);
-  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text('Oct 30, 2026', 160, y + 20);
+  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(dueDateStr, 160, y + 20);
 
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('PAYMENT TERMS', 280, y + 8);
   doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text('Net 15 Days (ICICI Sync)', 280, y + 20);
 
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('STATUS', 420, y + 8);
-  doc.roundedRect(420, y + 18, 50, 16, 3).fill(COLORS.greenBg);
-  doc.fillColor(COLORS.green).fontSize(8).font('Helvetica-Bold').text('PAID', 432, y + 22);
+  doc.roundedRect(420, y + 18, 60, 16, 3).fill(isPaid ? COLORS.greenBg : '#FEF3C7');
+  doc.fillColor(isPaid ? COLORS.green : COLORS.amber).fontSize(8).font('Helvetica-Bold').text(rawStatus, 426, y + 22);
 
   // Billed By & Billed To Boxes
   y += 58;
@@ -94,16 +110,16 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   // Billed By
   doc.roundedRect(40, y, boxW, 70, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.fillColor(COLORS.crimson).fontSize(7.5).font('Helvetica-Bold').text('ISSUED BY (SERVICE PROVIDER)', 50, y + 8);
-  doc.fillColor(COLORS.navyDark).fontSize(9).font('Helvetica-Bold').text('OptiVir Ads', 50, y + 20);
+  doc.fillColor(COLORS.navyDark).fontSize(9).font('Helvetica-Bold').text(orgName, 50, y + 20);
   doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica')
-     .text('Performance Marketing & Operating System\nWebsite: www.optivirads.com\nEmail: optivirads@gmail.com • Phone: +919995037109', 50, y + 32, { lineGap: 2 });
+     .text(`Performance Marketing & Operating System\nGSTIN: ${orgGstin}\nWebsite: ${orgWebsite} • Phone: ${orgPhone}`, 50, y + 32, { lineGap: 2 });
 
   // Billed To
   doc.roundedRect(303, y, boxW, 70, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.fillColor(COLORS.blue).fontSize(7.5).font('Helvetica-Bold').text('BILLED TO (CLIENT)', 313, y + 8);
   doc.fillColor(COLORS.navyDark).fontSize(9).font('Helvetica-Bold').text(clientName, 313, y + 20);
   doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica')
-     .text(`Entity: Enterprise Tier-1 Retainer\nGSTIN: ${clientGstin} • State Code: 27\nEmail: ${clientEmail}`, 313, y + 32, { lineGap: 2 });
+     .text(`Entity: Enterprise Client\nGSTIN: ${clientGstin} • State Code: 27\nEmail: ${clientEmail}`, 313, y + 32, { lineGap: 2 });
 
   // Line Items Table Header
   y += 80;
@@ -115,27 +131,35 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   doc.text('RATE (INR)', 430, y + 6, { width: 50, align: 'right' });
   doc.text('AMOUNT (INR)', 485, y + 6, { width: 60, align: 'right' });
 
-  // Items
-  const items = [
-    { name: 'Search Engine Optimization (SEO) & Technical Visibility Retainer', sac: '998361', qty: '1 mo', rate: Math.round(subtotal * 0.35) },
-    { name: 'Performance Paid Media Management (Google & Meta PPC)', sac: '998361', qty: '1 mo', rate: Math.round(subtotal * 0.35) },
-    { name: 'Social Media Content Production & Creative Suite (12 Banners, 4 Reels)', sac: '998361', qty: '1 lot', rate: Math.round(subtotal * 0.20) },
-    { name: 'Conversion API (CAPI), GTM Server-Side & Executive BI Reporting', sac: '998361', qty: '1 lot', rate: subtotal - (Math.round(subtotal * 0.35) * 2 + Math.round(subtotal * 0.20)) }
-  ];
+  // Items from params or defaults
+  const rawItems = Array.isArray(params.items) && params.items.length > 0
+    ? params.items
+    : [
+        { description: 'Search Engine Optimization (SEO) & Technical Visibility Retainer', sac: '998361', quantity: '1 mo', rate: Math.round(subtotal * 0.35), amount: Math.round(subtotal * 0.35) },
+        { description: 'Performance Paid Media Management (Google & Meta PPC)', sac: '998361', quantity: '1 mo', rate: Math.round(subtotal * 0.35), amount: Math.round(subtotal * 0.35) },
+        { description: 'Social Media Content Production & Creative Suite (12 Banners, 4 Reels)', sac: '998361', quantity: '1 lot', rate: Math.round(subtotal * 0.20), amount: Math.round(subtotal * 0.20) },
+        { description: 'Conversion API (CAPI), GTM Server-Side & Executive BI Reporting', sac: '998361', quantity: '1 lot', rate: subtotal - (Math.round(subtotal * 0.35) * 2 + Math.round(subtotal * 0.20)), amount: subtotal - (Math.round(subtotal * 0.35) * 2 + Math.round(subtotal * 0.20)) }
+      ];
 
   y += 20;
-  items.forEach((it, idx) => {
+  rawItems.slice(0, 6).forEach((it: any, idx: number) => {
     const rowH = 26;
     if (idx % 2 === 1) {
       doc.rect(40, y, 515, rowH).fill('#F8FAFC');
     }
     doc.rect(40, y, 515, rowH).stroke(COLORS.border);
 
-    doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica-Bold').text(it.name, 50, y + 8, { width: 260 });
-    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text(it.sac, 320, y + 8);
-    doc.text(it.qty, 390, y + 8);
-    doc.text(`INR ${it.rate.toLocaleString('en-IN')}`, 430, y + 8, { width: 50, align: 'right' });
-    doc.fillColor(COLORS.navyDark).font('Helvetica-Bold').text(`INR ${it.rate.toLocaleString('en-IN')}`, 485, y + 8, { width: 60, align: 'right' });
+    const desc = it.description || it.name || 'Professional Services';
+    const sac = it.sac || '998361';
+    const qty = String(it.quantity || it.qty || '1');
+    const rate = Number(it.rate || it.amount || 0);
+    const amt = Number(it.amount || (Number(it.quantity || 1) * rate) || 0);
+
+    doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica-Bold').text(desc, 50, y + 8, { width: 260 });
+    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text(sac, 320, y + 8);
+    doc.text(qty, 390, y + 8);
+    doc.text(`INR ${rate.toLocaleString('en-IN')}`, 430, y + 8, { width: 50, align: 'right' });
+    doc.fillColor(COLORS.navyDark).font('Helvetica-Bold').text(`INR ${amt.toLocaleString('en-IN')}`, 485, y + 8, { width: 60, align: 'right' });
 
     y += rowH;
   });
@@ -146,7 +170,7 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   doc.roundedRect(40, y, 280, 85, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.fillColor(COLORS.navyDark).fontSize(7.5).font('Helvetica-Bold').text('OFFICIAL BANK PAYMENT INSTRUCTIONS', 50, y + 8);
   doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica')
-     .text('Bank Name: ICICI Bank Limited\nAccount Name: OptiVir CRM Technologies Pvt Ltd\nAccount Number: 000205029481\nIFSC Code: ICIC0000002 (Corporate Branch)\nUPI Handle: optivircrm@icici', 50, y + 22, { lineGap: 2.5 });
+     .text(`Bank Name: ICICI Bank Limited\nAccount Name: ${orgName}\nAccount Number: 000205029481\nIFSC Code: ICIC0000002 (Corporate Branch)\nUPI Handle: optivircrm@icici`, 50, y + 22, { lineGap: 2.5 });
 
   // Right: Subtotals & Taxes Box
   doc.roundedRect(330, y, 225, 85, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
@@ -168,7 +192,7 @@ async function generateInvoicePDF(params: any): Promise<Buffer> {
   y += 98;
   doc.roundedRect(40, y, 515, 60, 4).fillAndStroke('#FFFFFF', COLORS.border);
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica')
-     .text('Cryptographic Verification Hash: 9f82a7c41b80d0498b2f91e • DocuSign Certified\nThis document is a computer-generated tax invoice issued by OptiVir CRM Technologies Pvt Ltd under the Indian GST Act 2017.', 50, y + 10, { width: 320, lineGap: 3 });
+     .text(`Cryptographic Verification Hash: 9f82a7c41b80d0498b2f91e • DocuSign Certified\nThis document is a computer-generated tax invoice issued by ${orgName} under the Indian GST Act 2017.`, 50, y + 10, { width: 320, lineGap: 3 });
 
   // Signature line right
   doc.lineCap('butt').moveTo(390, y + 42).lineTo(530, y + 42).stroke(COLORS.border);
@@ -590,13 +614,78 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const queryData = Object.fromEntries(searchParams.entries());
 
+    // 1. Authentication check — require Authorization header or signed token query param
+    const authHeader = request.headers.get('authorization') ||
+      (searchParams.get('token') ? `Bearer ${searchParams.get('token')}` : null);
+
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authentication required to generate and download PDF documents.' },
+        { status: 401 }
+      );
+    }
+
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
+
+    let invoiceData: any = queryData;
+    let orgData: any = null;
+
+    if (type.toLowerCase() === 'invoice') {
+      const targetId = queryData.id || queryData.invoice_id || queryData.number;
+      if (targetId) {
+        try {
+          const invRes = await fetch(`${backendUrl}/api/finance/invoices/${encodeURIComponent(targetId)}`, {
+            headers: { Authorization: authHeader }
+          });
+          if (invRes.status === 401) {
+            return NextResponse.json({ error: 'Unauthorized: Invalid or expired session' }, { status: 401 });
+          }
+          if (invRes.ok) {
+            const json = await invRes.json();
+            if (json.success && json.data) {
+              invoiceData = json.data;
+            }
+          }
+        } catch (e) {
+          console.warn('Backend fetch for invoice failed, using query data:', e);
+        }
+      }
+    } else {
+      // Validate auth token against backend /api/auth/me for all other PDF document types
+      try {
+        const meRes = await fetch(`${backendUrl}/api/auth/me`, {
+          headers: { Authorization: authHeader }
+        });
+        if (meRes.status === 401) {
+          return NextResponse.json({ error: 'Unauthorized: Invalid or expired session' }, { status: 401 });
+        }
+      } catch (e) {
+        console.warn('Backend auth validation check unreachable:', e);
+      }
+    }
+
+    // Try fetching org branding info for document header/footer
+    try {
+      const orgRes = await fetch(`${backendUrl}/api/settings/organization`, {
+        headers: { Authorization: authHeader }
+      });
+      if (orgRes.ok) {
+        const orgJson = await orgRes.json();
+        if (orgJson.success && orgJson.data) {
+          orgData = orgJson.data;
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+
     let pdfBuffer: Buffer;
     let filename = 'document.pdf';
 
     switch (type.toLowerCase()) {
       case 'invoice':
-        pdfBuffer = await generateInvoicePDF(queryData);
-        filename = `Invoice-${queryData.number || 'INV-2026-089'}.pdf`;
+        pdfBuffer = await generateInvoicePDF(invoiceData, orgData);
+        filename = `Invoice-${invoiceData.invoice_number || invoiceData.number || 'INV-2026-089'}.pdf`;
         break;
 
       case 'proposal':
