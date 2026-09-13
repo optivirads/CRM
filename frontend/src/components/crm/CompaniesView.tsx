@@ -71,7 +71,6 @@ export const CompaniesView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [companies, setCompanies] = useState<CompanyRow[]>(INITIAL_COMPANIES);
   const [activeTab, setActiveTab] = useState('all');
-  const [simulatorStep, setSimulatorStep] = useState('1. Companies List');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -259,39 +258,6 @@ export const CompaniesView: React.FC = () => {
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
-      {/* ========================================================================= */}
-      {/* 1. STATE SIMULATOR BANNER (Matching Image 2)                             */}
-      {/* ========================================================================= */}
-      <div className="bg-[#0B1528] text-white p-2.5 rounded-xl border border-[#18263F] flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded bg-red-600 text-white font-bold text-[10px]">STATE SIM</span>
-          <span className="text-slate-300 font-semibold truncate">
-            OptiVir CRM: Companies Management &amp; Hub (crm_companies_management)
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-          {[
-            '1. Companies List',
-            '2. Company Detail',
-            '3. Finance & Projects',
-            '4. Drawer Flyout',
-            '5. Modals (Contact & Op'
-          ].map((st) => (
-            <button
-              key={st}
-              onClick={() => setSimulatorStep(st)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition ${
-                simulatorStep === st
-                  ? 'bg-white text-black font-bold shadow-xs'
-                  : 'text-slate-300 hover:bg-[#13233C]'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* 2. BREADCRUMB, HEADER & ACTIONS (Matching Image 2)                       */}

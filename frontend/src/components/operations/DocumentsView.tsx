@@ -38,15 +38,6 @@ import {
 import { downloadClientPdf } from '@/lib/downloadPdf';
 
 export const DocumentsView: React.FC = () => {
-  // Simulator View State
-  const [simulatorView, setSimulatorView] = useState<
-    '1. Documents Directory & Metrics' |
-    '2. Preview & Audit Drawer' |
-    '3. Upload Queue & OCR' |
-    '4. Entity Hierarchy' |
-    '5. Vault & Empty State'
-  >('1. Documents Directory & Metrics');
-
   // Category Tabs
   const [activeCategory, setActiveCategory] = useState('All Documents (0)');
   const [viewBy, setViewBy] = useState<'Category' | 'Client' | 'Project'>('Category');
@@ -152,53 +143,7 @@ export const DocumentsView: React.FC = () => {
 
   return (
     <div className="pb-16 transition-colors duration-200">
-      {/* 0. Top State Simulator Module Switcher Banner */}
-      <div className="bg-[#0A1628] text-white px-4 py-2.5 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>SIMULATOR VIEW:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              '1. Documents Directory & Metrics',
-              '2. Preview & Audit Drawer',
-              '3. Upload Queue & OCR',
-              '4. Entity Hierarchy',
-              '5. Vault & Empty State'
-            ].map((v) => (
-              <button
-                key={v}
-                onClick={() => {
-                  setSimulatorView(v as any);
-                  if (v === '2. Preview & Audit Drawer') setShowPreviewDrawer(true);
-                  if (v === '3. Upload Queue & OCR') setShowUploadModal(true);
-                  showToast(`Switched view: ${v}`);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  simulatorView === v
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {v === '1. Documents Directory & Metrics' ? '📁 Documents Directory & Metrics' :
-                 v === '2. Preview & Audit Drawer' ? '👁️ Preview & Audit Drawer DOC-MSA-001' :
-                 v === '3. Upload Queue & OCR' ? '☁️ Upload Queue & OCR ●' :
-                 v === '4. Entity Hierarchy' ? '🏢 Entity Hierarchy' : '🛡️ Vault & Empty State'}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            AES-256 Vault Online
-          </span>
-          <span className="text-slate-600">|</span>
-          <span>Sync: Just now</span>
-        </div>
-      </div>
 
       {/* Toast Notification */}
       {toastMessage && (

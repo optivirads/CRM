@@ -39,16 +39,6 @@ interface NotificationsViewProps {
 }
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate }) => {
-  // Simulator View State
-  const [simulatorMode, setSimulatorMode] = useState<
-    '1. Full Center (Active)' |
-    '2. Drawer Overlay' |
-    '3. Preferences Matrix' |
-    '4. Caught Up (Empty)' |
-    '5. Sync / Loading' |
-    '6. Telemetry Error'
-  >('1. Full Center (Active)');
-
   // Main Page Filter Tabs
   const [mainTab, setMainTab] = useState('All (0)');
 
@@ -92,48 +82,16 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
   return (
     <div className="pb-16 transition-colors duration-200">
-      {/* 0. Top Operational Simulator Module Switcher Banner */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>OPERATIONAL SIMULATOR:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              '1. Full Center (Active)',
-              '2. Drawer Overlay',
-              '3. Preferences Matrix',
-              '4. Caught Up (Empty)',
-              '5. Sync / Loading',
-              '6. Telemetry Error'
-            ].map((v) => (
-              <button
-                key={v}
-                onClick={() => {
-                  setSimulatorMode(v as any);
-                  if (v === '2. Drawer Overlay') setShowFloatingPanel(true);
-                  if (v === '3. Preferences Matrix') setShowPreferencesModal(true);
-                  if (v === '4. Caught Up (Empty)') setDrawerEmptyState(true);
-                  if (v === '1. Full Center (Active)') setDrawerEmptyState(false);
-                  showToast(`Simulator: ${v}`);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  simulatorMode === v
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+      {/* Top Status Header */}
+      <div className="bg-[#0A1628] text-white px-6 py-2.5 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-slate-200 text-xs">Activity & Notification Center</span>
         </div>
 
         <div className="flex items-center gap-3 text-[11px] text-slate-400">
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-            Live Stream Connected
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Real-time Feed Active
           </span>
           <span className="text-slate-600">|</span>
           <span>Node-US-04</span>

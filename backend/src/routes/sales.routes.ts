@@ -326,4 +326,129 @@ router.delete('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
+// ============================================================================
+// PROPOSALS ENDPOINTS
+// ============================================================================
+
+// List Proposals
+router.get('/proposals', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  try {
+    const result = await db.query(`
+      SELECT 
+        p.*,
+        c.name as company_name,
+        d.name as deal_name,
+        u.first_name as owner_first, u.last_name as owner_last
+      FROM proposals p
+      LEFT JOIN companies c ON p.company_id = c.id
+      LEFT JOIN deals d ON p.deal_id = d.id
+      LEFT JOIN users u ON p.created_by = u.id
+      WHERE p.organization_id = $1 AND p.deleted_at IS NULL
+      ORDER BY p.created_at DESC;
+    `, [orgId]);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Create Proposal
+router.post('/proposals', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { title, proposal_number, client_name, company_id, deal_id, total_amount, status, valid_until, content } = req.body;
+
+  try {
+    let resolvedCompanyId = company_id;
+    if (!resolvedCompanyId && client_name) {
+      const compRes = await db.query('SELECT id FROM companies WHERE organization_id = $1 AND name ILIKE $2 LIMIT 1;', [orgId, client_name.trim()]);
+      resolvedCompanyId = compRes.rows[0]?.id;
+      if (!resolvedCompanyId) {
+        const newComp = await db.query('INSERT INTO companies (organization_id, name, created_by) VALUES ($1, $2, $3) RETURNING id;', [orgId, client_name.trim(), userId]);
+        resolvedCompanyId = newComp.rows[0]?.id;
+      }
+    }
+
+    const pNumber = proposal_number || `PROP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const result = await db.query(`
+      INSERT INTO proposals (
+        organization_id, proposal_number, title, company_id, deal_id,
+        total_amount, status, valid_until, content, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *;
+    `, [
+      orgId, pNumber, title || 'Commercial Proposal', resolvedCompanyId || null, deal_id || null,
+      total_amount || 0, status || 'Draft', valid_until || null, content ? JSON.stringify(content) : '{}', userId
+    ]);
+
+    await recordAuditLog(orgId, userId, 'CREATE', 'proposals', result.rows[0].id, null, result.rows[0], req);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update Proposal
+router.patch('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { id } = req.params;
+  const { status, title, total_amount, valid_until, content } = req.body;
+
+  try {
+    const existing = await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [id, orgId]);
+    if (existing.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Proposal not found' });
+      return;
+    }
+
+    const result = await db.query(`
+      UPDATE proposals
+      SET
+        status = COALESCE($1, status),
+        title = COALESCE($2, title),
+        total_amount = COALESCE($3, total_amount),
+        valid_until = COALESCE($4, valid_until),
+        content = COALESCE($5, content),
+        updated_at = NOW(),
+        updated_by = $6
+      WHERE id = $7 AND organization_id = $8 AND deleted_at IS NULL
+      RETURNING *;
+    `, [status, title, total_amount, valid_until, content ? JSON.stringify(content) : null, userId, id, orgId]);
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'proposals', id, existing.rows[0], result.rows[0], req);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete Proposal (Soft Delete)
+router.delete('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { id } = req.params;
+
+  try {
+    const result = await db.query(`
+      UPDATE proposals
+      SET deleted_at = NOW(), updated_by = $1
+      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+      RETURNING id, title;
+    `, [userId, id, orgId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Proposal not found or already deleted' });
+      return;
+    }
+
+    await recordAuditLog(orgId, userId, 'DELETE', 'proposals', id, result.rows[0], null, req);
+    res.json({ success: true, message: 'Proposal deleted successfully', id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

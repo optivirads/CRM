@@ -39,8 +39,6 @@ export const DEFAULT_PROJECTS: any[] = [];
 export const ProjectsView: React.FC = () => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // State Simulator
-  const [activeSimulatorTab, setActiveSimulatorTab] = useState('1. Projects List');
   const [currentPage, setCurrentPage] = useState(1);
 
   // View Mode: List | Kanban | Timeline
@@ -57,6 +55,7 @@ export const ProjectsView: React.FC = () => {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   // Client Companies state (OptiVir agency client roster)
+  const [clientList, setClientList] = useState<Array<{ id: string; name: string }>>([]);
   const [clientCompanies, setClientCompanies] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -87,10 +86,11 @@ export const ProjectsView: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newClientName, setNewClientName] = useState('');
-  const [newScopeType, setNewScopeType] = useState('Meta + Google Ads Retainer');
-  const [newLeadPM, setNewLeadPM] = useState('Maya Joseph');
-  const [newBudget, setNewBudget] = useState('₹2,50,000');
-  const [newDeadline, setNewDeadline] = useState('30 Nov 2026');
+  const [newScopeType, setNewScopeType] = useState('Social Media Posters & Creatives');
+  const [newLeadPM, setNewLeadPM] = useState('OptiVir Admin');
+  const [newBudget, setNewBudget] = useState('');
+  const [newStartDate, setNewStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newDeadline, setNewDeadline] = useState('');
 
   // Projects data from PostgreSQL
   const [projects, setProjects] = useState<any[]>([]);
@@ -99,21 +99,93 @@ export const ProjectsView: React.FC = () => {
   const [deletingProject, setDeletingProject] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const fetchClients = async () => {
+    try {
+      const res = await api.getClients();
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data
+          .map((c: any) => ({
+            id: c.id,
+            name: c.company_name || c.name || '',
+          }))
+          .filter((c: any) => Boolean(c.name));
+
+        setClientList(mapped);
+
+        // Also check if user has custom companies saved in localStorage
+        let savedNames: string[] = [];
+        if (typeof window !== 'undefined') {
+          try {
+            const saved = localStorage.getItem('optivir_client_companies');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                savedNames = parsed.filter((c: string) => typeof c === 'string' && c.trim() && ![
+                  'Zenith DTC Brands',
+                  'Astra Health Tech',
+                  'UrbanKulture Apparels',
+                  'NexaScale Logistics',
+                  'FinEdge Wealth Advisors',
+                  'Auric Living Luxury Real Estate',
+                  'BioPure Nutra Labs',
+                  'SparkVibe Media Network',
+                ].includes(c));
+              }
+            }
+          } catch {}
+        }
+
+        const uniqueNames = Array.from(new Set([...mapped.map((c) => c.name), ...savedNames]));
+        setClientCompanies(uniqueNames);
+        if (uniqueNames.length > 0 && typeof window !== 'undefined') {
+          localStorage.setItem('optivir_client_companies', JSON.stringify(uniqueNames));
+        }
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch clients:', err);
+    }
+  };
+
+  const handleAddClientCompany = async (companyName: string) => {
+    const trimmed = companyName.trim();
+    if (!trimmed) return;
+    try {
+      const res = await api.createClient({ company_name: trimmed });
+      if (res.success && res.data) {
+        setClientList((prev) => [...prev.filter((c) => c.id !== res.data.id), { id: res.data.id, name: trimmed }]);
+      }
+    } catch (e) {
+      console.warn('Failed to create client in DB:', e);
+    }
+    if (!clientCompanies.includes(trimmed)) {
+      const updated = [...clientCompanies, trimmed];
+      setClientCompanies(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('optivir_client_companies', JSON.stringify(updated));
+      }
+    }
+    setNewClientName(trimmed);
+    setCustomClientInput('');
+    setShowAddNewClient(false);
+    showToast(`Linked client company: "${trimmed}"`, 'success');
+  };
+
   const fetchProjects = async () => {
     try {
       setLoading(true);
       const res = await api.getProjects();
       if (res.success && Array.isArray(res.data)) {
+        const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const mapped = res.data.map((p: any) => ({
           id: p.id,
           code: `P-${p.id.slice(0, 4).toUpperCase()}`,
           name: p.name || 'Untitled Project',
-          scopeType: p.description || 'Enterprise Workstream',
-          clientName: p.company_name || 'Enterprise Client',
+          scopeType: p.description || 'Creative & Digital Delivery',
+          clientName: p.company_name || 'Direct Client',
           clientAvatarText: (p.company_name || 'PR').slice(0, 2).toUpperCase(),
           clientAvatarBg: 'bg-[#B91C1C]',
           clientAvatarTextColor: 'text-white',
-          leadPM: p.pm_first ? `${p.pm_first} ${p.pm_last || ''}`.trim() : 'Alex Morgan',
+          leadPM: p.pm_first ? `${p.pm_first} ${p.pm_last || ''}`.trim() : 'OptiVir Admin',
           leadInitials: ((p.pm_first?.[0] || 'A') + (p.pm_last?.[0] || 'M')).toUpperCase(),
           status: p.status || 'Active',
           statusBg: p.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700',
@@ -123,11 +195,13 @@ export const ProjectsView: React.FC = () => {
           sprint: 'Sprint Active',
           budget: p.budget ? `₹${Number(p.budget).toLocaleString('en-IN')}` : '₹0',
           spent: '₹0 (0%)',
-          deadline: p.end_date ? new Date(p.end_date).toLocaleDateString() : '30 Nov 2026',
-          deadlineSub: 'On Track',
+          currentDate: todayStr,
+          assignedDate: p.start_date ? new Date(p.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
+          deadline: p.end_date ? new Date(p.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No deadline',
+          deadlineSub: p.end_date ? 'On Track' : 'Not specified',
           deadlineUrgent: false,
           tasksCompleted: Number(p.completed_tasks_count || 0),
-          tasksTotal: Number(p.total_tasks_count || 0) || 5
+          tasksTotal: Number(p.total_tasks_count || 0) || 0
         }));
         setProjects(mapped);
       }
@@ -140,6 +214,7 @@ export const ProjectsView: React.FC = () => {
 
   useEffect(() => {
     fetchProjects();
+    fetchClients();
   }, []);
 
   const toggleSelectAll = () => {
@@ -166,18 +241,24 @@ export const ProjectsView: React.FC = () => {
     try {
       setIsCreating(true);
       const budgetNum = parseFloat(newBudget.replace(/[^0-9.]/g, '')) || 100000;
+      const matchedClient = clientList.find(c => c.name.toLowerCase() === newClientName.toLowerCase());
       const res = await api.createProject({
         name: newProjectName.trim(),
+        client_id: matchedClient?.id || undefined,
         client_name: newClientName || undefined,
         description: newScopeType || undefined,
         budget: budgetNum,
         priority: 'Medium',
-        status: 'Active'
+        status: 'Active',
+        start_date: newStartDate || undefined,
+        end_date: newDeadline || undefined,
       });
       if (res.success) {
         showToast(`Project "${newProjectName}" created successfully`, 'success');
         setShowCreateModal(false);
         setNewProjectName('');
+        setNewClientName('');
+        setNewDeadline('');
         fetchProjects();
       }
     } catch (err: any) {
@@ -243,46 +324,7 @@ export const ProjectsView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
-      {/* 1. Cockpit States Simulator Banner (Exact match to Reference Image 3) */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>COCKPIT STATES:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              { id: '1. Projects List', label: '1. Projects List' },
-              { id: '2. Kanban Delivery', label: '2. Kanban Delivery' },
-              { id: '3. Project Overview', label: '3. Project Overview' },
-              { id: '4. Tasks & Sprint', label: '4. Tasks & Sprint' },
-              { id: '5. Milestones', label: '5. Milestones' },
-              { id: '6. Capacity', label: '6. Capacity' },
-              { id: '7. Budget Ledger', label: '7. Budget Ledger' },
-              { id: '9. Skeletons & Empty', label: '9. Skeletons & Empty' },
-              { id: '8. Create Drawer', label: '8. Create Drawer' },
-            ].map((state) => (
-              <button
-                key={state.id}
-                onClick={() => {
-                  setActiveSimulatorTab(state.id);
-                  if (state.id.includes('Kanban')) setViewMode('kanban');
-                  else if (state.id.includes('Projects List')) setViewMode('list');
-                  else if (state.id.includes('Create Drawer')) setShowCreateModal(true);
-                  else setViewMode('list');
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  activeSimulatorTab === state.id
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {state.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       <div className="max-w-[1700px] mx-auto p-6 space-y-6">
         {/* 2. Header & Breadcrumbs */}
@@ -355,7 +397,10 @@ export const ProjectsView: React.FC = () => {
               <span>Export Pipeline</span>
             </button>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                fetchClients();
+                setShowCreateModal(true);
+              }}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg shadow-sm hover:shadow transition active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -607,7 +652,12 @@ export const ProjectsView: React.FC = () => {
                 className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
               />
               <span className="text-xs font-bold">{selectedProjects.length} projects selected</span>
-              <span className="text-slate-400 text-xs hidden sm:inline">| Blended Budget: ₹6,70,000</span>
+              <span className="text-slate-400 text-xs hidden sm:inline">
+                | Blended Budget: ₹{projects
+                  .filter((p) => selectedProjects.includes(p.id))
+                  .reduce((acc, p) => acc + (parseFloat(String(p.budget).replace(/[^0-9.]/g, '')) || 0), 0)
+                  .toLocaleString('en-IN')}
+              </span>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -697,7 +747,7 @@ export const ProjectsView: React.FC = () => {
                     <th className="p-3.5">HEALTH</th>
                     <th className="p-3.5">PROGRESS & SPRINT</th>
                     <th className="p-3.5">BUDGET & BURN</th>
-                    <th className="p-3.5">DEADLINE</th>
+                    <th className="p-3.5">TIMELINE & DATES</th>
                     <th className="p-3.5">TASKS</th>
                     <th className="p-3.5 pr-4 text-right">ACTIONS</th>
                   </tr>
@@ -843,26 +893,24 @@ export const ProjectsView: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Deadline */}
+                        {/* Timeline & Dates */}
                         <td className="p-3.5">
-                          <div>
-                            <div
-                              className={`font-semibold ${
-                                project.deadlineUrgent
-                                  ? 'text-rose-600 dark:text-rose-400 font-bold'
-                                  : 'text-slate-800 dark:text-slate-200'
-                              }`}
-                            >
-                              {project.deadline}
+                          <div className="space-y-0.5">
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <span className="font-semibold text-slate-600 dark:text-slate-400">Current:</span> {project.currentDate}
+                            </div>
+                            <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                              <span className="font-semibold text-slate-700 dark:text-slate-400">Assigned:</span> {project.assignedDate}
                             </div>
                             <div
-                              className={`text-[11px] ${
+                              className={`text-xs flex items-center gap-1 ${
                                 project.deadlineUrgent
-                                  ? 'text-rose-600 font-medium'
-                                  : 'text-slate-500'
+                                  ? 'text-rose-600 dark:text-rose-400 font-bold'
+                                  : 'text-slate-800 dark:text-slate-200 font-semibold'
                               }`}
                             >
-                              {project.deadlineSub}
+                              <span className="text-slate-500 dark:text-slate-400 font-normal">Due:</span>
+                              {project.deadline}
                             </div>
                           </div>
                         </td>
@@ -986,6 +1034,20 @@ export const ProjectsView: React.FC = () => {
                           <span>{p.budget}</span>
                           <span className="font-semibold text-slate-700 dark:text-slate-300">{p.leadPM}</span>
                         </div>
+                        <div className="text-[10px] text-slate-400 flex flex-col gap-0.5 pt-1 border-t border-slate-100 dark:border-slate-700/40">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Current:</span>
+                            <span className="text-slate-600 dark:text-slate-300">{p.currentDate}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Assigned:</span>
+                            <span className="text-slate-600 dark:text-slate-300">{p.assignedDate}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Due:</span>
+                            <span className="font-semibold text-rose-600 dark:text-rose-400">{p.deadline}</span>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1082,38 +1144,14 @@ export const ProjectsView: React.FC = () => {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (customClientInput.trim()) {
-                              const trimmed = customClientInput.trim();
-                              if (!clientCompanies.includes(trimmed)) {
-                                const updated = [...clientCompanies, trimmed];
-                                setClientCompanies(updated);
-                                localStorage.setItem('optivir_client_companies', JSON.stringify(updated));
-                              }
-                              setNewClientName(trimmed);
-                              setCustomClientInput('');
-                              setShowAddNewClient(false);
-                              showToast(`Linked client company: "${trimmed}"`, 'success');
-                            }
+                            handleAddClientCompany(customClientInput);
                           }
                         }}
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          if (customClientInput.trim()) {
-                            const trimmed = customClientInput.trim();
-                            if (!clientCompanies.includes(trimmed)) {
-                              const updated = [...clientCompanies, trimmed];
-                              setClientCompanies(updated);
-                              localStorage.setItem('optivir_client_companies', JSON.stringify(updated));
-                            }
-                            setNewClientName(trimmed);
-                            setCustomClientInput('');
-                            setShowAddNewClient(false);
-                            showToast(`Linked client company: "${trimmed}"`, 'success');
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-[#B91C1C] text-white text-xs font-semibold rounded-md hover:bg-rose-700"
+                        onClick={() => handleAddClientCompany(customClientInput)}
+                        className="px-3 py-1.5 bg-[#B91C1C] text-white text-xs font-semibold rounded-md hover:bg-rose-700 cursor-pointer"
                       >
                         Link
                       </button>
@@ -1126,7 +1164,9 @@ export const ProjectsView: React.FC = () => {
                     required
                     className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
                   >
-                    <option value="" disabled>Select Client Company to Link</option>
+                    <option value="" disabled>
+                      {clientCompanies.length === 0 ? 'No clients found — click "+ Add New Client Company" above' : 'Select Client Company to Link'}
+                    </option>
                     {clientCompanies.map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -1144,49 +1184,71 @@ export const ProjectsView: React.FC = () => {
                     onChange={(e) => setNewScopeType(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
                   >
+                    <option>Social Media Posters &amp; Creatives</option>
+                    <option>Video Editing &amp; High-Impact Reels</option>
+                    <option>Social Media Marketing &amp; Management</option>
                     <option>Meta + Google Ads Retainer</option>
-                    <option>On-Demand Ads / As-Needed</option>
+                    <option>Creative Studio &amp; UGC Production</option>
+                    <option>Brand Identity &amp; Graphic Design</option>
                     <option>Technical CRO &amp; Analytics</option>
-                    <option>Performance Marketing SOW</option>
-                    <option>Creative Studio &amp; Direct-Response UGC</option>
-                    <option>Brand Search &amp; Google Shopping Domination</option>
-                    <option>Ad-Hoc Sprint (No Fixed ACV)</option>
+                    <option>Ad-Hoc Sprint</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold block mb-1">Lead PM</label>
                   <select
                     value={newLeadPM}
                     onChange={(e) => setNewLeadPM(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
                   >
-                    <option>Maya Joseph</option>
-                    <option>Alex Morgan</option>
-                    <option>Rahul Menon</option>
+                    <option>OptiVir Admin</option>
+                    <option>Creative Lead</option>
+                    <option>Campaign Manager</option>
                   </select>
-                </div>
-                <div>
-                  <label className="font-semibold block mb-1">Project Budget (₹)</label>
-                  <input
-                    type="text"
-                    value={newBudget}
-                    onChange={(e) => setNewBudget(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                  />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Target Deadline</label>
+                <label className="font-semibold block mb-1">Project Budget (₹)</label>
                 <input
                   type="text"
-                  value={newDeadline}
-                  onChange={(e) => setNewDeadline(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  value={newBudget}
+                  onChange={(e) => setNewBudget(e.target.value)}
+                  placeholder="e.g. 50000"
+                  className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Current Date</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Start / Assigned Date</label>
+                  <input
+                    type="date"
+                    value={newStartDate}
+                    onChange={(e) => setNewStartDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Target Deadline</label>
+                  <input
+                    type="date"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">

@@ -73,7 +73,6 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [opportunities, setOpportunities] = useState<OpportunityRow[]>(INITIAL_OPPORTUNITIES);
   const [activeTab, setActiveTab] = useState('all');
-  const [simulatorStep, setSimulatorStep] = useState('1. Opportunities List');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOps, setSelectedOps] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -212,51 +211,6 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
-      {/* ========================================================================= */}
-      {/* 1. STATE SIMULATOR BANNER (Matching Image 3 & 4)                         */}
-      {/* ========================================================================= */}
-      <div className="bg-[#0B1528] text-white p-2.5 rounded-xl border border-[#18263F] flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-[11px] tracking-wider uppercase text-slate-300 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-            INTERACTIVE STATE SIMULATOR
-          </span>
-          <span className="text-slate-400 hidden sm:inline">
-            Switch workspace perspective to review full lifecycle states
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-          {[
-            '1. Opportunities List',
-            '2. Deal Inspection',
-            '3. Proposal & Quotation',
-            '4. Timeline & Audit',
-            '5. Create/Edit Drawer',
-            '6. Modals Showcase',
-            '7. System Feedback & States'
-          ].map((st) => (
-            <button
-              key={st}
-              onClick={() => {
-                setSimulatorStep(st);
-                if (st.includes('Proposal') && onNavigate) {
-                  onNavigate('proposals');
-                } else if (st.includes('Create')) {
-                  setShowCreateModal(true);
-                }
-              }}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition ${
-                simulatorStep === st
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:bg-[#13233C]'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* 2. BREADCRUMB, HEADER & ACTIONS (Matching Image 3 & 4)                   */}

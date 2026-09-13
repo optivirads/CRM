@@ -41,8 +41,6 @@ import {
 export const TasksView: React.FC = () => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // State Simulator
-  const [activeSimulatorTab, setActiveSimulatorTab] = useState('1. Tasks List (Table)');
   const [currentPage, setCurrentPage] = useState(1);
 
   // View Mode: 'list' | 'kanban' | 'detail' | 'calendar'
@@ -79,10 +77,12 @@ export const TasksView: React.FC = () => {
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskCategory, setNewTaskCategory] = useState('Social Media Posters & Creatives');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskAssignedDate, setNewTaskAssignedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [taskComments, setTaskComments] = useState<Record<string, Array<{ id: string; author: string; initials: string; text: string; time: string }>>>({});
 
   // Team Members & Assignee States
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -98,7 +98,7 @@ export const TasksView: React.FC = () => {
   const fetchTeamMembers = async () => {
     try {
       const res = await api.getTeamMembers();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.success && Array.isArray(res.data)) {
         setTeamMembers(res.data);
       }
     } catch (err) {
@@ -106,14 +106,21 @@ export const TasksView: React.FC = () => {
     }
   };
 
-  const activeTeamList = teamMembers.length > 0 ? teamMembers : [
-    { id: 'tm-1', name: 'Shahana', designation: 'COO' },
-    { id: 'tm-2', name: 'Abhinav Admin', designation: 'Managing Director & Founder' },
-    { id: 'tm-3', name: 'Alex Morgan', designation: 'Technical Lead' },
-    { id: 'tm-4', name: 'Priya Sharma', designation: 'Head of Sales' },
-    { id: 'tm-5', name: 'Rahul Menon', designation: 'Performance Marketer' },
-    { id: 'tm-6', name: 'Maya Joseph', designation: 'Creative Director' }
-  ];
+  const [clientNames, setClientNames] = useState<string[]>([]);
+
+  const fetchClients = async () => {
+    try {
+      const res = await api.getClients();
+      if (res.success && Array.isArray(res.data)) {
+        const names = res.data.map((c: any) => c.company_name || c.name).filter(Boolean);
+        setClientNames(names);
+      }
+    } catch (err) {
+      console.warn('Failed to load clients in TasksView:', err);
+    }
+  };
+
+  const activeTeamList = teamMembers;
 
   const handleAddMember = async () => {
     if (!newMemberName.trim()) {
@@ -165,21 +172,22 @@ export const TasksView: React.FC = () => {
       setLoading(true);
       const res = await api.getTasks();
       if (res.success && Array.isArray(res.data)) {
+        const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const mapped = res.data.map((t: any) => ({
           id: t.id,
           code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
           title: t.title || 'Untitled Deliverable',
           description: t.description || '',
-          subtasksCount: '0/3 Subtasks',
+          subtasksCount: '0 Subtasks',
           subtasksBadge: t.status === 'Completed' ? 'Completed' : (t.status === 'In Progress' ? 'In Progress' : 'Pending'),
-          clientName: t.company_name || 'Client Account',
-          clientAvatar: (t.company_name || 'CL').substring(0, 2).toUpperCase(),
+          clientName: t.company_name || 'Direct Client',
+          clientAvatar: (t.company_name || 'DC').substring(0, 2).toUpperCase(),
           clientAvatarBg: 'bg-[#0A1628]',
-          project: t.project_name || 'Project Workstream',
-          milestone: 'Sprint Deliverable',
-          assignee: t.assignee_name || (t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'Alex Morgan'),
+          project: t.project_name || 'Creative Workstream',
+          milestone: 'Active Deliverable',
+          assignee: t.assignee_name || (t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'OptiVir Admin'),
           assigneeRole: t.assignee_role || 'Team Member',
-          assigneeInitials: (t.assignee_name || t.assignee_first || 'AM')
+          assigneeInitials: (t.assignee_name || t.assignee_first || 'OA')
             .split(' ')
             .filter(Boolean)
             .map((p: string) => p[0])
@@ -189,13 +197,14 @@ export const TasksView: React.FC = () => {
           priority: t.priority || 'Medium',
           status: t.status === 'Completed' ? 'Done' : (t.status === 'In Progress' ? 'In Progress' : 'To Do'),
           statusBg: t.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString() : 'No Due Date',
-          timelineStart: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString() : (t.start_date ? new Date(t.start_date).toLocaleDateString() : 'Today'),
-          assignedDate: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString() : (t.start_date ? new Date(t.start_date).toLocaleDateString() : ''),
-          dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString() : '',
+          currentDate: todayStr,
+          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
+          timelineStart: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
+          assignedDate: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
+          dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
           timelineUrgent: t.priority === 'Urgent' || t.priority === 'High',
           timeActual: '0.0h',
-          timeEst: '8.0h',
+          timeEst: '4.0h',
           timePercent: t.status === 'Completed' ? 100 : 0
         }));
         setTasks(mapped);
@@ -213,6 +222,7 @@ export const TasksView: React.FC = () => {
   useEffect(() => {
     fetchTasks();
     fetchTeamMembers();
+    fetchClients();
   }, []);
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -223,9 +233,12 @@ export const TasksView: React.FC = () => {
     }
     try {
       setIsCreating(true);
+      const formattedDesc = newTaskCategory
+        ? `[${newTaskCategory}] ${newTaskDesc.trim()}`.trim()
+        : newTaskDesc.trim();
       const res = await api.createTask({
         title: newTaskTitle.trim(),
-        description: newTaskDesc.trim() || undefined,
+        description: formattedDesc || undefined,
         priority: newTaskPriority,
         assigned_date: newTaskAssignedDate || undefined,
         due_date: newTaskDueDate || undefined,
@@ -357,43 +370,7 @@ export const TasksView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
-      {/* 1. Tasks Interactive Workspace State Simulator Banner (Exact match to Reference Image 4) */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Tasks Interactive Workspace:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              { id: '1. Tasks List (Table)', label: '1. Tasks List (Table)' },
-              { id: '2. Kanban Board', label: '2. Kanban Board' },
-              { id: '3. Task Detail (70/30)', label: '3. Task Detail (70/30)' },
-              { id: '4. Create Task Drawer', label: '4. Create Task Drawer' },
-              { id: '5. Calendar / Timeline', label: '5. Calendar / Timeline' },
-              { id: '6. Mobile & Empty State', label: '6. Mobile & Empty State' },
-            ].map((state) => (
-              <button
-                key={state.id}
-                onClick={() => {
-                  setActiveSimulatorTab(state.id);
-                  if (state.id.includes('Kanban')) setViewMode('kanban');
-                  else if (state.id.includes('Detail')) setViewMode('detail');
-                  else if (state.id.includes('Calendar')) setViewMode('calendar');
-                  else setViewMode('list');
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  activeSimulatorTab === state.id
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {state.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       <div className="max-w-[1700px] mx-auto p-6 space-y-6">
         {/* 2. Header & Breadcrumbs */}
@@ -633,6 +610,9 @@ export const TasksView: React.FC = () => {
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
               <option value="All">All Clients</option>
+              {Array.from(new Set([...clientNames, ...tasks.map((t: any) => t.clientName).filter(Boolean)])).map((name: string) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
             </select>
 
             <select
@@ -873,18 +853,22 @@ export const TasksView: React.FC = () => {
 
                           {/* Timeline */}
                           <td className="p-3.5">
-                            <div>
+                            <div className="space-y-0.5">
+                              <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                <span className="font-semibold text-slate-600 dark:text-slate-400">Current:</span> {task.currentDate}
+                              </div>
+                              <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                                <span className="font-semibold text-slate-700 dark:text-slate-400">Assigned:</span> {task.assignedDate || task.timelineStart}
+                              </div>
                               <div
-                                className={`font-semibold ${
+                                className={`text-xs flex items-center gap-1 ${
                                   task.timelineUrgent
                                     ? 'text-rose-600 dark:text-rose-400 font-bold'
-                                    : 'text-slate-800 dark:text-slate-200'
+                                    : 'text-slate-800 dark:text-slate-200 font-semibold'
                                 }`}
                               >
-                                Due: {task.timeline}
-                              </div>
-                              <div className="text-[11px] text-slate-400">
-                                Assigned: {task.timelineStart}
+                                <span className="text-slate-500 dark:text-slate-400 font-normal">Due:</span>
+                                {task.dueDate || task.timeline}
                               </div>
                             </div>
                           </td>
@@ -1015,11 +999,11 @@ export const TasksView: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 flex-wrap">
                 <span className="bg-[#0A1628] text-white px-2 py-0.5 rounded text-[11px] font-bold">
-                  {activeTask.clientName} Pvt Ltd
+                  {activeTask.clientName}
                 </span>
                 <ChevronRight className="w-3 h-3 text-slate-400" />
                 <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px]">
-                  {activeTask.project} — Q3 Scale
+                  {activeTask.project}
                 </span>
                 <ChevronRight className="w-3 h-3 text-slate-400" />
                 <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px]">
@@ -1047,7 +1031,7 @@ export const TasksView: React.FC = () => {
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Status</span>
                   <span className="font-bold text-blue-600 dark:text-blue-400 mt-0.5 block">
-                    {activeTask.status} ▾
+                    {activeTask.status}
                   </span>
                 </div>
                 <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
@@ -1055,6 +1039,13 @@ export const TasksView: React.FC = () => {
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Priority</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 mt-0.5 inline-block">
                     {activeTask.priority}
+                  </span>
+                </div>
+                <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Current Date</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 mt-0.5 block">
+                    {activeTask.currentDate || new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
                 <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
@@ -1078,140 +1069,97 @@ export const TasksView: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* LEFT 70%: Scope, Subtasks, Dependencies, Discussion */}
               <div className="lg:col-span-8 space-y-6">
-                {/* 1. Technical Scope & Acceptance Criteria */}
+                {/* 1. Deliverable Details & Scope */}
                 <div className="space-y-2">
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    Technical Scope & Acceptance Criteria
+                    Deliverable Details &amp; Scope
                   </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Provision and deploy the server-side Tag Manager container under the custom subdomain <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">tag.clientdomain.com</code>. Ensure first-party cookie isolation and route Meta Conversions API (CAPI) events with deduplicated <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-rose-600">event_id</code> parameters matching client-side pixel triggers.
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
+                    {activeTask.description || 'No specific description provided for this deliverable. You can edit requirements or add specifications anytime.'}
                   </p>
-                  <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-5 pt-1">
-                    <li>Provision Cloud Run cluster with multi-region failover (US-East / EU-Central).</li>
-                    <li>Validate SSL termination on custom domain delegation.</li>
-                    <li>Configure hash-parameter sanitization for user-provided identifiers (SHA-256 email, phone).</li>
-                    <li>Benchmark payload latency (&lt;120ms round-trip to Meta Graph API).</li>
-                  </ul>
                 </div>
 
                 {/* 2. Subtasks */}
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-900 dark:text-white">
-                      Subtasks (3 of 4 Completed 75%)
+                      Subtasks ({subtasksState.filter((s: any) => s.done).length} of {subtasksState.length} Completed)
                     </span>
                     <button
                       onClick={() => {
                         const newSub = prompt('New subtask title:');
-                        if (newSub) {
-                          setSubtasksState([...subtasksState, { id: `s-${Date.now()}`, title: newSub, hours: 'Est. 1.0h', done: false }]);
+                        if (newSub && newSub.trim()) {
+                          setSubtasksState([...subtasksState, { id: `s-${Date.now()}`, title: newSub.trim(), hours: '1.0h', done: false }]);
                         }
                       }}
-                      className="text-rose-600 font-semibold hover:underline flex items-center gap-1"
+                      className="text-rose-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
                       <span>Add Subtask</span>
                     </button>
                   </div>
 
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#0A1628] dark:bg-blue-600 h-full rounded-full" style={{ width: '75%' }}></div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {subtasksState.map((sub) => (
-                      <div
-                        key={sub.id}
-                        onClick={() => toggleSubtask(sub.id)}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 transition text-xs"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={sub.done}
-                            onChange={() => toggleSubtask(sub.id)}
-                            className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                          />
-                          <span className={sub.done ? 'line-through text-slate-400' : 'font-medium text-slate-800 dark:text-slate-200'}>
-                            {sub.title}
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-semibold text-slate-400">{sub.hours}</span>
+                  {subtasksState.length > 0 ? (
+                    <>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#0A1628] dark:bg-blue-600 h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.round((subtasksState.filter((s: any) => s.done).length / subtasksState.length) * 100)}%`
+                          }}
+                        ></div>
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="space-y-2">
+                        {subtasksState.map((sub) => (
+                          <div
+                            key={sub.id}
+                            onClick={() => toggleSubtask(sub.id)}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition text-xs"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={sub.done}
+                                onChange={() => toggleSubtask(sub.id)}
+                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                              />
+                              <span className={sub.done ? 'line-through text-slate-400' : 'font-medium text-slate-800 dark:text-slate-200'}>
+                                {sub.title}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-slate-400">{sub.hours}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                      No subtasks added yet. Click &quot;+ Add Subtask&quot; to break down this deliverable into milestones.
+                    </div>
+                  )}
                 </div>
 
-                {/* 3. Task Dependencies */}
-                <div className="space-y-3 pt-2">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500">
-                    Task Dependencies
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
-                      <div className="text-slate-500 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Depends On (Prerequisite)</span>
-                      </div>
-                      <div className="font-bold text-slate-800 dark:text-slate-200">
-                        DNS Zone Delegation verified
-                      </div>
-                      <div className="text-[10px] text-slate-400">Completed by Cloud DevOps • 04 Sep</div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 space-y-1">
-                      <div className="text-rose-600 font-semibold flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Blocks (Blocking Dependent Task)</span>
-                      </div>
-                      <div className="font-bold text-rose-700 dark:text-rose-300">
-                        Client ROAS Attribution blocking
-                      </div>
-                      <div className="text-[10px] text-rose-600 font-medium">Blocked until this task is completed</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. Attachments */}
+                {/* 3. Attachments & Creative Assets */}
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between text-xs">
-                    <h3 className="font-bold uppercase tracking-wider text-slate-500">Attachments (3)</h3>
+                    <h3 className="font-bold uppercase tracking-wider text-slate-500">Attachments &amp; Creative Assets</h3>
                     <button
-                      onClick={() => showToast('Opening file picker to attach asset to task...', 'info')}
+                      onClick={() => showToast('Asset upload dialog opened. Select poster or video export to attach.', 'info')}
                       className="text-rose-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Upload className="w-3 h-3" />
                       <span>Upload Asset</span>
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-emerald-600" />
-                      <div>
-                        <div className="font-bold text-slate-800 dark:text-slate-200">Tag_Matrix.xlsx</div>
-                        <div className="text-[10px] text-slate-400">142 KB • v2.1</div>
-                      </div>
-                    </div>
-                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <div className="font-bold text-slate-800 dark:text-slate-200">Cloud_Run_Config.json</div>
-                        <div className="text-[10px] text-slate-400">18 KB • Terraform</div>
-                      </div>
-                    </div>
-                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-600" />
-                      <div>
-                        <div className="font-bold text-slate-800 dark:text-slate-200">Architecture_Diagram.png</div>
-                        <div className="text-[10px] text-slate-400">1.8 MB • High-res</div>
-                      </div>
-                    </div>
+                  <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                    No files or creative drafts attached to this deliverable yet. Use &quot;Upload Asset&quot; to attach poster graphics, video files, or design links.
                   </div>
                 </div>
 
-                {/* 5. Activity & Discussion */}
+                {/* 4. Activity & Discussion */}
                 <div className="space-y-4 pt-2">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500">Activity & Discussion</h3>
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500">Activity &amp; Discussion</h3>
 
                   {/* Comment Editor */}
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700 space-y-2">
@@ -1219,20 +1167,26 @@ export const TasksView: React.FC = () => {
                       rows={3}
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Leave a note or tag team member with @... (Markdown supported)"
+                      placeholder="Leave a note, creative feedback, or deliverable status update..."
                       className="w-full text-xs bg-transparent border-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400 resize-none"
                     ></textarea>
                     <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <button onClick={() => showToast('Bold applied', 'info')} className="hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs cursor-pointer">B</button>
-                        <button onClick={() => showToast('Italic applied', 'info')} className="hover:text-slate-600 dark:hover:text-slate-200 italic text-xs cursor-pointer">I</button>
-                        <button onClick={() => showToast('Code block formatted', 'info')} className="hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer">&lt;/&gt;</button>
-                        <button onClick={() => showToast('Link inserted', 'info')} className="hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer">🔗</button>
-                      </div>
+                      <span className="text-[11px] text-slate-400">Press Post Comment to save to task log</span>
                       <button
                         onClick={() => {
-                          if (newComment) {
-                            showToast(`Posted comment: "${newComment}"`, 'success');
+                          if (newComment.trim()) {
+                            const newEntry = {
+                              id: `c-${Date.now()}`,
+                              author: 'You (Team)',
+                              initials: 'YO',
+                              text: newComment.trim(),
+                              time: 'Just now'
+                            };
+                            setTaskComments((prev) => ({
+                              ...prev,
+                              [activeTask.id]: [...(prev[activeTask.id] || []), newEntry]
+                            }));
+                            showToast('Comment posted successfully', 'success');
                             setNewComment('');
                           }
                         }}
@@ -1244,36 +1198,29 @@ export const TasksView: React.FC = () => {
                   </div>
 
                   {/* Comments Thread */}
-                  <div className="space-y-4 text-xs">
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                        RM
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 dark:text-white">Rahul Menon</span>
-                          <span className="text-[10px] text-slate-400">2 hours ago</span>
+                  <div className="space-y-3 text-xs">
+                    {(taskComments[activeTask.id] || []).length > 0 ? (
+                      (taskComments[activeTask.id] || []).map((c) => (
+                        <div key={c.id} className="flex items-start gap-3">
+                          <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {c.initials}
+                          </div>
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900 dark:text-white">{c.author}</span>
+                              <span className="text-[10px] text-slate-400">{c.time}</span>
+                            </div>
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                              {c.text}
+                            </div>
+                          </div>
                         </div>
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                          CNAME verification completed on client DNS. Have run 5 test event packets and Meta CAPI is reporting an 8.9/10 Event Quality Match score. Only synthetic purchases remain.
-                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                        No activity or comments posted yet. Leave an update or note above.
                       </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-[#B91C1C] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                        MV
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 dark:text-white">Marcus Vance (VP Ops)</span>
-                          <span className="text-[10px] text-slate-400">Yesterday at 16:40</span>
-                        </div>
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                          @Rahul Menon Ensure the client&apos;s legal team has signed off on the server-side hashing privacy policy amendment before pushing live payload to Meta.
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1322,12 +1269,12 @@ export const TasksView: React.FC = () => {
 
                   <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                     <div className="flex items-center justify-between text-slate-500">
-                      <span>Tagged vs Estimate:</span>
-                      <strong className="text-slate-800 dark:text-slate-200">5h 15m / 8h 00m (65%)</strong>
+                      <span>Live Session Time:</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-mono">{formatStopwatch(timerSeconds)}</strong>
                     </div>
                     <div className="flex items-center justify-between text-slate-500">
-                      <span>Billable to Client Retainer:</span>
-                      <strong className="text-emerald-600 font-bold">YES • ₹4,500/hr</strong>
+                      <span>Delivery Priority:</span>
+                      <strong className="text-rose-600 font-bold">{activeTask.priority} Priority</strong>
                     </div>
                   </div>
                 </div>
@@ -1340,12 +1287,12 @@ export const TasksView: React.FC = () => {
 
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-[#0A1628] text-white font-bold flex items-center justify-center text-[10px]">
-                        AT
+                      <div className="w-7 h-7 rounded-lg bg-[#0A1628] text-white font-bold flex items-center justify-center text-[10px]">
+                        {activeTask.clientAvatar || 'CL'}
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-white">Client Organization</div>
-                        <div className="text-[10px] text-slate-500">Gold Retainer Tier</div>
+                        <div className="font-bold text-slate-900 dark:text-white">{activeTask.clientName || 'Direct Client'}</div>
+                        <div className="text-[10px] text-slate-500">Active Client Account</div>
                       </div>
                     </div>
                   </div>
@@ -1353,21 +1300,23 @@ export const TasksView: React.FC = () => {
                   <div className="space-y-2 pt-1 text-slate-600 dark:text-slate-400">
                     <div className="flex items-center justify-between">
                       <span>Project:</span>
-                      <strong className="text-slate-900 dark:text-white">Client Growth SOW</strong>
+                      <strong className="text-slate-900 dark:text-white">{activeTask.project || 'Creative Deliverable'}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Active Retainer:</span>
-                      <strong className="text-rose-600">Performance Mktg ₹1.5L/mo</strong>
+                      <span>Current Date:</span>
+                      <strong className="text-slate-700 dark:text-slate-300">{activeTask.currentDate}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>SLA Policy:</span>
-                      <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded">
-                        Urgent (24h SLA Target)
-                      </span>
+                      <span>Assigned Date:</span>
+                      <strong className="text-slate-700 dark:text-slate-300">{activeTask.assignedDate || activeTask.timelineStart || 'Today'}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Created By:</span>
-                      <span>Alex Morgan (05 Sep)</span>
+                      <span>Target Due Date:</span>
+                      <strong className="text-rose-600 dark:text-rose-400">{activeTask.dueDate || activeTask.timeline || 'No Due Date'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Assignee:</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{activeTask.assignee || 'OptiVir Team'}</span>
                     </div>
                   </div>
                 </div>
@@ -1430,12 +1379,28 @@ export const TasksView: React.FC = () => {
               </div>
 
               <div>
+                <label className="block font-semibold mb-1">Deliverable Category</label>
+                <select
+                  value={newTaskCategory}
+                  onChange={(e) => setNewTaskCategory(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                >
+                  <option>Social Media Posters &amp; Creatives</option>
+                  <option>Video Editing &amp; High-Impact Reels</option>
+                  <option>Social Media Marketing &amp; Management</option>
+                  <option>Meta &amp; Google Ads Campaign</option>
+                  <option>Brand Design &amp; Content Production</option>
+                  <option>Ad-Hoc Sprint Task</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block font-semibold mb-1">Description</label>
                 <textarea
                   rows={3}
                   value={newTaskDesc}
                   onChange={(e) => setNewTaskDesc(e.target.value)}
-                  placeholder="Details of deliverables, technical specs, and prerequisites..."
+                  placeholder="Details of creative brief, copy, aspect ratios (9:16 / 1:1), and specifications..."
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
                 />
               </div>
@@ -1548,7 +1513,7 @@ export const TasksView: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Priority</label>
                   <select
@@ -1563,12 +1528,22 @@ export const TasksView: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block font-semibold mb-1">Current Date</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-100 dark:bg-[#080E18] text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed text-xs"
+                  />
+                </div>
+                <div>
                   <label className="block font-semibold mb-1">Assigned Date</label>
                   <input
                     type="date"
                     value={newTaskAssignedDate}
                     onChange={(e) => setNewTaskAssignedDate(e.target.value)}
-                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                    required
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200 text-xs"
                   />
                 </div>
                 <div>
@@ -1577,7 +1552,8 @@ export const TasksView: React.FC = () => {
                     type="date"
                     value={newTaskDueDate}
                     onChange={(e) => setNewTaskDueDate(e.target.value)}
-                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                    required
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200 text-xs"
                   />
                 </div>
               </div>
