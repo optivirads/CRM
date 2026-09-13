@@ -63,30 +63,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
       ]
     },
     {
-      title: 'CRM',
+      title: 'CRM & PIPELINE',
       items: [
         { id: 'leads' as NavItem, label: 'Leads', icon: Users2 },
         { id: 'contacts' as NavItem, label: 'Contacts', icon: Contact2 },
-        { id: 'companies' as NavItem, label: 'Companies', icon: Building2 },
-        { id: 'opportunities' as NavItem, label: 'Opportunities', icon: Sparkles },
+        { id: 'clients' as NavItem, label: 'Clients', icon: Building2 },
         { id: 'pipeline' as NavItem, label: 'Pipeline', icon: Kanban },
+        { id: 'proposals' as NavItem, label: 'Proposals', icon: FileCheck },
       ]
     },
     {
       title: 'DELIVERY',
       items: [
-        { id: 'clients' as NavItem, label: 'Clients', icon: Briefcase },
-        { id: 'client-360' as NavItem, label: 'Client 360°', icon: Layers },
         { id: 'onboarding' as NavItem, label: 'Onboarding', icon: Rocket },
         { id: 'projects' as NavItem, label: 'Projects', icon: FolderClosed },
         { id: 'tasks' as NavItem, label: 'Tasks', icon: CheckSquare },
       ]
     },
     {
-      title: 'REVENUE',
+      title: 'REVENUE & ADS',
       items: [
-        { id: 'proposals' as NavItem, label: 'Proposals', icon: FileCheck },
-        { id: 'sales' as NavItem, label: 'Sales', icon: TrendingUp },
         { id: 'marketing' as NavItem, label: 'Marketing', icon: BarChart3 },
         { id: 'finance' as NavItem, label: 'Finance', icon: Receipt },
       ]
@@ -94,10 +90,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
     {
       title: 'OPERATIONS',
       items: [
-        { id: 'documents' as NavItem, label: 'Documents', icon: FileText },
         { id: 'activities' as NavItem, label: 'Activities', icon: Activity },
+        { id: 'documents' as NavItem, label: 'Documents', icon: FileText },
         { id: 'reports' as NavItem, label: 'Reports', icon: FileSpreadsheet },
-        { id: 'notifications' as NavItem, label: 'Notifications', icon: Bell },
         { id: 'settings' as NavItem, label: 'Settings', icon: Settings },
       ]
     }

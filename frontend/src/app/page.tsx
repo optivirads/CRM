@@ -7,7 +7,6 @@ import { DashboardView } from '@/components/dashboard/DashboardView';
 import { Client360View } from '@/components/clients/Client360View';
 import { LeadsView } from '@/components/crm/LeadsView';
 import { ContactsView } from '@/components/crm/ContactsView';
-import { CompaniesView } from '@/components/crm/CompaniesView';
 import { OpportunitiesView } from '@/components/crm/OpportunitiesView';
 import { PipelineView } from '@/components/sales/PipelineView';
 import { ClientsListView } from '@/components/clients/ClientsListView';
@@ -31,17 +30,130 @@ export default function Home() {
   const { user, token, isLoading, canAccessTab, activePersona } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavItem>('dashboard');
   const [selectedClient360Id, setSelectedClient360Id] = useState<string | undefined>(undefined);
+  const [selectedClient360Name, setSelectedClient360Name] = useState<string | undefined>(undefined);
   const [invoiceTransferData, setInvoiceTransferData] = useState<any>(null);
   const [openCreateInvoiceTrigger, setOpenCreateInvoiceTrigger] = useState(false);
 
+  // Restore navigation state on initial mount from URL query params or localStorage
   React.useEffect(() => {
     setMounted(true);
+
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab') as NavItem | null;
+        const clientParam = urlParams.get('clientId') || undefined;
+        const clientNameParam = urlParams.get('clientName') || undefined;
+        const savedTab = localStorage.getItem('optivir_crm_active_tab') as NavItem | null;
+        const savedClientId = localStorage.getItem('optivir_crm_client_id') || undefined;
+        const savedClientName = localStorage.getItem('optivir_crm_client_name') || undefined;
+
+        const validTabs: NavItem[] = [
+          'dashboard', 'leads', 'contacts', 'companies', 'opportunities',
+          'pipeline', 'proposals', 'clients', 'client-360', 'onboarding',
+          'projects', 'tasks', 'sales', 'marketing', 'finance',
+          'documents', 'activities', 'reports', 'notifications', 'settings'
+        ];
+
+        const targetTab = (tabParam && validTabs.includes(tabParam))
+          ? tabParam
+          : (savedTab && validTabs.includes(savedTab))
+            ? savedTab
+            : 'dashboard';
+
+        const targetClientId = clientParam || savedClientId;
+        const targetClientName = clientNameParam || savedClientName;
+
+        setCurrentTab(targetTab);
+        if (targetClientId) {
+          setSelectedClient360Id(targetClientId);
+        }
+        if (targetClientName) {
+          setSelectedClient360Name(targetClientName);
+        }
+
+        // Keep URL synchronized
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', targetTab);
+        if (targetClientId && targetTab === 'client-360') {
+          url.searchParams.set('clientId', targetClientId);
+          if (targetClientName) {
+            url.searchParams.set('clientName', targetClientName);
+          }
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch (err) {
+        console.warn('Navigation state restoration error:', err);
+      }
+    }
   }, []);
+
+  // Sync tab navigation when browser Back/Forward buttons are clicked
+  React.useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined') return;
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab') as NavItem | null;
+      const clientParam = urlParams.get('clientId') || undefined;
+      const clientNameParam = urlParams.get('clientName') || undefined;
+      if (tabParam) {
+        setCurrentTab(tabParam);
+        if (clientParam) setSelectedClient360Id(clientParam);
+        if (clientNameParam) setSelectedClient360Name(clientNameParam);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Unified navigation function that updates state, localStorage, and URL search parameters
+  const navigateTo = (tab: NavItem, clientId?: string, clientName?: string) => {
+    setCurrentTab(tab);
+    if (clientId !== undefined) {
+      setSelectedClient360Id(clientId);
+    }
+    if (clientName !== undefined) {
+      setSelectedClient360Name(clientName);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('optivir_crm_active_tab', tab);
+        if (clientId) {
+          localStorage.setItem('optivir_crm_client_id', clientId);
+        } else if (tab !== 'client-360') {
+          localStorage.removeItem('optivir_crm_client_id');
+        }
+
+        if (clientName) {
+          localStorage.setItem('optivir_crm_client_name', clientName);
+        } else if (tab !== 'client-360') {
+          localStorage.removeItem('optivir_crm_client_name');
+        }
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        if (clientId) {
+          url.searchParams.set('clientId', clientId);
+          if (clientName) {
+            url.searchParams.set('clientName', clientName);
+          } else {
+            url.searchParams.delete('clientName');
+          }
+        } else if (tab !== 'client-360') {
+          url.searchParams.delete('clientId');
+          url.searchParams.delete('clientName');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Navigation state persistence error:', e);
+      }
+    }
+  };
 
   const handleOpenCreateInvoice = () => {
     setInvoiceTransferData(null);
     setOpenCreateInvoiceTrigger(true);
-    setCurrentTab('finance');
+    navigateTo('finance');
   };
 
   const getHeaderDetails = () => {
@@ -54,16 +166,10 @@ export default function Home() {
         return { title: 'Leads & Prospect Qualification', subtitle: 'Inbound & outbound pipeline qualification' };
       case 'contacts':
         return { title: 'Contacts Directory', subtitle: 'Manage people, key enterprise relationships, and verified decision-makers' };
-      case 'companies':
-        return { title: 'Companies & Stakeholders', subtitle: 'Accounts, decision makers, and organization contacts' };
-      case 'opportunities':
-        return { title: 'Revenue Opportunities', subtitle: 'Track potential revenue from qualification through commercial close' };
-      case 'pipeline':
-        return { title: 'Deal Pipeline Kanban', subtitle: 'Stage progression with weighted closing revenue forecast' };
-      case 'proposals':
-        return { title: 'Commercial Proposals & SOW Quotations', subtitle: 'Draft, negotiate, send and track client proposals and contracts in ₹' };
       case 'clients':
-        return { title: 'Active Client Accounts', subtitle: 'Retainers, SLAs, health scores, and renewal timelines' };
+      case 'companies':
+        return { title: 'Clients & Accounts', subtitle: 'Company accounts, retainers, SLAs, health scores, and client 360°' };
+      case 'opportunities':
       case 'onboarding':
         return { title: 'Client Onboarding & Handoff Suite', subtitle: '24-step SLA orchestration from Sales SOW sign-off to full technical kickoff and live delivery' };
       case 'projects':
@@ -122,7 +228,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full bg-[#F8F9FB] dark:bg-[#060B13] text-[#0B1727] dark:text-[#F8FAFC] overflow-hidden font-sans transition-colors duration-200">
       {/* 1. Sidebar */}
-      <Sidebar currentTab={currentTab} onTabChange={setCurrentTab} />
+      <Sidebar currentTab={currentTab} onTabChange={navigateTo} />
 
       {/* 2. Main Work Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -130,8 +236,8 @@ export default function Home() {
           title={title}
           subtitle={subtitle}
           currentTab={currentTab}
-          onQuickAction={() => setCurrentTab('leads')}
-          onNavigate={setCurrentTab}
+          onQuickAction={() => navigateTo('leads')}
+          onNavigate={navigateTo}
           onCreateInvoice={handleOpenCreateInvoice}
         />
 
@@ -169,7 +275,7 @@ export default function Home() {
 
               <div className="pt-2">
                 <button
-                  onClick={() => setCurrentTab(activePersona.allowedTabs[0] === '*' ? 'dashboard' : activePersona.allowedTabs[0] as any)}
+                  onClick={() => navigateTo(activePersona.allowedTabs[0] === '*' ? 'dashboard' : activePersona.allowedTabs[0] as any)}
                   className="px-5 py-2.5 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl text-xs font-bold transition shadow-xs"
                 >
                   Return to My Workspace
@@ -180,51 +286,49 @@ export default function Home() {
             <>
               {currentTab === 'dashboard' && (
                 <DashboardView
-                  onNavigate={(tab) => setCurrentTab(tab)}
+                  onNavigate={(tab) => navigateTo(tab)}
                   onCreateInvoice={handleOpenCreateInvoice}
                 />
               )}
               {currentTab === 'client-360' && (
                 <Client360View
                   clientId={selectedClient360Id}
-                  onBackToList={() => setCurrentTab('clients')}
+                  clientName={selectedClient360Name}
+                  onBackToList={() => navigateTo('clients')}
                 />
               )}
-              {currentTab === 'leads' && <LeadsView onNavigate={(tab: any) => setCurrentTab(tab)} />}
-              {currentTab === 'contacts' && <ContactsView onNavigate={(tab: any) => setCurrentTab(tab)} />}
-              {currentTab === 'companies' && <CompaniesView />}
-              {currentTab === 'opportunities' && <OpportunitiesView onNavigate={(tab: any) => setCurrentTab(tab)} />}
-              {currentTab === 'pipeline' && <PipelineView onNavigate={(tab: any) => setCurrentTab(tab)} />}
+              {currentTab === 'leads' && <LeadsView onNavigate={(tab: any) => navigateTo(tab)} />}
+              {currentTab === 'contacts' && <ContactsView onNavigate={(tab: any) => navigateTo(tab)} />}
+              {(currentTab === 'clients' || currentTab === 'companies') && (
+                <ClientsListView
+                  onOpenClient360={(cid, cname) => {
+                    navigateTo('client-360', cid, cname);
+                  }}
+                  onNavigate={(tab) => navigateTo(tab)}
+                />
+              )}
+              {currentTab === 'opportunities' && <OpportunitiesView onNavigate={(tab: any) => navigateTo(tab)} />}
+              {currentTab === 'pipeline' && <PipelineView onNavigate={(tab: any) => navigateTo(tab)} />}
               {currentTab === 'proposals' && (
                 <ProposalsView
                   onNavigateToInvoice={(data) => {
                     setInvoiceTransferData(data);
                     setOpenCreateInvoiceTrigger(false);
-                    setCurrentTab('finance');
+                    navigateTo('finance');
                   }}
-                />
-              )}
-              {currentTab === 'clients' && (
-                <ClientsListView
-                  onOpenClient360={(cid) => {
-                    setSelectedClient360Id(cid);
-                    setCurrentTab('client-360');
-                  }}
-                  onNavigate={(tab) => setCurrentTab(tab)}
                 />
               )}
               {currentTab === 'onboarding' && (
                 <ClientOnboardingView
-                  onOpenClient360={(cid) => {
-                    setSelectedClient360Id(cid);
-                    setCurrentTab('client-360');
+                  onOpenClient360={(cid, cname) => {
+                    navigateTo('client-360', cid, cname);
                   }}
-                  onNavigate={(tab) => setCurrentTab(tab)}
+                  onNavigate={(tab) => navigateTo(tab)}
                 />
               )}
               {currentTab === 'projects' && <ProjectsView />}
               {currentTab === 'tasks' && <TasksView />}
-              {currentTab === 'sales' && <PipelineView onNavigate={(tab: any) => setCurrentTab(tab)} />}
+              {currentTab === 'sales' && <PipelineView onNavigate={(tab: any) => navigateTo(tab)} />}
               {currentTab === 'marketing' && <MarketingView />}
               {currentTab === 'finance' && (
                 <FinanceView
@@ -235,7 +339,7 @@ export default function Home() {
               {currentTab === 'documents' && <DocumentsView />}
               {currentTab === 'activities' && <CalendarView />}
               {currentTab === 'reports' && <ReportsView />}
-              {currentTab === 'notifications' && <NotificationsView onNavigate={(tab) => setCurrentTab(tab as any)} />}
+              {currentTab === 'notifications' && <NotificationsView onNavigate={(tab) => navigateTo(tab as any)} />}
               {currentTab === 'settings' && <SettingsView />}
             </>
           )}

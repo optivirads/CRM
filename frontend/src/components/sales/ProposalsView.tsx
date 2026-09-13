@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 import {
   FileText,
   FileCheck,
@@ -208,169 +209,51 @@ const DEFAULT_PACKAGES: AgencyPackage[] = [
     recommendedFor: 'Catalog & retail brands with 100+ SKUs looking to maximize Google Shopping ROAS',
     accentBg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800',
     accentText: 'text-amber-600 dark:text-amber-400'
+  },
+  {
+    id: 'pkg-social-posters',
+    name: 'Social Media Posters & Brand Creatives Suite',
+    tagline: 'High-Impact Brand Graphics, Carousel Sequences & Marketing Posters',
+    category: 'Creative Studio',
+    monthlyFee: 65000,
+    billingType: 'Monthly Retainer',
+    sacCode: '998361',
+    scopeItems: [
+      'High-converting social media posters & announcement creatives (Instagram, LinkedIn, X, Facebook)',
+      'Multi-format export: 1:1 Feed Posts, 9:16 Story/Reels Covers, 16:9 Banner Formats',
+      'Promotional launch creatives, educational carousel decks & seasonal festival posters',
+      'Brand style consistency, custom typography hierarchy, color harmony & vector assets',
+      'Full source files (Figma/PSD) with fast revision turnarounds within 24-48 hours'
+    ],
+    sla: '24h-48h turnaround per batch, 2 rounds of rapid revisions included',
+    recommendedFor: 'Brands looking to establish premium visual consistency and high audience engagement across channels',
+    accentBg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/40',
+    accentText: 'text-rose-600 dark:text-rose-400'
+  },
+  {
+    id: 'pkg-video-editing',
+    name: 'Video Editing & High-Impact Reels Suite',
+    tagline: 'Dynamic Short-Form Video Editing, Motion Hooks & Sound Design',
+    category: 'Creative Studio',
+    monthlyFee: 85000,
+    billingType: 'Monthly Retainer',
+    sacCode: '998361',
+    scopeItems: [
+      'Professional vertical video editing for Reels, YouTube Shorts, and TikTok (15s to 60s)',
+      'Attention-grabbing visual hooks in first 3s with dynamic animated captions & kinetic typography',
+      'Cinematic color grading, sound design, trending music sync & punchy jump cuts',
+      'Long-form podcast/interview content repurposing into viral short-form micro-content',
+      'High-definition exports optimized for mobile ad performance and organic algorithmic reach'
+    ],
+    sla: '48h delivery per reel deliverable, 2 rounds of creative revisions',
+    recommendedFor: 'Creators and businesses wanting to scale short-form video reach and direct response ad conversions',
+    accentBg: 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/40',
+    accentText: 'text-purple-600 dark:text-purple-400'
   }
 ];
 
-// Initial Rich Default Proposals
-const INITIAL_PROPOSALS: ProposalItem[] = [
-  {
-    id: 'prop-089',
-    code: 'PROP-2026-089',
-    name: 'Enterprise Growth Retainer & Meta CAPI Architecture',
-    packageId: 'pkg-capi-stack',
-    packageName: 'Meta CAPI & Server-Side Tracking Stack',
-    clientName: 'Zenith DTC Brands',
-    contactPerson: 'Arjun Mehta (VP Marketing)',
-    contactEmail: 'arjun@zenithbrands.in',
-    opportunityName: 'Zenith Q4 Growth Pipeline',
-    ownerName: 'OptiVir Admin',
-    ownerInitials: 'OP',
-    ownerBg: 'bg-[#DC2626]',
-    contractValue: '₹1,85,000',
-    subtotal: 185000,
-    gstRate: 18,
-    gstAmount: 33300,
-    totalAmount: 218300,
-    contractType: 'Monthly Retainer',
-    slaTag: '48h SLA • 99.9% Uptime',
-    sacCode: '998361',
-    version: 'v2.1 Draft',
-    status: 'Draft',
-    createdDate: '2026-10-01',
-    validUntil: '2026-11-15',
-    lineItems: [
-      {
-        id: 'li-1',
-        description: 'Server-Side Google Tag Manager (sGTM) on Google Cloud Run',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 85000,
-        amount: 85000
-      },
-      {
-        id: 'li-2',
-        description: 'Meta CAPI SHA-256 Advanced Matching & Event Deduplication',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 60000,
-        amount: 60000
-      },
-      {
-        id: 'li-3',
-        description: 'GA4 BigQuery Event Pipeline & Executive ROAS Dashboard',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 40000,
-        amount: 40000
-      }
-    ],
-    executiveSummary: 'In response to browser privacy restrictions, iOS ATT, and client-side ad blockers, OptiVir will deploy a bespoke Server-Side Google Tag Manager (sGTM) cluster natively on private Google Cloud Run containers. This architectural modernization eliminates reliance on fragile browser pixel telemetry, routing all first-party transaction streams directly to Meta, Google, and LinkedIn Marketing APIs.',
-    solutionArchitecture: 'Full first-party sGTM Cloud Run deployment with encrypted SHA-256 PII hashing before payload dispatch. Direct integration into Meta CAPI and GA4 BigQuery for authoritative attribution.',
-    slaAssurance: 'OptiVir guarantees 99.9% event delivery uptime with algorithmic event deduplication between client-side pixel events and server CAPI, recovering an estimated 18% to 24% previously unattributed conversions.'
-  },
-  {
-    id: 'prop-074',
-    code: 'PROP-2026-074',
-    name: 'Full-Funnel Omni-Channel Growth Engine SOW',
-    packageId: 'pkg-dtc-engine',
-    packageName: 'Full-Funnel DTC Scale Engine',
-    clientName: 'Astra Health Tech',
-    contactPerson: 'Priya Sharma (Chief Commercial Officer)',
-    contactEmail: 'priya@astrahealth.com',
-    opportunityName: 'Astra Q4 Omni-Channel Expansion',
-    ownerName: 'OptiVir Admin',
-    ownerInitials: 'OP',
-    ownerBg: 'bg-[#DC2626]',
-    contractValue: '₹2,75,000',
-    subtotal: 275000,
-    gstRate: 18,
-    gstAmount: 49500,
-    totalAmount: 324500,
-    contractType: 'Monthly Retainer',
-    slaTag: 'Weekly Sprints • 4h Slack SLA',
-    sacCode: '998361',
-    version: 'v1.2 Sent',
-    status: 'Sent',
-    createdDate: '2026-09-28',
-    validUntil: '2026-10-31',
-    lineItems: [
-      {
-        id: 'li-101',
-        description: 'Omnichannel Paid Media Management (Meta, Google, YouTube)',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 150000,
-        amount: 150000
-      },
-      {
-        id: 'li-102',
-        description: 'Creative Studio: 16 Direct-Response Video Reels & Static Hooks',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 75000,
-        amount: 75000
-      },
-      {
-        id: 'li-103',
-        description: 'Conversion Rate Optimization (CRO) Bi-Weekly Experiments',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 50000,
-        amount: 50000
-      }
-    ],
-    executiveSummary: 'Comprehensive end-to-end performance media execution combining high-intent search acquisition, top-of-funnel creative sprints, and aggressive landing page conversion rate optimization.',
-    solutionArchitecture: 'Unified cross-channel ad operations managed through OptiVir performance trading desk with automated budget reallocation towards top ROAS ad sets.',
-    slaAssurance: 'Dedicated growth pod with guaranteed 4h response time on Slack Connect and bi-weekly sprint deliverables.'
-  },
-  {
-    id: 'prop-062',
-    code: 'PROP-2026-062',
-    name: 'Creative Studio & Direct-Response UGC Sprint',
-    packageId: 'pkg-creative-ugc',
-    packageName: 'Creative Studio & Direct-Response UGC Sprint',
-    clientName: 'UrbanKulture Apparels',
-    contactPerson: 'Vikram Joshi (Founder & CEO)',
-    contactEmail: 'vikram@urbankulture.in',
-    opportunityName: 'UrbanKulture Festive Q4 SOW',
-    ownerName: 'OptiVir Admin',
-    ownerInitials: 'OP',
-    ownerBg: 'bg-[#DC2626]',
-    contractValue: '₹95,000',
-    subtotal: 95000,
-    gstRate: 18,
-    gstAmount: 17100,
-    totalAmount: 112100,
-    contractType: 'Monthly Retainer',
-    slaTag: '5-Day Initial Batch Delivery',
-    sacCode: '998361',
-    version: 'v1.0 Accepted',
-    status: 'Accepted',
-    createdDate: '2026-09-15',
-    validUntil: '2026-10-15',
-    lineItems: [
-      {
-        id: 'li-201',
-        description: '12 Scripted, Edited & Licensed High-Converting UGC Reels',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 65000,
-        amount: 65000
-      },
-      {
-        id: 'li-202',
-        description: '20 Dynamic Static Ad Hooks (Product Spotlights & Review Cards)',
-        sacCode: '998361',
-        quantity: 1,
-        unitPrice: 30000,
-        amount: 30000
-      }
-    ],
-    executiveSummary: 'Full-service creator sourcing, production, and video ad formatting to resolve creative fatigue and unlock aggressive scale on Meta Reels and TikTok ads.',
-    solutionArchitecture: 'Rapid creative iteration framework with proprietary hook-rate and hold-rate video analytics.',
-    slaAssurance: '5-day turnaround on initial concept scripts, 48h turnaround on video post-production revisions.'
-  }
-];
+// Initial Proposals - Clean empty state, populated from PostgreSQL
+const INITIAL_PROPOSALS: ProposalItem[] = [];
 
 interface ProposalsViewProps {
   onNavigateToInvoice?: (data: any) => void;
@@ -393,19 +276,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
     return DEFAULT_PACKAGES;
   });
 
-  // Proposals State (Persisted in localStorage)
-  const [proposals, setProposals] = useState<ProposalItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('optivir_proposals');
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) { }
-      }
-    }
-    return INITIAL_PROPOSALS;
-  });
-
-  // Currently selected / open proposal
-  const [selectedProposal, setSelectedProposal] = useState<ProposalItem>(proposals[0] || INITIAL_PROPOSALS[0]);
+  // Proposals State (Loaded live from PostgreSQL)
+  const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [selectedProposal, setSelectedProposal] = useState<ProposalItem | null>(null);
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Sub-tabs in Detail view
   const [activeDetailTab, setActiveDetailTab] = useState<
@@ -473,23 +348,80 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   };
 
   // New Proposal Form State
-  const [newPropClient, setNewPropClient] = useState('Zenith DTC Brands');
-  const [newPropContact, setNewPropContact] = useState('Arjun Mehta (VP Marketing)');
+  const [newPropClient, setNewPropClient] = useState('');
+  const [newPropContact, setNewPropContact] = useState('');
   const [newPropSelectedPkgId, setNewPropSelectedPkgId] = useState(packages[0]?.id || 'pkg-perf-growth');
   const [newPropCustomTitle, setNewPropCustomTitle] = useState('');
 
-  // Sync to localStorage
+  // Sync packages to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('optivir_packages', JSON.stringify(packages));
     } catch (e) { }
   }, [packages]);
 
-  useEffect(() => {
+  // Load real Proposals and Clients from PostgreSQL
+  const loadProposalsData = async () => {
     try {
-      localStorage.setItem('optivir_proposals', JSON.stringify(proposals));
-    } catch (e) { }
-  }, [proposals]);
+      setIsLoading(true);
+      const [propsRes, clientsRes] = await Promise.all([
+        api.getProposals().catch(() => ({ success: false, data: [] })),
+        api.getClients().catch(() => ({ success: false, data: [] })),
+      ]);
+
+      if (clientsRes?.data && Array.isArray(clientsRes.data)) {
+        setClientsList(clientsRes.data);
+      }
+
+      if (propsRes?.data && Array.isArray(propsRes.data)) {
+        const mapped: ProposalItem[] = propsRes.data.map((p: any) => {
+          const content = typeof p.content === 'object' && p.content !== null ? p.content : {};
+          return {
+            id: p.id,
+            code: p.proposal_number || `PROP-${p.id.slice(0, 6)}`,
+            name: p.title || 'Commercial SOW',
+            packageId: content.packageId || p.package_id || 'pkg-custom',
+            packageName: content.packageName || p.package_name || 'Standard Agency Package',
+            clientName: p.company_name || p.client_name || content.clientName || 'Client Organization',
+            contactPerson: content.contactPerson || p.contact_person || '',
+            contactEmail: content.contactEmail || p.contact_email || '',
+            opportunityName: content.opportunityName || '',
+            ownerName: 'OptiVir Admin',
+            ownerInitials: 'OP',
+            ownerBg: 'bg-[#DC2626]',
+            contractValue: `₹${Number(p.total_amount || 0).toLocaleString('en-IN')}`,
+            subtotal: Number(content.subtotal || p.total_amount || 0),
+            gstRate: content.gstRate ?? 18,
+            gstAmount: Number(content.gstAmount || Math.round((Number(p.total_amount || 0) * 18) / 118)),
+            totalAmount: Number(p.total_amount || 0),
+            contractType: content.contractType || 'Monthly Retainer',
+            slaTag: content.slaTag || '48h SLA',
+            sacCode: content.sacCode || '998361',
+            version: p.version || 'v1.0 Draft',
+            status: (['Draft', 'Sent', 'Viewed', 'Negotiation', 'Accepted', 'Rejected'].includes(p.status) ? p.status : 'Draft') as any,
+            createdDate: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            validUntil: p.valid_until ? p.valid_until.split('T')[0] : '',
+            lineItems: Array.isArray(content.lineItems) ? content.lineItems : [],
+            executiveSummary: content.executiveSummary || '',
+            solutionArchitecture: content.solutionArchitecture || '',
+            slaAssurance: content.slaAssurance || ''
+          };
+        });
+        setProposals(mapped);
+        if (mapped.length > 0) {
+          setSelectedProposal(mapped[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load proposals:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProposalsData();
+  }, []);
 
   // Outline Sections
   const [outlineSections, setOutlineSections] = useState([
@@ -505,10 +437,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   ]);
 
   // Handle Generating a Proposal directly based on a Selected Package
-  const handleGenerateProposalFromPackage = (pkg: AgencyPackage, customClientName?: string, customContactName?: string) => {
-    const code = `PROP-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const client = customClientName || newPropClient || 'Client Organization';
-    const contact = customContactName || newPropContact || 'Stakeholder Lead';
+  const handleGenerateProposalFromPackage = async (pkg: AgencyPackage, customClientName?: string, customContactName?: string) => {
+    const code = `PROP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const client = (customClientName || newPropClient || 'Client Organization').trim();
+    const contact = (customContactName || newPropContact || 'Commercial Stakeholder').trim();
     const subtotal = pkg.monthlyFee;
     const gstRate = 18;
     const gstAmount = Math.round((subtotal * gstRate) / 100);
@@ -526,42 +458,79 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       };
     });
 
-    const newProposal: ProposalItem = {
-      id: code.toLowerCase(),
-      code: code,
-      name: customClientName ? `${pkg.name} — ${client} SOW` : `${pkg.name} — Commercial SOW`,
+    const proposalTitle = newPropCustomTitle.trim() || `${pkg.name} — ${client} SOW`;
+
+    const contentPayload = {
       packageId: pkg.id,
       packageName: pkg.name,
-      clientName: client,
       contactPerson: contact,
       contactEmail: `${contact.split(' ')[0].toLowerCase()}@${client.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
-      opportunityName: `${client} — ${pkg.category} SOW`,
-      ownerName: 'OptiVir Admin',
-      ownerInitials: 'OP',
-      ownerBg: 'bg-[#DC2626]',
-      contractValue: `₹${subtotal.toLocaleString('en-IN')}`,
-      subtotal: subtotal,
-      gstRate: gstRate,
-      gstAmount: gstAmount,
-      totalAmount: totalAmount,
       contractType: pkg.billingType,
       slaTag: pkg.sla,
       sacCode: pkg.sacCode || '998361',
-      version: 'v1.0 Draft',
-      status: 'Draft',
-      createdDate: new Date().toISOString().split('T')[0],
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: subtotal,
+      gstRate: gstRate,
+      gstAmount: gstAmount,
       lineItems: lineItems,
       executiveSummary: `OptiVir CRM Solutions presents this authoritative commercial Statement of Work (SOW) to ${client}. Configured under our specialized "${pkg.name}" offering, this engagement directly resolves operational bottlenecks with rigorous performance accountability.`,
       solutionArchitecture: `Delivery is structured across ${pkg.scopeItems.length} core workstreams: ${pkg.scopeItems.join('; ')}. All billing is governed under CBIC SAC 998361 (Advertising & Digital Marketing Services) at 18% GST.`,
       slaAssurance: pkg.sla
     };
 
-    setProposals(prev => [newProposal, ...prev]);
-    setSelectedProposal(newProposal);
-    setCurrentView('detail');
-    setActiveDetailTab('1. 3-Column Workspace');
-    showToast(`Generated proposal ${code} from package "${pkg.name}"!`, 'success');
+    try {
+      const res = await api.createProposal({
+        title: proposalTitle,
+        proposal_number: code,
+        client_name: client,
+        total_amount: totalAmount,
+        status: 'Draft',
+        valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        content: contentPayload
+      });
+
+      const serverId = res?.data?.id || code.toLowerCase();
+
+      const newProposal: ProposalItem = {
+        id: serverId,
+        code: res?.data?.proposal_number || code,
+        name: proposalTitle,
+        packageId: pkg.id,
+        packageName: pkg.name,
+        clientName: client,
+        contactPerson: contact,
+        contactEmail: contentPayload.contactEmail,
+        opportunityName: `${client} — ${pkg.category} SOW`,
+        ownerName: 'OptiVir Admin',
+        ownerInitials: 'OP',
+        ownerBg: 'bg-[#DC2626]',
+        contractValue: `₹${totalAmount.toLocaleString('en-IN')}`,
+        subtotal: subtotal,
+        gstRate: gstRate,
+        gstAmount: gstAmount,
+        totalAmount: totalAmount,
+        contractType: pkg.billingType,
+        slaTag: pkg.sla,
+        sacCode: pkg.sacCode || '998361',
+        version: 'v1.0 Draft',
+        status: 'Draft',
+        createdDate: new Date().toISOString().split('T')[0],
+        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lineItems: lineItems,
+        executiveSummary: contentPayload.executiveSummary,
+        solutionArchitecture: contentPayload.solutionArchitecture,
+        slaAssurance: contentPayload.slaAssurance
+      };
+
+      setProposals(prev => [newProposal, ...prev.filter(p => p.id !== newProposal.id)]);
+      setSelectedProposal(newProposal);
+      setCurrentView('detail');
+      setActiveDetailTab('1. 3-Column Workspace');
+      setShowCreateProposalModal(false);
+      showToast(`Generated & saved proposal ${code} to database!`, 'success');
+    } catch (err: any) {
+      console.error('Failed to create proposal in database:', err);
+      showToast('Error saving proposal to database', 'error');
+    }
   };
 
   // Handle adding or updating a custom agency package
@@ -601,11 +570,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
       // Also update currently active proposal if it references this package
       if (selectedProposal && selectedProposal.packageId === editingPkgId) {
-        setSelectedProposal(prev => ({
+        setSelectedProposal(prev => prev ? ({
           ...prev,
           packageName: newPkgName.trim(),
           sacCode: newPkgSac.trim() || '998361',
-        }));
+        }) : null);
       }
 
       showToast(`Package "${newPkgName.trim()}" updated successfully!`, 'success');
@@ -680,7 +649,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   };
 
   // Update status (Draft, Sent, Viewed, Negotiation, Accepted)
-  const handleUpdateStatus = (proposalId: string, newStatus: ProposalItem['status']) => {
+  const handleUpdateStatus = async (proposalId: string, newStatus: ProposalItem['status']) => {
     setProposals(prev =>
       prev.map(p => {
         if (p.id === proposalId) {
@@ -691,20 +660,33 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
         return p;
       })
     );
-    showToast(`Proposal status updated to "${newStatus}"`, 'success');
+    try {
+      await api.updateProposal(proposalId, { status: newStatus });
+      showToast(`Proposal status updated to "${newStatus}"`, 'success');
+    } catch (err) {
+      console.error('Failed to update proposal status in DB:', err);
+      showToast(`Status updated to "${newStatus}" locally`, 'info');
+    }
   };
 
   // Delete Proposal
-  const handleDeleteProposal = (proposalId: string) => {
+  const handleDeleteProposal = async (proposalId: string) => {
+    try {
+      await api.deleteProposal(proposalId);
+    } catch (err) {
+      console.error('Failed to delete proposal from DB:', err);
+    }
     setProposals(prev => prev.filter(p => p.id !== proposalId));
     if (selectedProposal?.id === proposalId) {
       const remaining = proposals.filter(p => p.id !== proposalId);
       if (remaining.length > 0) {
         setSelectedProposal(remaining[0]);
+      } else {
+        setSelectedProposal(null);
       }
       setCurrentView('list');
     }
-    showToast('Proposal deleted', 'info');
+    showToast('Proposal deleted successfully', 'info');
   };
 
   // Convert to Tax Invoice & Route to Finance
@@ -759,49 +741,44 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
       {/* ========================================================================= */}
-      {/* TOP NAVIGATION / SIMULATOR MODE BAR                                      */}
+      {/* TOP NAVIGATION BAR                                                        */}
       {/* ========================================================================= */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
+      <div className="bg-[#0A1628] text-white px-6 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <span className="px-1.5 py-0.2 rounded bg-rose-600 text-white font-black text-[10px]">SOW</span>
-            <span>PROPOSALS &amp; PACKAGES ENGINE:</span>
-          </div>
-
           <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
             <button
               onClick={() => setCurrentView('list')}
-              className={`px-3 py-1 rounded text-[11px] font-medium transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition cursor-pointer ${
                 currentView === 'list'
-                  ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              1. Proposals Directory ({proposals.length})
+              Proposals Directory ({proposals.length})
             </button>
             <button
               onClick={() => {
                 if (!selectedProposal && proposals.length > 0) setSelectedProposal(proposals[0]);
                 setCurrentView('detail');
               }}
-              className={`px-3 py-1 rounded text-[11px] font-medium transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition cursor-pointer ${
                 currentView === 'detail'
-                  ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              2. Proposal Workspace &amp; Editor
+              Proposal Workspace &amp; Editor
             </button>
             <button
               onClick={() => setCurrentView('packages')}
-              className={`px-3 py-1 rounded text-[11px] font-medium transition cursor-pointer flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
                 currentView === 'packages'
-                  ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <Package className="w-3 h-3 text-amber-400" />
-              <span>3. Agency Packages Vault ({packages.length})</span>
+              <Package className="w-3.5 h-3.5 text-amber-400" />
+              <span>Agency Packages Vault ({packages.length})</span>
             </button>
           </div>
         </div>
@@ -809,10 +786,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
         <div className="flex items-center gap-3 text-[11px] text-slate-400">
           <span className="flex items-center gap-1.5 text-emerald-400">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>CBIC SAC 998361 Validated (18% GST)</span>
+            <span>SAC 998361 (18% GST Compliant)</span>
           </span>
-          <span className="text-slate-600">|</span>
-          <span>Enterprise SOW Engine</span>
+          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="hidden sm:inline">SOW Engine</span>
         </div>
       </div>
 
@@ -2575,6 +2552,147 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CREATE NEW PROPOSAL                                                */}
+      {/* ========================================================================= */}
+      {showCreateProposalModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#DC2626]" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">Create New Proposal</h3>
+              </div>
+              <button onClick={() => setShowCreateProposalModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const chosenPkg = packages.find(p => p.id === newPropSelectedPkgId) || packages[0];
+                if (!chosenPkg) {
+                  showToast('Please configure at least one package in the vault first', 'error');
+                  return;
+                }
+                handleGenerateProposalFromPackage(chosenPkg, newPropClient, newPropContact);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">Target Client / Company *</label>
+                {clientsList.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <select
+                      value={newPropClient}
+                      onChange={(e) => setNewPropClient(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                    >
+                      <option value="">-- Select Existing Client or Type Below --</option>
+                      {clientsList.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={newPropClient}
+                      onChange={(e) => setNewPropClient(e.target.value)}
+                      placeholder="Or enter new client name..."
+                      required
+                      className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-rose-500"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={newPropClient}
+                    onChange={(e) => setNewPropClient(e.target.value)}
+                    placeholder="e.g. Hijabi Ladies Beauty Salon"
+                    required
+                    className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-rose-500"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">Key Stakeholder / Contact Person</label>
+                <input
+                  type="text"
+                  value={newPropContact}
+                  onChange={(e) => setNewPropContact(e.target.value)}
+                  placeholder="e.g. Fatima Al-Zahra (Director)"
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">Proposal Title (Optional)</label>
+                <input
+                  type="text"
+                  value={newPropCustomTitle}
+                  onChange={(e) => setNewPropCustomTitle(e.target.value)}
+                  placeholder="Defaults to: [Package Name] — [Client Name] SOW"
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">Applied Agency Package *</label>
+                <select
+                  value={newPropSelectedPkgId}
+                  onChange={(e) => setNewPropSelectedPkgId(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                >
+                  {packages.map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} — ₹{pkg.monthlyFee.toLocaleString('en-IN')} ({pkg.billingType})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-[11px] text-slate-500 space-y-1">
+                <div className="flex justify-between font-semibold text-slate-700 dark:text-slate-300">
+                  <span>Selected Package Fee:</span>
+                  <span>
+                    ₹{(packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax (18% GST, SAC 998361):</span>
+                  <span>
+                    ₹{Math.round(((packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0) * 0.18)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-700">
+                  <span>Total Commercial Value:</span>
+                  <span className="text-[#DC2626]">
+                    ₹{Math.round(((packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0) * 1.18)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateProposalModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
+                >
+                  Generate & Save Proposal
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

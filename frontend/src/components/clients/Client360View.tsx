@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast, ToastType } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 import {
   Building2,
   Briefcase,
@@ -87,6 +88,47 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   onBackToList,
   onNavigate
 }) => {
+  const [liveClient, setLiveClient] = useState<any>(null);
+  const [isLoadingClient, setIsLoadingClient] = useState(false);
+  const [clientProjects, setClientProjects] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchClientData = async () => {
+      try {
+        setIsLoadingClient(true);
+        if (clientId) {
+          // 1. Try getting full 360 data
+          const res = await api.getClient360(clientId).catch(() => null);
+          if (res?.data?.client) {
+            setLiveClient(res.data.client);
+          } else {
+            // 2. Fallback: search in getClients()
+            const allRes = await api.getClients().catch(() => null);
+            if (allRes?.data && Array.isArray(allRes.data)) {
+              const found = allRes.data.find((c: any) => c.id === clientId || c.company_id === clientId);
+              if (found) setLiveClient(found);
+            }
+          }
+        }
+
+        // Fetch client-linked projects
+        const projRes = await api.getProjects().catch(() => null);
+        if (projRes?.data && Array.isArray(projRes.data)) {
+          const matched = projRes.data.filter((p: any) =>
+            (clientId && (p.client_id === clientId || p.company_id === clientId)) ||
+            (propClientName && p.company_name?.toLowerCase().includes(propClientName.toLowerCase()))
+          );
+          setClientProjects(matched);
+        }
+      } catch (err) {
+        console.error('Failed to load client profile:', err);
+      } finally {
+        setIsLoadingClient(false);
+      }
+    };
+    fetchClientData();
+  }, [clientId, propClientName]);
+
   const [resolvedClient] = useState<any>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -106,11 +148,22 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     return null;
   });
 
-  const activeClientName = propClientName || resolvedClient?.companyName || (clientId ? `Client #${clientId}` : 'Client 360° Profile');
-  const activeClientDomain = resolvedClient?.domain || (activeClientName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com');
-  const activeInitials = activeClientName.substring(0, 2).toUpperCase();
+  const activeClientName =
+    propClientName ||
+    liveClient?.company_name ||
+    liveClient?.name ||
+    liveClient?.companyName ||
+    resolvedClient?.companyName ||
+    resolvedClient?.name ||
+    'Client Profile';
+
+  const activeClientDomain =
+    liveClient?.website ||
+    resolvedClient?.domain ||
+    (activeClientName !== 'Client Profile' ? `${activeClientName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com` : 'client.com');
+
+  const activeInitials = (activeClientName || 'CL').substring(0, 2).toUpperCase();
   const { showToast: showGlobalToast } = useToast();
-  const [simulatorState, setSimulatorState] = useState('1. Overview (Command)');
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'campaigns' | 'deliverables' | 'vault' | 'performance' | 'projects' | 'retainers' | 'finance' | 'timeline' | 'health'>('overview');
   const [dateRange, setDateRange] = useState('This Month');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -209,10 +262,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
   // Modal Generator Form State
   const [newDelivCategory, setNewDelivCategory] = useState<ClientDeliverable['category']>('Creative Ad Pack');
-  const [newDelivTitle, setNewDelivTitle] = useState('Omnichannel Performance Creative Pack (Batch #5)');
-  const [newDelivScope, setNewDelivScope] = useState('12 Performance Ad Banners + 4 Short-form Reels + 3 Copy Variations');
-  const [newDelivLead, setNewDelivLead] = useState('Alex Morgan');
-  const [newDelivDate, setNewDelivDate] = useState('Nov 15, 2026');
+  const [newDelivTitle, setNewDelivTitle] = useState('Social Media Posters & High-Impact Reels Pack');
+  const [newDelivScope, setNewDelivScope] = useState('Custom social media posters, promotional creatives, and edited high-impact video reels');
+  const [newDelivLead, setNewDelivLead] = useState('Creative Director');
+  const [newDelivDate, setNewDelivDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newDelivFormat, setNewDelivFormat] = useState<'pdf' | 'zip' | 'doc'>('pdf');
   const [delivFilterCategory, setDelivFilterCategory] = useState<string>('All');
   const [delivSearchQuery, setDelivSearchQuery] = useState('');
@@ -232,29 +285,29 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const handleApplyPreset = (cat: ClientDeliverable['category']) => {
     setNewDelivCategory(cat);
     if (cat === 'Creative Ad Pack') {
-      setNewDelivTitle('Performance Ad Creative Batch #5');
-      setNewDelivScope('12 High-converting static/carousel banners + 4 Motion Reels (9:16) + Copy angles');
-      setNewDelivLead('Alex Morgan');
+      setNewDelivTitle('Social Media Posters & Video Creatives Pack');
+      setNewDelivScope('High-converting social media posters, promotional graphics, and polished video edits');
+      setNewDelivLead('Creative Director');
       setNewDelivFormat('pdf');
     } else if (cat === 'Performance Report') {
-      setNewDelivTitle('Monthly Performance Attribution Dossier (Oct 2026)');
-      setNewDelivScope('Omnichannel Google/Meta ad spend audit, blended ROAS, SQL velocity curves');
-      setNewDelivLead('Maya Joseph');
+      setNewDelivTitle('Campaign Performance & Attribution Report');
+      setNewDelivScope('Omnichannel ad spend audit, blended ROAS, and conversion metrics');
+      setNewDelivLead('Growth Strategist');
       setNewDelivFormat('pdf');
     } else if (cat === 'Technical & SEO') {
-      setNewDelivTitle('Conversion API (CAPI) & Core Web Vitals Audit Report');
-      setNewDelivScope('Server-side GTM event match quality, latency analysis, and technical SEO schema');
-      setNewDelivLead('Rahul Menon');
+      setNewDelivTitle('Conversion API (CAPI) & Analytics Audit Report');
+      setNewDelivScope('Server-side event match quality, tracking latency analysis, and technical schema');
+      setNewDelivLead('Technical Lead');
       setNewDelivFormat('pdf');
     } else if (cat === 'SOW Milestone') {
-      setNewDelivTitle('Sprint 25 Milestone Sign-off Certificate & Tax Invoice');
+      setNewDelivTitle('Project Milestone Sign-off Certificate & Tax Invoice');
       setNewDelivScope('Deliverable completion acceptance + GST-compliant milestone tax invoice');
-      setNewDelivLead('Alex Morgan');
+      setNewDelivLead('Account Lead');
       setNewDelivFormat('pdf');
     } else {
       setNewDelivTitle('Custom Deliverable Package');
       setNewDelivScope('Tailored client deliverable specifications and deliverables checklist');
-      setNewDelivLead('Sarah Jenkins');
+      setNewDelivLead('Account Lead');
       setNewDelivFormat('pdf');
     }
   };
@@ -372,12 +425,12 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 flex-wrap pt-1">
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold">
                     <Building2 className="w-3.5 h-3.5" />
-                    <span>Technology &amp; Performance</span>
+                    <span>{liveClient?.industry || 'Beauty & Wellness'}</span>
                   </span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
                     <MapPin className="w-3.5 h-3.5" />
-                    <span>Client Headquarters</span>
+                    <span>{liveClient?.city ? `${liveClient.city}, Client HQ` : 'Client Headquarters'}</span>
                   </span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
@@ -395,16 +448,20 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center text-xs font-bold">
-                    AM
+                    {liveClient?.am_first ? `${liveClient.am_first[0]}${liveClient.am_last?.[0] || ''}`.toUpperCase() : 'OP'}
                   </div>
                   <div className="text-xs">
-                    <div className="font-bold text-slate-900 dark:text-white">Alex Morgan</div>
-                    <div className="text-[10px] text-slate-500">AM Lead</div>
+                    <div className="font-bold text-slate-900 dark:text-white">
+                      {liveClient?.am_first ? `${liveClient.am_first} ${liveClient.am_last || ''}`.trim() : 'OptiVir Admin'}
+                    </div>
+                    <div className="text-[10px] text-slate-500">Account Manager</div>
                   </div>
                 </div>
                 <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
                 <div className="text-xs text-slate-600 dark:text-slate-400">
-                  Tech Lead: <strong className="text-slate-900 dark:text-white">Maya Joseph</strong>
+                  Primary Contact: <strong className="text-slate-900 dark:text-white">
+                    {liveClient?.contact_first ? `${liveClient.contact_first} ${liveClient.contact_last || ''}`.trim() : (liveClient?.contact_email || 'Lead Stakeholder')}
+                  </strong>
                 </div>
               </div>
 
@@ -583,8 +640,8 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
             <select className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium">
               <option>All Pod Leads</option>
-              <option>Maya Joseph</option>
-              <option>Rahul Menon</option>
+              <option>Account Lead</option>
+              <option>Creative Lead</option>
             </select>
 
             <button
@@ -1539,109 +1596,55 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </div>
               </div>
 
-              {/* Top 4 Attribution KPIs */}
+              {/* Top 4 Client KPIs */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">AD SPEND</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">₹4,20,000</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">On 85% pace</div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE PROJECTS</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                    {clientProjects.length}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {clientProjects.filter((p) => p.status === 'Active').length} in active sprint
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">QUALIFIED LEADS</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">842</div>
-                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">+18.7% vs bench</div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">CONTRACTED BUDGET</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                    ₹{clientProjects.reduce((acc, p) => acc + (Number(p.budget) || 0), 0).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                    Total SOW Value
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">CONVERSIONS</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">124</div>
-                  <div className="text-[10px] text-blue-600 font-semibold mt-0.5">+12.4% MoM</div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">DELIVERABLES</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                    {deliverables.length}
+                  </div>
+                  <div className="text-[10px] text-blue-600 font-semibold mt-0.5">
+                    {deliverables.filter((d) => d.status === 'Client Approved').length} approved
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">ATTRIB. REVENUE</div>
-                  <div className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">₹20,16,000</div>
-                  <div className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5">4.8x Blended ROAS</div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">ACCOUNT STATUS</div>
+                  <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                    Active Client
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                    Good Standing
+                  </div>
                 </div>
               </div>
 
-              {/* Bottom 4 secondary metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
-                <div>
-                  <span className="text-[11px] text-slate-500">BLENDED ROAS:</span>
-                  <div className="font-bold text-slate-900 dark:text-white">4.80x <span className="text-[10px] text-slate-400 font-normal">(Target: 3.8x)</span></div>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-500">CPA (BLENDED):</span>
-                  <div className="font-bold text-slate-900 dark:text-white">₹3,387 <span className="text-[10px] text-emerald-600 font-normal">(-6.2%)</span></div>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-500">CPL (LEAD):</span>
-                  <div className="font-bold text-slate-900 dark:text-white">₹499 <span className="text-[10px] text-slate-400 font-normal">(Efficiency max)</span></div>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-500">QUALIFIED TRAFFIC:</span>
-                  <div className="font-bold text-slate-900 dark:text-white">128,400 <span className="text-[10px] text-emerald-600 font-normal">(+21.5%)</span></div>
-                </div>
-              </div>
-
-              {/* Mini Charts Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                {/* Revenue Growth Spline Preview */}
-                <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">Revenue Growth vs Pipeline Target</span>
-                    <span className="text-[10px] text-slate-400">Aug – Sep 2026</span>
-                  </div>
-                  <div className="h-28 flex items-end justify-between gap-2 px-2 pt-4 relative">
-                    {/* SVG Curve */}
-                    <svg className="absolute inset-0 w-full h-full p-2 overflow-visible" preserveAspectRatio="none" viewBox="0 0 200 60">
-                      <path
-                        d="M 0 50 Q 50 40, 100 25 T 200 10"
-                        fill="none"
-                        stroke="#B91C1C"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-                      <circle cx="200" cy="10" r="4" fill="#B91C1C" />
-                    </svg>
-                    <div className="text-[10px] text-slate-400 z-10">Week 1 (₹4.2L)</div>
-                    <div className="text-[10px] text-slate-400 z-10">Week 2 (₹5.8L)</div>
-                    <div className="text-[10px] text-slate-400 z-10">Week 3 (₹7.4L)</div>
-                    <div className="text-[10px] font-bold text-rose-600 z-10">Current (₹9.5L)</div>
-                  </div>
-                </div>
-
-                {/* ROAS Trajectory Bar Chart */}
-                <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">ROAS Trajectory (Target: 3.8x)</span>
-                    <span className="text-[10px] font-bold text-emerald-600">Current: 4.8x</span>
-                  </div>
-                  <div className="h-28 flex items-end justify-between gap-3 px-3 pt-3">
-                    <div className="flex flex-col items-center gap-1 flex-1">
-                      <span className="text-[10px] text-slate-500">3.6x</span>
-                      <div className="w-full bg-slate-300 dark:bg-slate-700 rounded-t h-14"></div>
-                      <span className="text-[10px] text-slate-400">W10</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 flex-1">
-                      <span className="text-[10px] text-slate-500">4.1x</span>
-                      <div className="w-full bg-slate-400 dark:bg-slate-600 rounded-t h-18"></div>
-                      <span className="text-[10px] text-slate-400">W11</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 flex-1">
-                      <span className="text-[10px] text-slate-500">4.4x</span>
-                      <div className="w-full bg-slate-500 dark:bg-slate-500 rounded-t h-22"></div>
-                      <span className="text-[10px] text-slate-400">W12</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 flex-1">
-                      <span className="text-[10px] font-bold text-rose-600">4.8x</span>
-                      <div className="w-full bg-[#B91C1C] rounded-t h-26"></div>
-                      <span className="text-[10px] font-bold text-rose-600">W13</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Account Overview Strip */}
+              <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                <span>Account Health: <strong className="text-emerald-600 font-bold">Optimal (Good Standing)</strong></span>
+                <span>Active Projects: <strong className="text-slate-800 dark:text-slate-200">{clientProjects.length}</strong></span>
+                <span>Tracked Deliverables: <strong className="text-slate-800 dark:text-slate-200">{deliverables.length}</strong></span>
+                <span>Domain: <strong className="text-slate-800 dark:text-slate-200">{activeClientDomain}</strong></span>
               </div>
             </div>
 
@@ -1766,87 +1769,52 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               </div>
 
               <div className="space-y-3">
-                {/* Project 1 */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#0A1628] text-white flex items-center justify-center font-bold text-xs">
-                        🚀
-                      </div>
-                      <div>
-                        <div className="font-bold text-xs text-slate-900 dark:text-white">
-                          {activeClientName} Growth Campaign — Q3 Scale
-                        </div>
-                        <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                          <span>Sprint 4 of 6</span>
-                          <span>•</span>
-                          <span className="text-emerald-600 font-semibold">● On Track</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-4 flex-wrap pt-1">
-                      <span>Lead: <strong>Maya Joseph</strong></span>
-                      <span>Deadline: <strong>30 Sep 2026</strong></span>
-                      <span>Budget: <strong>₹4,50,000</strong></span>
-                      <span>Spent: <strong>₹3,06,000 (68%)</strong></span>
-                    </div>
+                {clientProjects.length === 0 ? (
+                  <div className="p-8 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                    No active delivery projects found for {activeClientName}. Create a project in the Projects section to track sprints and milestones.
                   </div>
+                ) : (
+                  clientProjects.map((p) => (
+                    <div key={p.id} className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-[#0A1628] text-white flex items-center justify-center font-bold text-xs">
+                            🚀
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-slate-900 dark:text-white">
+                              {p.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                              <span>{p.description || 'Creative & Digital Delivery'}</span>
+                              <span>•</span>
+                              <span className={p.status === 'Completed' ? 'text-emerald-600 font-semibold' : 'text-blue-600 font-semibold'}>
+                                ● {p.status || 'Active'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-4 flex-wrap pt-1">
+                          <span>Lead: <strong>{p.pm_first ? `${p.pm_first} ${p.pm_last || ''}`.trim() : 'OptiVir Admin'}</strong></span>
+                          <span>Deadline: <strong>{p.end_date ? new Date(p.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Ongoing'}</strong></span>
+                          <span>Budget: <strong>₹{Number(p.budget || 0).toLocaleString('en-IN')}</strong></span>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-4 shrink-0">
-                    <div className="w-36 space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">Progress</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">68%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                        <div className="bg-[#0A1628] dark:bg-blue-600 h-full rounded-full" style={{ width: '68%' }}></div>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </div>
-                </div>
-
-                {/* Project 2 */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#0A1628] text-white flex items-center justify-center font-bold text-xs">
-                        💻
-                      </div>
-                      <div>
-                        <div className="font-bold text-xs text-slate-900 dark:text-white">
-                          Website Revamp & CRO Architecture
-                        </div>
-                        <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                          <span>Sprint 1 of 4</span>
-                          <span>•</span>
-                          <span className="text-amber-600 font-semibold bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                            Client Approval Pending
-                          </span>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="w-36 space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Progress</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{p.progress || 25}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-[#0A1628] dark:bg-blue-600 h-full rounded-full" style={{ width: `${p.progress || 25}%` }}></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-4 flex-wrap pt-1">
-                      <span>Lead: <strong>Rahul Menon</strong></span>
-                      <span>Deadline: <strong>20 Oct 2026</strong></span>
-                      <span>Budget: <strong>₹2,20,000</strong></span>
-                      <span className="text-rose-600 font-bold">Stalled: 4 Days on Wireframes</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 shrink-0">
-                    <div className="w-36 space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">Progress</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">20%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                        <div className="bg-amber-500 h-full rounded-full" style={{ width: '20%' }}></div>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </div>
-                </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -1885,80 +1853,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     <tr>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Zap className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Performance Marketing (Growth)</span>
-                      </td>
-                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">₹1,50,000 / mo</td>
-                      <td className="p-3 text-slate-600 dark:text-slate-400">Alex Morgan</td>
-                      <td className="p-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-200">64h / 90h max</div>
-                        <div className="text-[10px] text-slate-400">(80%)</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          Above Target
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => showToast('Managing Service: Performance Marketing & Paid Ads (Alex Morgan)', 'info')}
-                          className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          Manage
-                        </button>
-                      </td>
-                    </tr>
-
-                    <tr>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Share2 className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Social Media & Community Mgmt</span>
-                      </td>
-                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">₹75,000 / mo</td>
-                      <td className="p-3 text-slate-600 dark:text-slate-400">Maya Joseph</td>
-                      <td className="p-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-200">42h / 50h max</div>
-                        <div className="text-[10px] text-slate-400">(84%)</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          On Target
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => showToast('Managing Service: Social Media & Community Mgmt (Maya Joseph)', 'info')}
-                          className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          Manage
-                        </button>
-                      </td>
-                    </tr>
-
-                    <tr>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <BarChart2 className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Technical SEO & Content Ops</span>
-                      </td>
-                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">₹50,000 / mo</td>
-                      <td className="p-3 text-slate-600 dark:text-slate-400">Rahul Menon</td>
-                      <td className="p-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-200">18h / 40h max</div>
-                        <div className="text-[10px] text-slate-400">(45%)</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                          Pacing Low
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => showToast('Managing Service: Technical SEO & Content Ops (Rahul Menon)', 'info')}
-                          className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          Manage
-                        </button>
+                      <td colSpan={6} className="p-8 text-center text-slate-400 dark:text-slate-500">
+                        <Zap className="w-7 h-7 mx-auto mb-2 text-slate-300 dark:text-slate-600 opacity-60" />
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">No active recurring retainers configured</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Configure recurring scope and hourly allocations in Contracts.</p>
                       </td>
                     </tr>
                   </tbody>
@@ -1988,89 +1886,42 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               </div>
 
               <div className="space-y-3">
-                {/* Touchpoint 1 */}
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-lg bg-[#B91C1C] text-white flex flex-col items-center justify-center font-bold shrink-0">
-                      <span className="text-[9px] uppercase tracking-wider">SEP</span>
-                      <span className="text-base leading-none">10</span>
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>Monthly Performance & ROAS Executive Review</span>
-                        <span className="text-[10px] text-slate-500 font-normal">11:00 AM IST</span>
+                {clientProjects.length > 0 ? (
+                  clientProjects.map((p: any, idx: number) => {
+                    const dueDate = p.end_date || p.dueDate || 'Ongoing';
+                    return (
+                      <div key={p.id || idx} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-lg bg-[#B91C1C] text-white flex flex-col items-center justify-center font-bold shrink-0">
+                            <span className="text-[9px] uppercase tracking-wider">DUE</span>
+                            <span className="text-xs leading-none mt-0.5">{dueDate.includes('-') ? dueDate.split('-').slice(1).join('/') : dueDate}</span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                              <span>{p.name}</span>
+                              <span className="text-[10px] text-slate-500 font-normal">{p.category || 'Deliverable'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Status: <span className="capitalize font-medium text-slate-700 dark:text-slate-300">{p.status || 'Active'}</span> • Budget: ₹{Number(p.budget || 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => showToast(`Opening details for ${p.name}...`, 'info')}
+                          className="px-3 py-1 bg-[#0A1628] text-white rounded text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
+                        >
+                          View Project
+                        </button>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Alex Morgan with Client Stakeholder • Google Meet
-                      </div>
-                    </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-6 text-center text-slate-400 dark:text-slate-500">
+                    <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600 opacity-60" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">No upcoming milestones scheduled</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Deliverables and deadlines linked to active projects will appear here.</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => showToast('Meeting confirmed: Monthly Performance & ROAS Executive Review', 'success')}
-                      className="px-2.5 py-1 rounded text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 cursor-pointer"
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      onClick={() => showToast('Opening meeting agenda & slide deck...', 'info')}
-                      className="px-3 py-1 bg-[#0A1628] text-white rounded text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
-                    >
-                      Open Agenda
-                    </button>
-                  </div>
-                </div>
-
-                {/* Touchpoint 2 */}
-                <div className="p-3.5 bg-rose-50/40 dark:bg-rose-950/20 rounded-xl border border-rose-200 dark:border-rose-900/40 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-lg bg-rose-600 text-white flex flex-col items-center justify-center font-bold shrink-0">
-                      <span className="text-[9px] uppercase tracking-wider">SEP</span>
-                      <span className="text-base leading-none">12</span>
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>Retainer Invoice Due: INV-2026-082</span>
-                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.5 rounded">
-                          Due in 48h
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Amount: ₹75,000 • Assigned to Sara Menon (Billing Lead)
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => showToast('Opening Retainer Invoice INV-2026-082 (₹75,000)...', 'info')}
-                    className="px-3 py-1 bg-[#B91C1C] text-white rounded text-xs font-bold hover:bg-[#991B1B] transition cursor-pointer"
-                  >
-                    View Invoice
-                  </button>
-                </div>
-
-                {/* Touchpoint 3 */}
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-lg bg-[#0A1628] text-white flex flex-col items-center justify-center font-bold shrink-0">
-                      <span className="text-[9px] uppercase tracking-wider">SEP</span>
-                      <span className="text-base leading-none">15</span>
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white">
-                        Mid-Sprint Campaign Milestone Delivery
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Lead: Maya Joseph • Deliver creative batch 4 & LinkedIn Ad structure
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => showToast('Opening Mid-Sprint Campaign Milestone Delivery dossier...', 'info')}
-                    className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 rounded text-xs font-semibold hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    Milestone Details
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -2095,66 +1946,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </button>
               </div>
 
-              <div className="space-y-3.5 text-xs">
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-600 mt-1 shrink-0"></div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Today, 10:10 AM</span>
-                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                        Performance
-                      </span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                      Weekly ROAS Attribution Report reviewed and approved by <strong>Key Stakeholder</strong>. Noted positive feedback on Meta CPL reductions.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 shrink-0"></div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Today, 08:15 AM</span>
-                      <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded text-[10px] font-semibold text-blue-700 dark:text-blue-300">
-                        Meeting
-                      </span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                      Client bi-weekly operational sync completed. Notes logged by <strong>Alex Morgan</strong>. Next checkpoint set for 10 Sep.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 mt-1 shrink-0"></div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Yesterday, 05:40 PM</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 rounded text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                        Finance
-                      </span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                      Invoice payment received: <strong>₹1,50,000 (INV-2026-081)</strong> via NEFT transfer. Reconciled in Razorpay ledger.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-slate-400 mt-1 shrink-0"></div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">07 Sep 2026</span>
-                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                        Delivery
-                      </span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                      Sprint deliverable signed off: <em>Ad Creative Batch 3</em> (12 video iterations uploaded to client Google Drive).
-                    </p>
-                  </div>
-                </div>
+              <div className="p-6 text-center text-slate-400 dark:text-slate-500">
+                <Clock className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600 opacity-60" />
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">No recent activity logged yet</p>
+                <p className="text-[11px] text-slate-400 mt-1">Status changes, tasks, and communications for {activeClientName} will be recorded here.</p>
               </div>
             </div>
 
@@ -2164,10 +1959,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <span className="font-bold text-rose-900 dark:text-rose-300 uppercase tracking-wider text-[10px]">
                   📌 PINNED STRATEGIC ACCOUNT NOTES
                 </span>
-                <span className="text-[10px] text-slate-500">Updated 05 Sep by Alex Morgan</span>
+                <span className="text-[10px] text-slate-500">Account Overview</span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">
-                “Client strictly prefers monthly strategy reviews on the first Thursday. Executive stakeholders require performance attribution reports delivered before the 5th business day. Commercial expansions exceeding ₹25L must include the designated finance lead in quotation drafts.”
+                {liveClient?.notes || 'No specific pinned operational notes for this client account. Add strategic guidelines and client preferences here.'}
               </p>
             </div>
           </div>
@@ -2244,11 +2039,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <div className="text-[10px] font-bold text-slate-500 uppercase">LIVE ACCOUNT SIGNALS</div>
                 <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>Campaign ROAS +1.4% vs benchmark; zero meeting absences in Q3.</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>₹75K invoice due in 48h; Web revamp design review waiting 4 days.</span>
+                  <span>Account standing in good order; deliverables progressing as scheduled.</span>
                 </div>
               </div>
             </div>
@@ -2256,7 +2047,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             {/* 2. Key Stakeholders */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Key Stakeholders (3)</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Key Stakeholders {liveClient?.contact_name ? '(1)' : '(0)'}
+                </h3>
                 <button
                   onClick={() => showToast(`Opening Add Stakeholder form for ${activeClientName}...`, 'info')}
                   className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
@@ -2267,68 +2060,35 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center text-xs font-bold">
-                      MD
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
-                        <span>Marketing Director</span>
-                        <span className="text-[10px] text-rose-600 font-normal">Decision Maker</span>
+                {liveClient?.contact_name ? (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center text-xs font-bold">
+                        {liveClient.contact_name.slice(0, 2).toUpperCase()}
                       </div>
-                      <div className="text-[10px] text-slate-500">Growth &amp; Brand • marketing@{activeClientDomain}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => showToast(`Drafting email to marketing@${activeClientDomain}...`, 'info')}
-                    className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email Marketing Director"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-[#B91C1C] text-white flex items-center justify-center text-xs font-bold">
-                      BF
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
-                        <span>Finance Director</span>
-                        <span className="text-[10px] text-slate-500 font-normal">Economic Buyer</span>
+                      <div>
+                        <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
+                          <span>{liveClient.contact_name}</span>
+                          <span className="text-[10px] text-rose-600 font-normal">Primary Contact</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500">{liveClient.contact_email || `contact@${activeClientDomain}`}</div>
                       </div>
-                      <div className="text-[10px] text-slate-500">Billing &amp; Finance • billing@{activeClientDomain}</div>
                     </div>
+                    {liveClient.contact_email && (
+                      <a
+                        href={`mailto:${liveClient.contact_email}`}
+                        className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                        title="Email Stakeholder"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                   </div>
-                  <button
-                    onClick={() => showToast(`Drafting email to billing@${activeClientDomain}...`, 'info')}
-                    className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email Finance Lead"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs font-bold">
-                      VT
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white">VP Technology</div>
-                      <div className="text-[10px] text-slate-500">Infrastructure &amp; CAPI • tech@{activeClientDomain}</div>
-                    </div>
+                ) : (
+                  <div className="p-4 text-center text-slate-400 dark:text-slate-500">
+                    <p className="text-xs">No primary contacts logged yet.</p>
                   </div>
-                  <button
-                    onClick={() => showToast(`Drafting email to tech@${activeClientDomain}...`, 'info')}
-                    className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                    title="Email VP Technology"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -2338,22 +2098,22 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Contract &amp; Renewal Hub</h3>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                    MSA-2026-01 • Value: <strong>₹18.5L / yr</strong>
+                    Master Services Agreement • Value: <strong>₹{Number(liveClient?.contract_value || 0).toLocaleString()}</strong>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
-                  124d Remaining
+                <span className="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px]">
+                  Active
                 </span>
               </div>
 
               {/* Renewal Timeline Bar */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-500">
-                  <span>Signed: 05 Jan 2026</span>
-                  <span>Expires: 04 Jan 2027</span>
+                  <span>Status: Active</span>
+                  <span>Standing: Good</span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: '66%' }}></div>
+                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: '100%' }}></div>
                 </div>
               </div>
 
@@ -2362,10 +2122,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   onClick={() => setShowRenewalModal(true)}
                   className="flex-1 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold transition shadow-xs"
                 >
-                  Initiate Renewal
+                  Manage Contract
                 </button>
                 <button
-                  onClick={() => downloadClientPdf('contract', { id: 'MSA-2026-01', client: activeClientName })}
+                  onClick={() => downloadClientPdf('contract', { id: 'MSA-AGREEMENT', client: activeClientName })}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold hover:bg-slate-50 flex items-center gap-1 transition"
                   title="Download Master Services Agreement PDF"
                 >
@@ -2386,32 +2146,31 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   }}
                   className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
                 >
-                  View All 12
+                  View Invoices
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
                   <span className="text-[10px] text-slate-500">Invoiced:</span>
-                  <div className="font-bold text-slate-900 dark:text-white text-sm">₹12.5L</div>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm">₹0</div>
                 </div>
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
                   <span className="text-[10px] text-slate-500">Paid:</span>
-                  <div className="font-bold text-emerald-600 text-sm">₹10.2L</div>
+                  <div className="font-bold text-emerald-600 text-sm">₹0</div>
                 </div>
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
                   <span className="text-[10px] text-slate-500">Outstanding:</span>
-                  <div className="font-bold text-rose-600 text-sm">₹2.2L</div>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm">₹0</div>
                 </div>
-                <div className="p-2.5 bg-rose-50/50 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-900/40">
-                  <span className="text-[10px] text-rose-600">Due in 48h:</span>
-                  <div className="font-bold text-rose-600 text-sm">₹75K</div>
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-500">Overdue:</span>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm">₹0</div>
                 </div>
               </div>
 
               <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-[11px] text-slate-600 dark:text-slate-400">
-                <span>INV-2026-082 Due 12 Sep • Sent to Sara Menon: </span>
-                <strong className="text-slate-900 dark:text-white">₹75,000</strong>
+                <span>All client billings and invoice records are synchronized with finance ledger.</span>
               </div>
 
               <div className="flex items-center gap-2 pt-1">
@@ -2530,16 +2289,16 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <label className="font-semibold block mb-1">Annual Contract Value (₹)</label>
                 <input
                   type="text"
-                  defaultValue="₹18,50,000"
+                  defaultValue={`₹${Number(liveClient?.contract_value || 0).toLocaleString()}`}
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="font-semibold block mb-1">Account Manager</label>
+                <label className="font-semibold block mb-1">Account Lead</label>
                 <select className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700">
-                  <option>Alex Morgan</option>
-                  <option>Maya Joseph</option>
-                  <option>Marcus Vance</option>
+                  <option>Account Manager</option>
+                  <option>Lead Strategist</option>
+                  <option>Creative Director</option>
                 </select>
               </div>
             </div>
@@ -2568,7 +2327,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white">Initiate Enterprise Contract Renewal</h3>
-                <p className="text-xs text-slate-500">{activeClientName} • MSA-2026-01</p>
+                <p className="text-xs text-slate-500">{activeClientName}</p>
               </div>
               <button onClick={() => setShowRenewalModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -2576,16 +2335,16 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900/40">
-                <div className="font-bold text-rose-700 dark:text-rose-300">Renewal Term: 05 Jan 2027 – 04 Jan 2028</div>
+                <div className="font-bold text-rose-700 dark:text-rose-300">Contract Term Renewal</div>
                 <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">
-                  Current Value: ₹18.5L/yr • Recommended Renewal with 15% Expansion: <strong>₹21.2L/yr</strong>
+                  Current Value: ₹{Number(liveClient?.contract_value || 0).toLocaleString()} • Term Extension
                 </div>
               </div>
               <div>
-                <label className="font-semibold block mb-1">Proposed Renewal ACV (₹)</label>
+                <label className="font-semibold block mb-1">Proposed Renewal Value (₹)</label>
                 <input
                   type="text"
-                  defaultValue="₹21,27,500"
+                  defaultValue={`₹${Number(liveClient?.contract_value || 0).toLocaleString()}`}
                   className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 />
               </div>
@@ -2743,10 +2502,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     onChange={(e) => setNewDelivLead(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-[#B91C1C] outline-hidden"
                   >
-                    <option value="Alex Morgan">Alex Morgan (AM Lead)</option>
-                    <option value="Maya Joseph">Maya Joseph (Creative/Tech)</option>
-                    <option value="Rahul Menon">Rahul Menon (Attribution)</option>
-                    <option value="Sarah Jenkins">Sarah Jenkins (Strategy)</option>
+                    <option value="Account Lead">Account Lead</option>
+                    <option value="Creative Director">Creative Director</option>
+                    <option value="Video Producer">Video Producer</option>
+                    <option value="Social Media Manager">Social Media Manager</option>
                   </select>
                 </div>
 
@@ -2755,10 +2514,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     Target Delivery Date
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     value={newDelivDate}
                     onChange={(e) => setNewDelivDate(e.target.value)}
-                    placeholder="e.g. Oct 28, 2026"
                     className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-[#B91C1C] outline-hidden"
                   />
                 </div>

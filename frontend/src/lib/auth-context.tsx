@@ -12,6 +12,7 @@ export interface User {
   role: 'owner' | 'sales_lead' | 'media_buyer' | 'finance_lead' | 'client_portal' | string;
   roleName?: string;
   isOwner?: boolean;
+  allowed_tabs?: string[];
 }
 
 export interface Organization {
@@ -178,17 +179,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Only restore session if a valid token is present
         if (storedToken && storedUser) {
+          const parsedUser: User = JSON.parse(storedUser);
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
           if (storedOrg) {
             setOrganization(JSON.parse(storedOrg));
           }
           if (storedPersonaId) {
             const found = AGENCY_PERSONAS.find(p => p.id === storedPersonaId);
             if (found) {
-              setActivePersona(found);
+              setActivePersona({
+                ...found,
+                allowedTabs: parsedUser.allowed_tabs || found.allowedTabs
+              });
             }
           }
+
+          // Silently refresh profile from server to sync allowed_tabs
+          api.getMe().then((meRes) => {
+            if (meRes && meRes.success && meRes.data) {
+              const d = meRes.data;
+              const isSuper = d.is_owner || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com';
+              const freshUser: User = {
+                id: d.id,
+                email: d.email,
+                firstName: d.first_name,
+                lastName: d.last_name,
+                designation: d.designation,
+                role: d.role_slug || 'admin',
+                roleName: d.role_name || 'Admin',
+                isOwner: d.is_owner,
+                allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard'])
+              };
+              setUser(freshUser);
+              localStorage.setItem('optivir_user', JSON.stringify(freshUser));
+            }
+          }).catch(() => {});
         } else {
           // No authenticated session found
           setToken(null);
@@ -215,13 +241,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccessTab = (tabId: string): boolean => {
+    // 1. Super admin / optivirads@gmail.com / owner
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.isOwner || user?.role === 'super_admin') {
+      return true;
+    }
+    // 2. User specific allowed_tabs from database
+    if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
+      if (user.allowed_tabs.includes('*')) return true;
+      return user.allowed_tabs.includes(tabId);
+    }
+    // 3. Fallback persona check
     if (!activePersona) return true;
     if (activePersona.role === 'owner' || activePersona.allowedTabs.includes('*')) return true;
     return activePersona.allowedTabs.includes(tabId);
   };
 
   const can = (resource: string, action: string): boolean => {
-    if (activePersona.role === 'owner') return true;
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.isOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
+    if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
+      if (user.allowed_tabs.includes('*') || user.allowed_tabs.includes(resource)) return true;
+    }
     if (resource === 'finance' && activePersona.role !== 'finance_lead') return false;
     if (resource === 'settings') return false;
     if (resource === 'pipeline' && activePersona.role !== 'sales_lead') return false;
@@ -238,9 +277,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('optivir_token', res.data.token);
         localStorage.setItem('optivir_user', JSON.stringify(res.data.user));
         localStorage.setItem('optivir_org', JSON.stringify(res.data.organization));
-        const matchedPersona = AGENCY_PERSONAS.find(p => p.email.toLowerCase() === res.data.user.email?.toLowerCase()) || AGENCY_PERSONAS[0];
-        localStorage.setItem('optivir_persona_id', matchedPersona.id);
-        setActivePersona(matchedPersona);
+        const matchedPersona = AGENCY_PERSONAS.find(p => p.email.toLowerCase() === res.data.user.email?.toLowerCase());
+        if (matchedPersona) {
+          localStorage.setItem('optivir_persona_id', matchedPersona.id);
+          setActivePersona({
+            ...matchedPersona,
+            allowedTabs: res.data.user.allowed_tabs || matchedPersona.allowedTabs
+          });
+        } else {
+          const dynamicPersona: Persona = {
+            id: `persona-${res.data.user.id}`,
+            name: `${res.data.user.firstName || ''} ${res.data.user.lastName || ''}`.trim() || res.data.user.email,
+            email: res.data.user.email,
+            role: (res.data.user.role as any) || 'sales_lead',
+            roleLabel: res.data.user.roleName || 'Team Member',
+            designation: res.data.user.designation || 'Specialist',
+            avatarText: (res.data.user.firstName?.[0] || res.data.user.email?.[0] || 'U').toUpperCase(),
+            avatarBg: 'bg-indigo-600',
+            allowedTabs: res.data.user.allowed_tabs || ['dashboard'],
+            description: 'Assigned agency account'
+          };
+          setActivePersona(dynamicPersona);
+        }
         setToken(res.data.token);
         setUser(res.data.user);
         setOrganization(res.data.organization);

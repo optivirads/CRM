@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -94,7 +95,7 @@ END:VCALENDAR`;
   const [followupDue, setFollowupDue] = useState('Tomorrow 10:00 AM');
   const [followupPriorityInput, setFollowupPriorityInput] = useState('High');
 
-  // Activities Ledger Dataset
+  // Activities Ledger Dataset (Loaded from PostgreSQL)
   const [activitiesLedger, setActivitiesLedger] = useState<Array<{
     id: string;
     type: string;
@@ -110,8 +111,74 @@ END:VCALENDAR`;
     color: string;
   }>>([]);
 
-  // State Simulator
-  const [simulatorState, setSimulatorState] = useState('1. Month Grid');
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const res = await api.getActivities();
+        if (res?.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((act: any) => ({
+            id: act.id,
+            type: act.type?.toLowerCase() || 'call',
+            title: act.subject || 'CRM Interaction',
+            contact: act.contact_name || act.metadata?.contact || '',
+            entity: act.client_name || act.company_name || 'Direct Lead',
+            details: act.description || '',
+            duration: act.duration_minutes ? `${act.duration_minutes} mins` : '',
+            outcome: act.metadata?.outcome || 'Completed',
+            author: act.created_by_name || 'OptiVir Admin',
+            avatar: 'OP',
+            timestamp: act.created_at ? new Date(act.created_at).toLocaleDateString('en-IN') : 'Recent',
+            color: act.type === 'meeting' ? 'text-purple-600 bg-purple-50 border-purple-200' :
+                   act.type === 'email' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' :
+                   act.type === 'note' ? 'text-amber-600 bg-amber-50 border-amber-200' :
+                   'text-blue-600 bg-blue-50 border-blue-200'
+          }));
+          setActivitiesLedger(mapped);
+        }
+      } catch (err) {
+        console.error('Error loading activities:', err);
+      }
+    };
+    fetchActivities();
+  }, []);
+
+  const handleLogActivity = async (payload: {
+    type: string;
+    subject: string;
+    description?: string;
+    contact?: string;
+    entity?: string;
+    duration?: string;
+    outcome?: string;
+    color?: string;
+  }) => {
+    const localId = `act-${Date.now()}`;
+    const newAct = {
+      id: localId,
+      type: payload.type,
+      title: payload.subject,
+      contact: payload.contact || '',
+      entity: payload.entity || '',
+      details: payload.description || '',
+      duration: payload.duration || '',
+      outcome: payload.outcome || 'Completed',
+      author: 'OptiVir Admin',
+      avatar: 'OP',
+      timestamp: 'Just now',
+      color: payload.color || 'text-blue-600 bg-blue-50 border-blue-200'
+    };
+    setActivitiesLedger(prev => [newAct, ...prev]);
+
+    try {
+      await api.createActivity({
+        type: payload.type,
+        subject: payload.subject,
+        description: payload.description
+      });
+    } catch (err) {
+      console.error('Failed to persist activity to DB:', err);
+    }
+  };
 
   // View: 'month' | 'week' | 'day' | 'agenda'
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('month');
@@ -132,38 +199,39 @@ END:VCALENDAR`;
   const [newEventClient, setNewEventClient] = useState('');
 
   // Calendar Day Cells for Month View
+  const todayDate = new Date().getDate();
   const monthCells: Array<{ day: number; isCurrentMonth: boolean; isToday?: boolean; events?: any[]; extraCount?: number }> = [
     { day: 31, isCurrentMonth: false },
-    { day: 1, isCurrentMonth: true },
-    { day: 2, isCurrentMonth: true },
-    { day: 3, isCurrentMonth: true },
-    { day: 4, isCurrentMonth: true },
-    { day: 5, isCurrentMonth: true },
-    { day: 6, isCurrentMonth: true },
-    { day: 7, isCurrentMonth: true },
-    { day: 8, isCurrentMonth: true },
-    { day: 9, isCurrentMonth: true },
-    { day: 10, isCurrentMonth: true, isToday: true },
-    { day: 11, isCurrentMonth: true },
-    { day: 12, isCurrentMonth: true },
-    { day: 13, isCurrentMonth: true },
-    { day: 14, isCurrentMonth: true },
-    { day: 15, isCurrentMonth: true },
-    { day: 16, isCurrentMonth: true },
-    { day: 17, isCurrentMonth: true },
-    { day: 18, isCurrentMonth: true },
-    { day: 19, isCurrentMonth: true },
-    { day: 20, isCurrentMonth: true },
-    { day: 21, isCurrentMonth: true },
-    { day: 22, isCurrentMonth: true },
-    { day: 23, isCurrentMonth: true },
-    { day: 24, isCurrentMonth: true },
-    { day: 25, isCurrentMonth: true },
-    { day: 26, isCurrentMonth: true },
-    { day: 27, isCurrentMonth: true },
-    { day: 28, isCurrentMonth: true },
-    { day: 29, isCurrentMonth: true },
-    { day: 30, isCurrentMonth: true },
+    { day: 1, isCurrentMonth: true, isToday: todayDate === 1 },
+    { day: 2, isCurrentMonth: true, isToday: todayDate === 2 },
+    { day: 3, isCurrentMonth: true, isToday: todayDate === 3 },
+    { day: 4, isCurrentMonth: true, isToday: todayDate === 4 },
+    { day: 5, isCurrentMonth: true, isToday: todayDate === 5 },
+    { day: 6, isCurrentMonth: true, isToday: todayDate === 6 },
+    { day: 7, isCurrentMonth: true, isToday: todayDate === 7 },
+    { day: 8, isCurrentMonth: true, isToday: todayDate === 8 },
+    { day: 9, isCurrentMonth: true, isToday: todayDate === 9 },
+    { day: 10, isCurrentMonth: true, isToday: todayDate === 10 },
+    { day: 11, isCurrentMonth: true, isToday: todayDate === 11 },
+    { day: 12, isCurrentMonth: true, isToday: todayDate === 12 },
+    { day: 13, isCurrentMonth: true, isToday: todayDate === 13 },
+    { day: 14, isCurrentMonth: true, isToday: todayDate === 14 },
+    { day: 15, isCurrentMonth: true, isToday: todayDate === 15 },
+    { day: 16, isCurrentMonth: true, isToday: todayDate === 16 },
+    { day: 17, isCurrentMonth: true, isToday: todayDate === 17 },
+    { day: 18, isCurrentMonth: true, isToday: todayDate === 18 },
+    { day: 19, isCurrentMonth: true, isToday: todayDate === 19 },
+    { day: 20, isCurrentMonth: true, isToday: todayDate === 20 },
+    { day: 21, isCurrentMonth: true, isToday: todayDate === 21 },
+    { day: 22, isCurrentMonth: true, isToday: todayDate === 22 },
+    { day: 23, isCurrentMonth: true, isToday: todayDate === 23 },
+    { day: 24, isCurrentMonth: true, isToday: todayDate === 24 },
+    { day: 25, isCurrentMonth: true, isToday: todayDate === 25 },
+    { day: 26, isCurrentMonth: true, isToday: todayDate === 26 },
+    { day: 27, isCurrentMonth: true, isToday: todayDate === 27 },
+    { day: 28, isCurrentMonth: true, isToday: todayDate === 28 },
+    { day: 29, isCurrentMonth: true, isToday: todayDate === 29 },
+    { day: 30, isCurrentMonth: true, isToday: todayDate === 30 },
     { day: 1, isCurrentMonth: false },
     { day: 2, isCurrentMonth: false },
     { day: 3, isCurrentMonth: false },
@@ -172,46 +240,7 @@ END:VCALENDAR`;
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
-      {/* 1. Workspace Simulator Top Bar (Exact match to Reference Image 5) */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span>WORKSPACE SIMULATOR:</span>
-          </div>
-          <span className="text-slate-400 text-[11px]">Active Perspective:</span>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              { id: '1. Month Grid', label: '1. Month Grid' },
-              { id: '2. Week View', label: '2. Week View' },
-              { id: '3. Day View', label: '3. Day View' },
-              { id: '4. Agenda List', label: '4. Agenda List' },
-              { id: '5. Event Detail', label: '5. Event Detail' },
-              { id: '6. Create Drawer', label: '6. Create Drawer' },
-              { id: '7. Empty State', label: '7. Empty State' },
-            ].map((state) => (
-              <button
-                key={state.id}
-                onClick={() => {
-                  setSimulatorState(state.id);
-                  if (state.id.includes('Month')) setCalendarView('month');
-                  else if (state.id.includes('Week')) setCalendarView('week');
-                  else if (state.id.includes('Day')) setCalendarView('day');
-                  else if (state.id.includes('Agenda')) setCalendarView('agenda');
-                  else if (state.id.includes('Create Drawer')) setShowCreateModal(true);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  simulatorState === state.id
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {state.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       <div className="max-w-[1700px] mx-auto p-6 space-y-6">
         {/* 2. Header & Breadcrumbs */}
@@ -229,7 +258,7 @@ END:VCALENDAR`;
                 Calendar & Operational Schedule
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
-                28 Events This Month • 6 Today
+                {activitiesLedger.length} Activities Logged
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -487,9 +516,9 @@ END:VCALENDAR`;
             </select>
 
             <select className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium">
-              <option>All Pods & Owners</option>
-              <option>Alex Morgan</option>
-              <option>Maya Joseph</option>
+              <option>All Pods &amp; Owners</option>
+              <option>Account Lead</option>
+              <option>Creative Lead</option>
             </select>
           </div>
         </div>
@@ -504,48 +533,48 @@ END:VCALENDAR`;
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700'
             }`}
           >
-            My Calendar (14)
+            My Calendar
           </button>
           <button
             onClick={() => setActiveCategoryFilter('team')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-50"
           >
-            Team Schedule (42)
+            Team Schedule
           </button>
           <button
             onClick={() => setActiveCategoryFilter('meetings')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1.5"
           >
             <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-            <span>Client Meetings (8)</span>
+            <span>Client Meetings</span>
           </button>
           <button
             onClick={() => setActiveCategoryFilter('milestones')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1.5"
           >
             <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-            <span>Deadlines & Milestones (12)</span>
+            <span>Deadlines &amp; Milestones</span>
           </button>
           <button
             onClick={() => setActiveCategoryFilter('tasks')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1.5"
           >
             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            <span>Tasks Due (9)</span>
+            <span>Tasks Due</span>
           </button>
           <button
             onClick={() => setActiveCategoryFilter('invoices')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 flex items-center gap-1.5"
           >
             <span className="w-2 h-2 rounded-full bg-rose-600"></span>
-            <span>Finance & Invoices (5)</span>
+            <span>Finance &amp; Invoices</span>
           </button>
           <button
             onClick={() => setActiveCategoryFilter('renewals')}
             className="px-3 py-1.5 rounded-lg font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-            <span>Contract Renewals (2)</span>
+            <span>Contract Renewals</span>
           </button>
         </div>
 
@@ -594,7 +623,7 @@ END:VCALENDAR`;
 
                     {cell.isToday && (
                       <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight">
-                        TODAY (6 events)
+                        TODAY
                       </span>
                     )}
                   </div>
@@ -660,11 +689,11 @@ END:VCALENDAR`;
                 <div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div><div>S</div>
                 <div className="text-slate-300">31</div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div>
                 <div>7</div><div>8</div><div>9</div>
-                <div className="w-5 h-5 rounded-full bg-[#B91C1C] text-white flex items-center justify-center font-bold mx-auto">
+                <div className={`w-5 h-5 rounded-full ${todayDate === 10 ? 'bg-[#B91C1C] text-white' : ''} flex items-center justify-center font-bold mx-auto`}>
                   10
                 </div>
                 <div>11</div><div>12</div><div>13</div>
-                <div>14</div><div className="text-emerald-600 font-bold">15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div>
+                <div>14</div><div className={`w-5 h-5 rounded-full ${todayDate === 15 ? 'bg-[#B91C1C] text-white' : ''} flex items-center justify-center font-bold mx-auto`}>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div>
               </div>
             </div>
 
@@ -675,61 +704,28 @@ END:VCALENDAR`;
                   <Clock className="w-3.5 h-3.5 text-rose-600" />
                   <span>Today&apos;s Agenda</span>
                 </div>
-                <span className="text-[11px] text-slate-400">10 Sep 2026</span>
+                <span className="text-[11px] text-slate-400">
+                  {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
               </div>
 
               <div className="space-y-3">
-                {/* Event 1 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
-                  <div className="text-[10px] text-slate-500 font-bold">09:00 AM – 09:30 AM</div>
-                  <div className="font-bold text-slate-900 dark:text-white">Pod Morning Standup</div>
-                  <div className="text-[10px] text-slate-500">Alex Morgan • Pod A</div>
+                <div className="p-5 text-center text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <CalendarIcon className="w-7 h-7 mx-auto mb-2 text-slate-300 dark:text-slate-600 opacity-60" />
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">No scheduled sessions for today</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Client reviews, milestone deliveries, and meetings will show here.</p>
                 </div>
 
-                {/* Event 2 (Monthly ROAS Review with Join Meet Button) */}
-                <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">10:00 AM – 11:00 AM</span>
-                    <span className="px-1.5 py-0.2 rounded bg-blue-600 text-white font-bold text-[9px] uppercase">
-                      UPCOMING
-                    </span>
-                  </div>
-                  <div className="font-bold text-slate-900 dark:text-white">Monthly ROAS Review</div>
-                  <div className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Client Strategy • Google Meet
-                  </div>
-                  <button
-                    onClick={() => {
-                      window.open('https://meet.google.com/new', '_blank');
-                      showToast('Launching Google Meet in new tab...', 'info');
-                    }}
-                    className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
-                  >
-                    <Video className="w-3.5 h-3.5" />
-                    <span>Join Meet</span>
-                  </button>
-                </div>
-
-                {/* Event 3 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
-                  <div className="text-[10px] text-slate-500 font-bold">01:30 PM – 02:15 PM</div>
-                  <div className="font-bold text-slate-900 dark:text-white">CAPI Deduplication Dive</div>
-                  <div className="text-[10px] text-slate-500">Technical Scope • Architecture</div>
-                </div>
-
-                {/* Event 4 */}
-                <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 space-y-1">
-                  <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400">03:00 PM Deadline</div>
-                  <div className="font-bold text-slate-900 dark:text-white">GA4 Container Handover</div>
-                  <div className="text-[10px] text-slate-500">Milestone • Deliverable</div>
-                </div>
-
-                {/* Event 5 */}
-                <div className="p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 space-y-1">
-                  <div className="text-[10px] font-bold text-rose-700 dark:text-rose-400">18:00 Due Date</div>
-                  <div className="font-bold text-slate-900 dark:text-white">Invoice Settlement Notice</div>
-                  <div className="text-[10px] text-slate-500">Commercial Operations • Finance</div>
-                </div>
+                <button
+                  onClick={() => {
+                    window.open('https://meet.google.com/new', '_blank');
+                    showToast('Launching Google Meet in new tab...', 'info');
+                  }}
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Start Instant Video Meet</span>
+                </button>
               </div>
             </div>
 
@@ -1148,24 +1144,19 @@ END:VCALENDAR`;
               </button>
               <button
                 onClick={() => {
-                  const newAct = {
-                    id: `act-${Date.now()}`,
+                  handleLogActivity({
                     type: 'call',
-                    title: `Call with ${logContact}`,
+                    subject: `Call with ${logContact || 'Client'}`,
                     contact: logContact,
                     entity: logEntity,
-                    details: logNotes || 'Outbound sales alignment call completed.',
+                    description: logNotes || 'Outbound sales alignment call completed.',
                     duration: callDuration,
                     outcome: callOutcome,
-                    author: 'Alex Morgan',
-                    avatar: 'AM',
-                    timestamp: 'Just now',
-                    color: 'text-blue-600 bg-blue-50 border-blue-200',
-                  };
-                  setActivitiesLedger([newAct, ...activitiesLedger]);
+                    color: 'text-blue-600 bg-blue-50 border-blue-200'
+                  });
                   setActiveLogModal(null);
                   setLogNotes('');
-                  showToast('Call logged into Activity Center!', 'success');
+                  showToast('Call logged into Activity Center and database!', 'success');
                 }}
                 className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold cursor-pointer"
               >
@@ -1234,23 +1225,18 @@ END:VCALENDAR`;
               </button>
               <button
                 onClick={() => {
-                  const newAct = {
-                    id: `act-${Date.now()}`,
+                  handleLogActivity({
                     type: 'meeting',
-                    title: meetingTitleInput || 'Client Review Meeting',
-                    contact: 'Client Attendee',
+                    subject: meetingTitleInput || 'Client Review Meeting',
+                    contact: 'Client Stakeholder',
                     entity: 'Client Account',
-                    details: logNotes || 'Video conference meeting completed with client team.',
+                    description: logNotes || 'Video conference meeting completed with client team.',
                     duration: '45 mins',
                     outcome: 'Action Items Formalized',
-                    author: 'OptiVir Lead',
-                    avatar: 'OP',
-                    timestamp: 'Just now',
-                    color: 'text-purple-600 bg-purple-50 border-purple-200',
-                  };
-                  setActivitiesLedger([newAct, ...activitiesLedger]);
+                    color: 'text-purple-600 bg-purple-50 border-purple-200'
+                  });
                   setActiveLogModal(null);
-                  showToast('Meeting logged into Activity Center!', 'success');
+                  showToast('Meeting logged into Activity Center and database!', 'success');
                 }}
                 className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold cursor-pointer"
               >
@@ -1310,23 +1296,18 @@ END:VCALENDAR`;
               </button>
               <button
                 onClick={() => {
-                  const newAct = {
-                    id: `act-${Date.now()}`,
+                  handleLogActivity({
                     type: 'email',
-                    title: emailSubjectInput || 'Commercial Email Thread',
+                    subject: emailSubjectInput || 'Commercial Email Thread',
                     contact: 'Client',
                     entity: 'Client Account',
-                    details: logNotes || 'Commercial proposal email dispatched.',
-                    duration: 'Sent via Email Sync',
+                    description: logNotes || 'Commercial proposal email dispatched.',
+                    duration: 'Email Sync',
                     outcome: 'Delivered',
-                    author: 'OptiVir Lead',
-                    avatar: 'OP',
-                    timestamp: 'Just now',
-                    color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-                  };
-                  setActivitiesLedger([newAct, ...activitiesLedger]);
+                    color: 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                  });
                   setActiveLogModal(null);
-                  showToast('Email thread recorded!', 'success');
+                  showToast('Email thread recorded and saved to database!', 'success');
                 }}
                 className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold cursor-pointer"
               >
@@ -1376,23 +1357,18 @@ END:VCALENDAR`;
               </button>
               <button
                 onClick={() => {
-                  const newAct = {
-                    id: `act-${Date.now()}`,
+                  handleLogActivity({
                     type: 'note',
-                    title: 'Strategic Account Note',
+                    subject: 'Strategic Account Note',
                     contact: 'Account File',
                     entity: 'Client Account',
-                    details: logNotes || 'Internal note added to account dossier.',
+                    description: logNotes || 'Internal note added to account dossier.',
                     duration: 'Internal Memo',
                     outcome: 'Pinned to Account Dossier',
-                    author: 'OptiVir Lead',
-                    avatar: 'OP',
-                    timestamp: 'Just now',
-                    color: 'text-amber-600 bg-amber-50 border-amber-200',
-                  };
-                  setActivitiesLedger([newAct, ...activitiesLedger]);
+                    color: 'text-amber-600 bg-amber-50 border-amber-200'
+                  });
                   setActiveLogModal(null);
-                  showToast('Account note pinned!', 'success');
+                  showToast('Account note pinned and saved to database!', 'success');
                 }}
                 className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold cursor-pointer"
               >
@@ -1465,23 +1441,18 @@ END:VCALENDAR`;
               </button>
               <button
                 onClick={() => {
-                  const newAct = {
-                    id: `act-${Date.now()}`,
+                  handleLogActivity({
                     type: 'followup',
-                    title: followupTitleInput || 'Action Follow-up Task',
+                    subject: followupTitleInput || 'Action Follow-up Task',
                     contact: 'Client',
                     entity: 'Client Account',
-                    details: `Scheduled follow-up due ${followupDue} with ${followupPriorityInput} priority.`,
+                    description: `Scheduled follow-up due ${followupDue} with ${followupPriorityInput} priority.`,
                     duration: `${followupPriorityInput} Priority`,
                     outcome: 'Scheduled SLA Active',
-                    author: 'OptiVir Lead',
-                    avatar: 'OP',
-                    timestamp: 'Just now',
-                    color: 'text-rose-600 bg-rose-50 border-rose-200',
-                  };
-                  setActivitiesLedger([newAct, ...activitiesLedger]);
+                    color: 'text-rose-600 bg-rose-50 border-rose-200'
+                  });
                   setActiveLogModal(null);
-                  showToast('Follow-up task created!', 'success');
+                  showToast('Follow-up task created and saved to database!', 'success');
                 }}
                 className="px-5 py-2 bg-[#B91C1C] text-white rounded-lg text-xs font-bold cursor-pointer"
               >

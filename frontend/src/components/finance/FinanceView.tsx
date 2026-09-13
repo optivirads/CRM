@@ -45,8 +45,6 @@ interface FinanceViewProps {
 
 export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, openCreateModal }) => {
   const { showToast } = useToast();
-  // Simulator State
-  const [simulatorState, setSimulatorState] = useState('1. Invoices Ledger');
   const [invoicePage, setInvoicePage] = useState(1);
   const [paymentPage, setPaymentPage] = useState(1);
 
@@ -311,61 +309,32 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
-      {/* 1. Top Simulator Bar (Exact match to Reference Image 4 & 5) */}
-      <div className="bg-[#0A1628] text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span>SIM MODE:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              { id: '1. Invoices Ledger', label: '1. Invoices Ledger', tab: 'invoices' },
-              { id: '2. Payments Ledger', label: '2. Payments Ledger', tab: 'payments' },
-              { id: '3. AR Aging Matrix', label: '3. AR Aging Matrix', tab: 'aging' },
-              { id: '4. Create Invoice', label: '4. Create Invoice', action: () => setShowCreateInvoiceModal(true) },
-              { id: '5. Record Payment', label: '5. Record Payment', action: () => setShowRecordPaymentModal(true) },
-            ].map((st) => (
-              <button
-                key={st.id}
-                onClick={() => {
-                  setSimulatorState(st.id);
-                  if (st.tab) setActiveFinanceTab(st.tab as any);
-                  if (st.action) st.action();
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  simulatorState === st.id
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
+      {/* Finance Status & Currency Bar */}
+      <div className="bg-[#0A1628] text-white px-6 py-2 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Bank Feed Active: ICICI Current A/c</span>
+          </span>
+          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="text-slate-400 hidden sm:inline">Financial Year: FY2026-27</span>
         </div>
 
         <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>ICICI Current A/c Sync: 4m ago</span>
-          </span>
-          <span className="text-slate-500">|</span>
-          <span>FY2026-27 Q3</span>
-          <span className="text-slate-500">|</span>
+          <span className="text-xs text-slate-300 font-medium">Currency Display:</span>
           <div className="flex items-center bg-[#102038] rounded p-0.5 border border-[#1A2E4E]">
             <button
               onClick={() => setCurrency('INR')}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                currency === 'INR' ? 'bg-[#B91C1C] text-white' : 'text-slate-400'
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                currency === 'INR' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
             >
               ₹ INR
             </button>
             <button
               onClick={() => setCurrency('USD')}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                currency === 'USD' ? 'bg-[#B91C1C] text-white' : 'text-slate-400'
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                currency === 'USD' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
             >
               $ USD

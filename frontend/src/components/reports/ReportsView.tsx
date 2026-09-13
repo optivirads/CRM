@@ -34,15 +34,6 @@ import { ExecutiveReportModal } from './ExecutiveReportModal';
 import { downloadClientPdf } from '@/lib/downloadPdf';
 
 export const ReportsView: React.FC = () => {
-  // Simulator View Modes
-  const [simulatorView, setSimulatorView] = useState<
-    '1. Reports Directory & Metrics' |
-    '2. Document Preview & Dossier' |
-    '3. 3-Column Report Builder' |
-    '4. Automated Dispatch Engine' |
-    '5. Real-Time Pipeline State'
-  >('1. Reports Directory & Metrics');
-
   // Category Tabs
   const [activeTab, setActiveTab] = useState('All Reports (0)');
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,6 +51,7 @@ export const ReportsView: React.FC = () => {
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [showStreamInspector, setShowStreamInspector] = useState(false);
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [showActivePipelineBanner, setShowActivePipelineBanner] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -131,59 +123,14 @@ export const ReportsView: React.FC = () => {
       r.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClient = selectedClient === 'All Clients (14)' || r.client.includes(selectedClient.split(' ')[0]);
+    const matchesClient = selectedClient === 'All Clients' || r.client.includes(selectedClient);
     const matchesStatus = selectedStatus === 'All Statuses' || r.status.includes(selectedStatus);
     return matchesSearch && matchesClient && matchesStatus;
   });
 
   return (
     <div className="pb-16 transition-colors duration-200">
-      {/* 0. Top State Simulator Module Switcher Banner */}
-      <div className="bg-[#0A1628] text-white px-4 py-2.5 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>SIMULATOR VIEW:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              '1. Reports Directory & Metrics',
-              '2. Document Preview & Dossier',
-              '3. 3-Column Report Builder',
-              '4. Automated Dispatch Engine',
-              '5. Real-Time Pipeline State'
-            ].map((v) => (
-              <button
-                key={v}
-                onClick={() => {
-                  setSimulatorView(v as any);
-                  if (v === '2. Document Preview & Dossier') setShowExecutiveModal(true);
-                  if (v === '3. 3-Column Report Builder') setShowCreateModal(true);
-                  if (v === '4. Automated Dispatch Engine') setShowDispatchModal(true);
-                  if (v === '5. Real-Time Pipeline State') setShowStreamInspector(true);
-                  showToast(`Switched view: ${v}`);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                  simulatorView === v
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-            Audit Engine v4.8 Active
-          </span>
-          <span className="text-slate-600">|</span>
-          <span>Sync: 3 mins ago</span>
-        </div>
-      </div>
 
       {/* Toast Notification */}
       {toastMessage && (
@@ -193,66 +140,68 @@ export const ReportsView: React.FC = () => {
         </div>
       )}
 
-      {/* Live Compilation Pipeline Banner (#GEN-9902 Active - 78% Complete) */}
-      <div className="bg-[#0D1B33] text-white border-b border-[#1C3259] px-6 py-3 shadow-sm">
-        <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center shrink-0">
-              <Activity className="w-4 h-4 text-blue-400 animate-spin" />
+      {/* Live Compilation Pipeline Banner */}
+      {showActivePipelineBanner && (
+        <div className="bg-[#0D1B33] text-white border-b border-[#1C3259] px-6 py-3 shadow-sm">
+          <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center shrink-0">
+                <Activity className="w-4 h-4 text-blue-400 animate-spin" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-xs tracking-wide">
+                    Compilation Pipeline Active
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#DC2626] text-white">
+                    Processing
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Rendering client analytics slices, charts &amp; PDF telemetry...
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs tracking-wide">
-                  Compilation Pipeline #GEN-9902 Active
+
+            {/* Stepper Progress Visualizer */}
+            <div className="flex items-center gap-4 text-[11px] text-slate-300 w-full md:w-auto justify-between md:justify-end">
+              <div className="hidden lg:flex items-center gap-3">
+                <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  ✓ 1. Data Stream
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#DC2626] text-white">
-                  78% Complete
+                <span className="text-slate-500">→</span>
+                <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  ✓ 2. Aggregation
+                </span>
+                <span className="text-slate-500">→</span>
+                <span className="text-rose-400 font-bold flex items-center gap-1 animate-pulse">
+                  ● 3. Visual Engine
+                </span>
+                <span className="text-slate-500">→</span>
+                <span className="text-slate-500">
+                  4. PDF Compile
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Rendering Nova Healthcare Cloud SOW Slices & Telemetry Graphics (ETA: 14s)
-              </p>
-            </div>
-          </div>
 
-          {/* Stepper Progress Visualizer */}
-          <div className="flex items-center gap-4 text-[11px] text-slate-300 w-full md:w-auto justify-between md:justify-end">
-            <div className="hidden lg:flex items-center gap-3">
-              <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                ✓ 1. Warehouse Stream
-              </span>
-              <span className="text-slate-500">→</span>
-              <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                ✓ 2. Aggregation
-              </span>
-              <span className="text-slate-500">→</span>
-              <span className="text-rose-400 font-bold flex items-center gap-1 animate-pulse">
-                ● 3. Visual Engine (Active)
-              </span>
-              <span className="text-slate-500">→</span>
-              <span className="text-slate-500">
-                4. PDF Compile
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowStreamInspector(true)}
-                className="px-3 py-1 rounded bg-[#16294D] hover:bg-[#1E3666] border border-[#27457F] text-xs font-semibold text-white transition flex items-center gap-1"
-              >
-                <Terminal className="w-3 h-3 text-blue-400" />
-                <span>Inspect Stream</span>
-              </button>
-              <button
-                onClick={() => showToast('Pipeline notification dismissed')}
-                className="p-1 rounded text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowStreamInspector(true)}
+                  className="px-3 py-1 rounded bg-[#16294D] hover:bg-[#1E3666] border border-[#27457F] text-xs font-semibold text-white transition flex items-center gap-1"
+                >
+                  <Terminal className="w-3 h-3 text-blue-400" />
+                  <span>Inspect Stream</span>
+                </button>
+                <button
+                  onClick={() => setShowActivePipelineBanner(false)}
+                  className="p-1 rounded text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
         {/* 1. Breadcrumbs & Header */}
@@ -440,7 +389,7 @@ export const ReportsView: React.FC = () => {
             <button
               onClick={() => {
                 setSearchQuery('');
-                setSelectedClient('All Clients (14)');
+                setSelectedClient('All Clients');
                 setSelectedQuarter('FY26 Q3 (Current)');
                 setSelectedStatus('All Statuses');
                 setSelectedFormat('All Formats');
@@ -758,6 +707,7 @@ export const ReportsView: React.FC = () => {
               <button
                 onClick={() => {
                   showToast('Report compilation pipeline queued!');
+                  setShowActivePipelineBanner(true);
                   setShowCreateModal(false);
                 }}
                 className="px-5 py-2 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold"
@@ -776,7 +726,7 @@ export const ReportsView: React.FC = () => {
             <div className="flex justify-between items-center pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                <span className="font-bold">Pipeline Stream Inspector: #GEN-9902</span>
+                <span className="font-bold">Pipeline Stream Inspector</span>
               </div>
               <button onClick={() => setShowStreamInspector(false)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
@@ -784,13 +734,12 @@ export const ReportsView: React.FC = () => {
             </div>
 
             <div className="space-y-1 text-[11px] text-slate-300 max-h-72 overflow-y-auto custom-scrollbar p-2 bg-[#060B13] rounded-lg">
-              <p className="text-slate-500">[14:31:02] Connected to Telemetry Warehouse (Node-US-04)...</p>
-              <p className="text-slate-500">[14:31:05] Querying Nova Healthcare SOW Milestones (Sprint 14-16)...</p>
-              <p className="text-emerald-400">[14:31:09] 1,480 milestone events ingested successfully.</p>
-              <p className="text-slate-500">[14:31:12] Aggregation engine consolidated burn rate at ₹14.8L/month.</p>
-              <p className="text-yellow-400">[14:31:18] Generating dynamic SVG vector charts (Page 4, Figure 3.1)...</p>
-              <p className="text-blue-400">[14:31:22] Rendering high-res client approval signatures & SHA256 audit seal.</p>
-              <p className="text-emerald-400 animate-pulse">[14:31:26] 78% completed. Packaging final 14-page PDF stream.</p>
+              <p className="text-slate-500">[System] Ingesting client deliverable and milestone records...</p>
+              <p className="text-emerald-400">[System] Operational data and campaign metrics synchronized.</p>
+              <p className="text-slate-500">[System] Aggregating spend, conversions, and service timelines...</p>
+              <p className="text-yellow-400">[System] Generating vector visualization charts and tables...</p>
+              <p className="text-blue-400">[System] Rendering layout signatures and client approval seals...</p>
+              <p className="text-emerald-400 animate-pulse">[System] Packaging high-fidelity vector PDF stream...</p>
             </div>
 
             <div className="flex justify-between items-center pt-2">
@@ -914,10 +863,10 @@ export const ReportsView: React.FC = () => {
         <ExecutiveReportModal
           onClose={() => setShowExecutiveModal(false)}
           data={{
-            finance: { total_revenue: 24825400, cash_collected: 18450000, outstanding_receivables: 6375400 },
-            pipeline: { total_active_deals: 18, total_pipeline_value: 39500000, weighted_forecast: 28400000 },
-            retention: { total_clients: 14, healthy_accounts: 12, at_risk_accounts: 2 },
-            marketing: { active_campaigns: 12, total_ad_spend: 6480000, average_roas: 3.83 }
+            finance: { total_revenue: 0, cash_collected: 0, outstanding_receivables: 0 },
+            pipeline: { total_active_deals: 0, total_pipeline_value: 0, weighted_forecast: 0 },
+            retention: { total_clients: 0, healthy_accounts: 0, at_risk_accounts: 0 },
+            marketing: { active_campaigns: 0, total_ad_spend: 0, average_roas: 0 }
           }}
         />
       )}

@@ -73,7 +73,6 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
   const [contacts, setContacts] = useState<ContactItem[]>(INITIAL_CONTACTS);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
-  const [simulatorStep, setSimulatorStep] = useState('1. Contacts List');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -237,47 +236,6 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
-      {/* ========================================================================= */}
-      {/* 1. STATE SIMULATOR BANNER (Matching Image 1)                             */}
-      {/* ========================================================================= */}
-      <div className="bg-[#0B1528] text-white p-2.5 rounded-xl border border-[#18263F] flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-[11px] tracking-wider uppercase flex items-center gap-1.5 text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-            STATE SIMULATOR
-          </span>
-          <span className="text-slate-400 hidden sm:inline">Toggle CRM Module Workspaces:</span>
-        </div>
-
-        <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-          {[
-            '1. Contacts List',
-            '2. Contact Detail',
-            '3. Create Drawer',
-            '3b. Validation State',
-            '4. States & Feedback'
-          ].map((st) => (
-            <button
-              key={st}
-              onClick={() => {
-                setSimulatorStep(st);
-                if (st.includes('Detail') && onNavigate) {
-                  onNavigate('leads');
-                } else if (st.includes('Create')) {
-                  setShowCreateModal(true);
-                }
-              }}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition ${
-                simulatorStep === st
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:bg-[#13233C]'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* 2. BREADCRUMB, HEADER & ACTIONS (Matching Image 1)                       */}

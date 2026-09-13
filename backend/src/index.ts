@@ -15,6 +15,7 @@ import marketingRoutes from './routes/marketing.routes';
 import activitiesRoutes from './routes/activities.routes';
 import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
+import settingsRoutes from './routes/settings.routes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -76,6 +77,7 @@ app.use('/api/marketing', marketingRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

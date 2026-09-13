@@ -3,6 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import { getActualStorageEstimate, StorageEstimateData } from '@/lib/storage-estimate';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+
+export const AVAILABLE_CRM_MODULES = [
+  { id: 'dashboard', label: 'Dashboard', desc: 'Overview & metrics' },
+  { id: 'leads', label: 'Leads', desc: 'Inbound leads & qualification' },
+  { id: 'pipeline', label: 'Pipeline', desc: 'Sales pipeline & deals' },
+  { id: 'proposals', label: 'Proposals', desc: 'Quotations & contracts' },
+  { id: 'clients', label: 'Clients & Accounts', desc: 'Client directory & 360° view' },
+  { id: 'onboarding', label: 'Client Onboarding', desc: 'Client kickoff & checklists' },
+  { id: 'projects', label: 'Projects', desc: 'Deliverables & sprints' },
+  { id: 'tasks', label: 'Tasks', desc: 'Task tracker & deadlines' },
+  { id: 'marketing', label: 'Marketing & Ads', desc: 'Campaigns & ROAS' },
+  { id: 'finance', label: 'Finance & Invoices', desc: 'Invoices & tax ledger' },
+  { id: 'reports', label: 'Reports', desc: 'Performance analytics' },
+  { id: 'operations', label: 'Operations', desc: 'Agency operational tools' },
+  { id: 'settings', label: 'System Settings', desc: 'Tenant configuration & users' },
+];
 import {
   Settings,
   Shield,
@@ -67,18 +84,8 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
-  // Active Sub-Navigation Tab (Matches the 16 items in left sidebar)
+  // Active Sub-Navigation Tab
   const [activeSection, setActiveSection] = useState('Organization Identity');
-
-  // Top Simulator Tabs
-  const [simulatorTab, setSimulatorTab] = useState<
-    'General & Org' |
-    'Users & Matrix' |
-    'Pipelines & Fields' |
-    'Security & Telemetry' |
-    'Integrations Hub' |
-    'Lockdown & States'
-  >('General & Org');
 
   // Form Field States (OptiVir CRM Owner Company Details)
   const [orgLegalName, setOrgLegalName] = useState('OptiVir Technologies Pvt. Ltd.');
@@ -101,6 +108,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [auditoryChimes, setAuditoryChimes] = useState(true);
   const [telemetryDiff, setTelemetryDiff] = useState(true);
 
+  // Authentication & Access Context
+  const { user, activePersona } = useAuth();
+  const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
+
   // 4. User Directory State
   const [teamSearch, setTeamSearch] = useState('');
   const [teamRoleFilter, setTeamRoleFilter] = useState('all');
@@ -109,12 +120,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('sales_lead');
   const [newUserDesignation, setNewUserDesignation] = useState('Senior Growth Specialist');
-  const [usersList, setUsersList] = useState([
-    { id: 'usr-1', name: 'Abhinav Admin', email: 'admin@optivir.com', role: 'owner', roleLabel: 'Executive & Owner', designation: 'Managing Director & Founder', status: 'Active', twoFactor: true, lastLogin: '10 mins ago', initials: 'AA', avatarBg: 'bg-[#B91C1C]' },
-    { id: 'usr-2', name: 'Priya Sharma', email: 'sales@optivir.com', role: 'sales_lead', roleLabel: 'Sales Lead / AE', designation: 'Head of Sales & Growth', status: 'Active', twoFactor: true, lastLogin: '45 mins ago', initials: 'PS', avatarBg: 'bg-blue-600' },
-    { id: 'usr-3', name: 'Maya Joseph', email: 'marketing@optivir.com', role: 'media_buyer', roleLabel: 'Performance & Media Lead', designation: 'Head of Media & Ad Buying', status: 'Active', twoFactor: true, lastLogin: '2 hours ago', initials: 'MJ', avatarBg: 'bg-purple-600' },
-    { id: 'usr-4', name: 'Rohan Verma', email: 'finance@optivir.com', role: 'finance_lead', roleLabel: 'Finance & Billing Lead', designation: 'Financial Controller', status: 'Active', twoFactor: true, lastLogin: 'Yesterday', initials: 'RV', avatarBg: 'bg-emerald-600' },
-    { id: 'usr-5', name: 'Sameer Sen', email: 'accounts@optivir.com', role: 'account_manager', roleLabel: 'Account Partner', designation: 'Senior Client Partner', status: 'Pending Invite', twoFactor: false, lastLogin: 'Never', initials: 'SS', avatarBg: 'bg-amber-600' }
+  const [newUserPassword, setNewUserPassword] = useState('Optivir@2026');
+  const [newUserAllowedTabs, setNewUserAllowedTabs] = useState<string[]>([
+    'dashboard', 'leads', 'pipeline', 'proposals', 'clients'
+  ]);
+
+  // Edit Permissions Modal State
+  const [showEditPermissionsModal, setShowEditPermissionsModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editAllowedTabs, setEditAllowedTabs] = useState<string[]>([]);
+  const [editRole, setEditRole] = useState('sales_lead');
+  const [editDesignation, setEditDesignation] = useState('');
+
+  // Admin Reset Password Modal State
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resettingUser, setResettingUser] = useState<any | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [isAdminResetting, setIsAdminResetting] = useState(false);
+
+  // Self Service Password Change State (In Security tab)
+  const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
+  const [selfNewPassword, setSelfNewPassword] = useState('');
+  const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
+  const [isSelfChangingPassword, setIsSelfChangingPassword] = useState(false);
+
+  const [usersList, setUsersList] = useState<any[]>([
+    { id: 'usr-1', name: 'OptiVir Admin', email: 'optivirads@gmail.com', role: 'owner', roleLabel: 'Executive & Owner', designation: 'Managing Director & Founder', status: 'Active', twoFactor: true, lastLogin: 'Just now', initials: 'OP', avatarBg: 'bg-[#B91C1C]', allowed_tabs: ['*'] },
+    { id: 'usr-2', name: 'Priya Sharma', email: 'sales@optivirads.com', role: 'sales_lead', roleLabel: 'Sales Lead / AE', designation: 'Head of Sales & Growth', status: 'Active', twoFactor: true, lastLogin: '45 mins ago', initials: 'PS', avatarBg: 'bg-blue-600', allowed_tabs: ['dashboard', 'leads', 'pipeline', 'proposals', 'clients'] },
+    { id: 'usr-3', name: 'Maya Joseph', email: 'marketing@optivirads.com', role: 'media_buyer', roleLabel: 'Performance & Media Lead', designation: 'Head of Media & Ad Buying', status: 'Active', twoFactor: true, lastLogin: '2 hours ago', initials: 'MJ', avatarBg: 'bg-purple-600', allowed_tabs: ['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports'] },
+    { id: 'usr-4', name: 'Rohan Verma', email: 'finance@optivirads.com', role: 'finance_lead', roleLabel: 'Finance & Billing Lead', designation: 'Financial Controller', status: 'Active', twoFactor: true, lastLogin: 'Yesterday', initials: 'RV', avatarBg: 'bg-emerald-600', allowed_tabs: ['dashboard', 'finance', 'proposals', 'reports'] }
   ]);
 
   // 5. Roles & Permissions State
@@ -147,7 +181,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newPodName, setNewPodName] = useState('');
   const [newPodLead, setNewPodLead] = useState('Priya Sharma');
   const [newPodTarget, setNewPodTarget] = useState('2000000');
-  const [podsList, setPodsList] = useState([
+  const [podsList, setPodsList] = useState<any[]>([
     { id: 'pod-1', name: 'Performance Growth Pod', lead: 'Priya Sharma', membersCount: 4, activeClients: 12, target: '₹18,50,000/mo', color: 'border-blue-500/40 bg-blue-500/5' },
     { id: 'pod-2', name: 'Media Buying & Ad Ops Pod', lead: 'Maya Joseph', membersCount: 3, activeClients: 8, target: '₹45,00,000 Ad Spend', color: 'border-purple-500/40 bg-purple-500/5' },
     { id: 'pod-3', name: 'Creative Production Sprint Pod', lead: 'Rahul Verma', membersCount: 5, activeClients: 14, target: '32 Deliverables/mo', color: 'border-rose-500/40 bg-rose-500/5' },
@@ -167,7 +201,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newStageName, setNewStageName] = useState('');
   const [newStageProb, setNewStageProb] = useState(50);
   const [newStageSla, setNewStageSla] = useState(5);
-  const [pipelineStages, setPipelineStages] = useState([
+  const [pipelineStages, setPipelineStages] = useState<any[]>([
     { id: 'stg-1', order: 1, name: 'Discovery & Needs Analysis', probability: 10, slaDays: 3, color: 'bg-blue-500', dealCount: 8, totalValue: '₹6,40,000' },
     { id: 'stg-2', order: 2, name: 'Scope & Performance Audit', probability: 30, slaDays: 5, color: 'bg-indigo-500', dealCount: 5, totalValue: '₹4,95,000' },
     { id: 'stg-3', order: 3, name: 'Commercial Proposal Sent (SAC 998361)', probability: 60, slaDays: 4, color: 'bg-purple-500', dealCount: 4, totalValue: '₹7,80,000' },
@@ -182,7 +216,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('Text');
   const [newFieldRequired, setNewFieldRequired] = useState(false);
-  const [customFieldsList, setCustomFieldsList] = useState([
+  const [customFieldsList, setCustomFieldsList] = useState<any[]>([
     { id: 'cf-1', entity: 'Leads', name: 'Monthly Media Spend Budget', key: 'monthly_ad_spend', type: 'Currency (INR)', required: true },
     { id: 'cf-2', entity: 'Leads', name: 'Primary Ad Network Intent', key: 'primary_ad_network', type: 'Dropdown', required: true },
     { id: 'cf-3', entity: 'Deals', name: 'Expected Decision Date', key: 'expected_close_date', type: 'Date', required: true },
@@ -194,7 +228,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   // 10. System Tags State
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200');
-  const [tagsList, setTagsList] = useState([
+  const [tagsList, setTagsList] = useState<any[]>([
     { id: 'tag-1', name: '#Tier1Enterprise', usageCount: 18, badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 dark:border-purple-800' },
     { id: 'tag-2', name: '#HighIntent', usageCount: 24, badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
     { id: 'tag-3', name: '#D2CBrand', usageCount: 31, badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
@@ -204,7 +238,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   ]);
 
   // 11. Services Catalog State
-  const [servicesList, setServicesList] = useState([
+  const [servicesList, setServicesList] = useState<any[]>([
     { id: 'srv-1', name: 'Enterprise Performance Marketing Retainer', category: 'Performance Marketing', pricingModel: 'Monthly Retainer', price: 150000, sacCode: '998361', taxRate: '18% GST', deliverablesCount: 6 },
     { id: 'srv-2', name: 'Search Engine Optimization & Content Engine', category: 'SEO & Content', pricingModel: 'Monthly Retainer', price: 95000, sacCode: '998361', taxRate: '18% GST', deliverablesCount: 4 },
     { id: 'srv-3', name: 'Full-Stack Web App Development', category: 'Web Dev & Tech', pricingModel: 'Fixed Milestone', price: 350000, sacCode: '998361', taxRate: '18% GST', deliverablesCount: 8 },
@@ -212,7 +246,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   ]);
 
   // 12. Lead Sources State
-  const [sourcesList, setSourcesList] = useState([
+  const [sourcesList, setSourcesList] = useState<any[]>([
     { id: 'ls-1', name: 'Google Search Ads (Intent)', channel: 'Paid Search', costPerLead: 1200, status: 'Active', totalLeads: 34 },
     { id: 'ls-2', name: 'Meta Ads (Instagram / FB)', channel: 'Paid Social', costPerLead: 650, status: 'Active', totalLeads: 62 },
     { id: 'ls-3', name: 'LinkedIn Outreach', channel: 'B2B Social', costPerLead: 2500, status: 'Active', totalLeads: 19 },
@@ -222,7 +256,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   ]);
 
   // 13. Document Templates State
-  const [templatesList, setTemplatesList] = useState([
+  const [templatesList, setTemplatesList] = useState<any[]>([
     { id: 'tmpl-1', name: 'Master Services Agreement (MSA)', type: 'Legal Contract', version: 'v3.2', updated: 'Aug 2026', sacCode: '998361', standardTerms: 'Net 30, IP Assigned Upon Payment' },
     { id: 'tmpl-2', name: 'Statement of Work (SOW) Standard', type: 'Operations Scope', version: 'v4.0', updated: 'Sep 2026', sacCode: '998361', standardTerms: 'Sprint-based deliverables' },
     { id: 'tmpl-3', name: 'Commercial Proposal (Hybrid 3-Col)', type: 'Sales Quotation', version: 'v2.8', updated: 'Jul 2026', sacCode: '998361', standardTerms: '14-Day validity' },
@@ -239,13 +273,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   // 15. Audit Telemetry State
   const [telemetrySearch, setTelemetrySearch] = useState('');
-  const [telemetryLogs, setTelemetryLogs] = useState([
+  const [telemetryLogs, setTelemetryLogs] = useState<any[]>([
     { id: 'log-1', action: 'ROLE_PERMISSION_UPDATED', operator: 'Abhinav Admin', role: 'Super Admin', details: 'Updated "sales_lead" access rights', ip: '192.168.1.45', timestamp: '2 mins ago', status: 'SUCCESS' },
     { id: 'log-2', action: 'KMS_KEY_ROTATED', operator: 'Security Bot', role: 'System Daemon', details: 'Master Envelope Key #V4 rotated', ip: 'internal-kms', timestamp: '1 hour ago', status: 'SUCCESS' },
     { id: 'log-3', action: 'EXPORT_COMPANIES_CSV', operator: 'Priya Sharma', role: 'Sales Lead', details: '18 verified company rows exported', ip: '103.21.244.2', timestamp: '3 hours ago', status: 'SUCCESS' },
     { id: 'log-4', action: 'PIPELINE_STAGE_CREATED', operator: 'Priya Sharma', role: 'Sales Lead', details: 'Created stage "Legal SOW & Security Review"', ip: '103.21.244.8', timestamp: 'Yesterday', status: 'SUCCESS' },
     { id: 'log-5', action: 'TWO_FACTOR_ENFORCED', operator: 'Abhinav Admin', role: 'Super Admin', details: 'Enforced 2FA mandatory for all 5 seats', ip: '192.168.1.45', timestamp: '2 days ago', status: 'SUCCESS' }
   ]);
+
+  // Operational Settings Live Database State
+  const [isLoadingSection, setIsLoadingSection] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 11. Services Catalog Modals & State
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceCategory, setNewServiceCategory] = useState('Performance Marketing');
+  const [newServiceModel, setNewServiceModel] = useState('Monthly Retainer');
+  const [newServicePrice, setNewServicePrice] = useState('150000');
+  const [newServiceDesc, setNewServiceDesc] = useState('');
+
+  // 12. Lead Sources Modals & State
+  const [showLeadSourceModal, setShowLeadSourceModal] = useState(false);
+  const [newSourceName, setNewSourceName] = useState('');
+  const [newSourceChannel, setNewSourceChannel] = useState('Paid Social');
+  const [newSourceCpl, setNewSourceCpl] = useState('500');
+
+  // 13. Document Templates Modals & State
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateType, setTemplateType] = useState('Legal Contract');
+  const [templateVersion, setTemplateVersion] = useState('v1.0');
+  const [templateTerms, setTemplateTerms] = useState('');
+  const [templateContent, setTemplateContent] = useState('');
+
+  // 8. Pipelines database list
+  const [pipelinesList, setPipelinesList] = useState<any[]>([]);
+  const [activePipelineId, setActivePipelineId] = useState<string>('');
+
+  // 5. Roles database list
+  const [rolesList, setRolesList] = useState<any[]>([]);
 
   // 16. Integrations Hub State (Real Credential-Backed Architecture)
   const DEFAULT_INTEGRATIONS = [
@@ -400,7 +468,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     };
   }, []);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, _type?: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -410,12 +478,424 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     showToast('Tenant UUID copied to clipboard: opt-tenant-optivirads');
   };
 
-  const handleSaveChanges = () => {
-    showToast(`Configuration updated: ${activeSection} saved to master ledger [200 OK]`);
+  // ==========================================
+  // Real Database Data Loaders for Settings
+  // ==========================================
+  const loadOrganizationSettings = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getOrganizationSettings();
+      if (res.success && res.data) {
+        setOrgLegalName(res.data.legal_name || res.data.name || '');
+        setTaxGstin(res.data.tax_gstin || '');
+        setDomainWebsite(res.data.domain_website || '');
+        setIndustry(res.data.industry || '');
+        setSupportEmail(res.data.support_email || '');
+        setSwitchboardPhone(res.data.switchboard_phone || '');
+      }
+    } catch (err: any) {
+      console.warn('Failed to load org settings:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadRegionalSettings = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getRegionalSettings();
+      if (res.success && res.data) {
+        if (res.data.timezone) {
+          const tz = res.data.timezone;
+          setTimezone(tz.includes('Asia/Kolkata') ? 'Asia/Kolkata (IST, UTC+05:30)' : tz);
+        }
+        if (res.data.currency) {
+          const cur = res.data.currency;
+          setLedgerCurrency(cur === 'INR' ? 'INR (₹) - Indian Rupee [Master Ledger]' : cur);
+        }
+        if (res.data.date_format) setDateFormat(res.data.date_format);
+        if (res.data.fiscal_year) setFiscalYear(res.data.fiscal_year);
+        if (res.data.auto_shift_adjustment !== undefined) setAutoShiftAdjustment(res.data.auto_shift_adjustment);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load regional settings:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadUserPreferences = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getUserPreferences();
+      if (res.success && res.data) {
+        if (res.data.landing_workspace) setLandingWorkspace(res.data.landing_workspace);
+        if (res.data.density_profile) setDensityProfile(res.data.density_profile);
+        if (res.data.auditory_chimes !== undefined) setAuditoryChimes(res.data.auditory_chimes);
+        if (res.data.telemetry_diff !== undefined) setTelemetryDiff(res.data.telemetry_diff);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load user preferences:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSettingsUsers();
+      if (res.success && Array.isArray(res.data)) {
+        setUsersList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load users:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadRoles = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSettingsRoles();
+      if (res.success && Array.isArray(res.data)) {
+        setRolesList(res.data);
+        const map: Record<string, Record<string, boolean>> = {};
+        for (const r of res.data) {
+          const roleKey = r.slug || r.name.toLowerCase();
+          map[roleKey] = {};
+          if (Array.isArray(r.permissions)) {
+            for (const p of r.permissions) {
+              map[roleKey][p] = true;
+            }
+          }
+        }
+        setPermissionsState(prev => ({ ...prev, ...map }));
+      }
+    } catch (err: any) {
+      console.warn('Failed to load roles:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadTeams = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSettingsTeams();
+      if (res.success && Array.isArray(res.data)) {
+        setPodsList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load teams:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadSecuritySettings = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSecuritySettings();
+      if (res.success && res.data) {
+        if (res.data.two_factor_enforced !== undefined) setTwoFactorEnforced(res.data.two_factor_enforced);
+        if (res.data.session_timeout) setSessionTimeout(res.data.session_timeout);
+        if (res.data.failed_lockout_limit) setFailedLockoutLimit(res.data.failed_lockout_limit);
+        if (Array.isArray(res.data.ip_whitelist)) setIpWhitelist(res.data.ip_whitelist);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load security settings:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadPipelines = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSettingsPipelines();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setPipelinesList(res.data);
+        const activePipe = res.data.find((p: any) => p.isDefault) || res.data[0];
+        setActivePipelineId(activePipe.id);
+        setSelectedPipelineName(activePipe.name);
+        if (Array.isArray(activePipe.stages)) {
+          setPipelineStages(activePipe.stages);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Failed to load pipelines:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadCustomFields = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getCustomFieldDefinitions();
+      if (res.success && Array.isArray(res.data)) {
+        setCustomFieldsList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load custom fields:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadTags = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSystemTags();
+      if (res.success && Array.isArray(res.data)) {
+        setTagsList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load tags:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadServices = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getServicesCatalog();
+      if (res.success && Array.isArray(res.data)) {
+        setServicesList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load services:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadLeadSources = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getSettingsLeadSources();
+      if (res.success && Array.isArray(res.data)) {
+        setSourcesList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load lead sources:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadDocumentTemplates = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getDocumentTemplates();
+      if (res.success && Array.isArray(res.data)) {
+        setTemplatesList(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load document templates:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadBillingSettings = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getBillingSettings();
+      if (res.success && res.data) {
+        if (res.data.gstin) setAgencyGstin(res.data.gstin);
+        if (res.data.pan) setAgencyPan(res.data.pan);
+        if (res.data.state_code) setAgencyStateCode(res.data.state_code);
+        if (res.data.bank_name) setAgencyBankName(res.data.bank_name);
+        if (res.data.account_no) setAgencyAccountNo(res.data.account_no);
+        if (res.data.ifsc) setAgencyIfsc(res.data.ifsc);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load billing settings:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  const loadAuditLogs = async () => {
+    setIsLoadingSection(true);
+    try {
+      const res = await api.getAuditLogs(100);
+      if (res.success && Array.isArray(res.data)) {
+        setTelemetryLogs(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load audit logs:', err);
+    } finally {
+      setIsLoadingSection(false);
+    }
+  };
+
+  // Synchronize section data on section switch
+  useEffect(() => {
+    if (activeSection === 'Organization Identity') loadOrganizationSettings();
+    else if (activeSection === 'General Regional') loadRegionalSettings();
+    else if (activeSection === 'My Preferences') loadUserPreferences();
+    else if (activeSection === 'User Directory') loadUsers();
+    else if (activeSection === 'Roles & Permissions') loadRoles();
+    else if (activeSection === 'Teams & Pods') loadTeams();
+    else if (activeSection === 'SSO & Security 2FA') loadSecuritySettings();
+    else if (activeSection === 'Pipelines & Stages') loadPipelines();
+    else if (activeSection === 'Custom Fields') loadCustomFields();
+    else if (activeSection === 'System Tags') loadTags();
+    else if (activeSection === 'Services Catalog') loadServices();
+    else if (activeSection === 'Lead Sources') loadLeadSources();
+    else if (activeSection === 'Document Templates') loadDocumentTemplates();
+    else if (activeSection === 'Billing & Currency') loadBillingSettings();
+    else if (activeSection === 'Audit Telemetry') loadAuditLogs();
+  }, [activeSection]);
+
+  // Initial load for sidebar metadata counts
+  useEffect(() => {
+    loadUsers();
+    loadTags();
+    loadPipelines();
+  }, []);
+
+  // Save Handlers for live persistence
+  const handleSaveOrgIdentity = async () => {
+    setIsSaving(true);
+    try {
+      const res = await api.updateOrganizationSettings({
+        legal_name: orgLegalName,
+        tax_gstin: taxGstin,
+        domain_website: domainWebsite,
+        industry,
+        support_email: supportEmail,
+        switchboard_phone: switchboardPhone
+      });
+      showToast(res.message || 'Organization identity saved to master ledger [200 OK]');
+    } catch (err: any) {
+      showToast(`Error saving organization: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveRegional = async () => {
+    setIsSaving(true);
+    try {
+      const res = await api.updateRegionalSettings({
+        timezone,
+        currency: ledgerCurrency,
+        date_format: dateFormat,
+        fiscal_year: fiscalYear,
+        auto_shift_adjustment: autoShiftAdjustment
+      });
+      showToast(res.message || 'Regional preferences saved to database [200 OK]');
+    } catch (err: any) {
+      showToast(`Error saving regional settings: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    setIsSaving(true);
+    try {
+      const res = await api.updateUserPreferences({
+        landing_workspace: landingWorkspace,
+        density_profile: densityProfile,
+        auditory_chimes: auditoryChimes,
+        telemetry_diff: telemetryDiff
+      });
+      showToast(res.message || 'Personal preferences saved to database [200 OK]');
+    } catch (err: any) {
+      showToast(`Error saving preferences: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    setIsSaving(true);
+    try {
+      const res = await api.updateSecuritySettings({
+        two_factor_enforced: twoFactorEnforced,
+        session_timeout: sessionTimeout,
+        failed_lockout_limit: failedLockoutLimit,
+        ip_whitelist: ipWhitelist
+      });
+      showToast(res.message || 'Security policies persisted to database [200 OK]');
+    } catch (err: any) {
+      showToast(`Error saving security policy: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveBilling = async () => {
+    setIsSaving(true);
+    try {
+      const res = await api.updateBillingSettings({
+        gstin: agencyGstin,
+        pan: agencyPan,
+        state_code: agencyStateCode,
+        bank_name: agencyBankName,
+        account_no: agencyAccountNo,
+        ifsc: agencyIfsc
+      });
+      showToast(res.message || 'Billing configuration saved to database [200 OK]');
+    } catch (err: any) {
+      showToast(`Error saving billing settings: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveRoleMatrix = async () => {
+    setIsSaving(true);
+    try {
+      const activeRole = rolesList.find(r => r.slug === selectedRoleKey || r.name.toLowerCase() === selectedRoleKey) || { id: selectedRoleKey };
+      const currentPerms = permissionsState[selectedRoleKey] || {};
+      const res = await api.updateSettingsRolePermissions(activeRole.id, currentPerms);
+      showToast(res.message || `Role matrix updated for ${selectedRoleKey} [200 OK]`);
+    } catch (err: any) {
+      showToast(`Error saving role matrix: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (activeSection === 'Organization Identity') await handleSaveOrgIdentity();
+    else if (activeSection === 'General Regional') await handleSaveRegional();
+    else if (activeSection === 'My Preferences') await handleSavePreferences();
+    else if (activeSection === 'Roles & Permissions') await handleSaveRoleMatrix();
+    else if (activeSection === 'SSO & Security 2FA') await handleSaveSecurity();
+    else if (activeSection === 'Billing & Currency') await handleSaveBilling();
+    else if (activeSection === 'Pipelines & Stages') {
+      showToast('Pipeline stages are saved in real-time on edit & add [200 OK]');
+    } else {
+      showToast(`Configuration updated: ${activeSection} synchronized [200 OK]`);
+    }
   };
 
   const handleRollback = () => {
-    showToast('Configuration state rolled back to checkpoint snapshot (v4.8.1)');
+    if (activeSection === 'Organization Identity') loadOrganizationSettings();
+    else if (activeSection === 'General Regional') loadRegionalSettings();
+    else if (activeSection === 'My Preferences') loadUserPreferences();
+    else if (activeSection === 'User Directory') loadUsers();
+    else if (activeSection === 'Roles & Permissions') loadRoles();
+    else if (activeSection === 'Teams & Pods') loadTeams();
+    else if (activeSection === 'SSO & Security 2FA') loadSecuritySettings();
+    else if (activeSection === 'Pipelines & Stages') loadPipelines();
+    else if (activeSection === 'Custom Fields') loadCustomFields();
+    else if (activeSection === 'System Tags') loadTags();
+    else if (activeSection === 'Services Catalog') loadServices();
+    else if (activeSection === 'Lead Sources') loadLeadSources();
+    else if (activeSection === 'Document Templates') loadDocumentTemplates();
+    else if (activeSection === 'Billing & Currency') loadBillingSettings();
+    else if (activeSection === 'Audit Telemetry') loadAuditLogs();
+    showToast(`Configuration reloaded from live database for ${activeSection}`);
   };
 
   interface NavItemConfig {
@@ -427,19 +907,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     greenDot?: boolean;
   }
 
-  // Sub-Navigation Sections
+  // Sub-Navigation Hubs (5 Cohesive Sections)
   const navGroups: { title: string; count: number; items: NavItemConfig[] }[] = [
     {
-      title: 'CORE & ORGANIZATION',
-      count: 3,
+      title: 'ORGANIZATION & BILLING',
+      count: 4,
       items: [
         { id: 'Organization Identity', icon: Building2 },
         { id: 'General Regional', icon: Globe2 },
-        { id: 'My Preferences', icon: User }
+        { id: 'Billing & Currency', icon: CreditCard },
+        { id: 'Document Templates', icon: FileText }
       ]
     },
     {
-      title: 'IDENTITY & ACCESS',
+      title: 'TEAM & SECURITY',
       count: 4,
       items: [
         { id: 'User Directory', icon: Users, badge: `${usersList.length}` },
@@ -449,74 +930,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
       ]
     },
     {
-      title: 'REVENUE & OPERATIONS',
-      count: 7,
+      title: 'PIPELINE & SERVICES',
+      count: 5,
       items: [
         { id: 'Pipelines & Stages', icon: Workflow },
-        { id: 'Custom Fields', icon: FileCode },
-        { id: 'System Tags', icon: Tag },
         { id: 'Services Catalog', icon: Briefcase },
         { id: 'Lead Sources', icon: Layers },
-        { id: 'Document Templates', icon: FileText },
-        { id: 'Billing & Currency', icon: CreditCard }
+        { id: 'System Tags', icon: Tag },
+        { id: 'Custom Fields', icon: FileCode }
       ]
     },
     {
-      title: 'COMPLIANCE & CONNECT',
-      count: 2,
+      title: 'INTEGRATIONS HUB',
+      count: 1,
       items: [
-        { id: 'Audit Telemetry', icon: Activity, badge: 'Live', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' },
         { id: 'Integrations Hub', icon: Network, greenDot: true }
+      ]
+    },
+    {
+      title: 'AUDIT TELEMETRY',
+      count: 1,
+      items: [
+        { id: 'Audit Telemetry', icon: Activity, badge: 'Live', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' }
       ]
     }
   ];
 
   return (
     <div className="pb-16 transition-colors duration-200 font-sans">
-      {/* 0. Top State Simulator Module Switcher Banner */}
-      <div className="bg-[#0A1628] text-white px-4 py-2.5 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-rose-400 uppercase text-[11px]">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>SETTINGS WORKSPACE:</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#102038] p-0.5 rounded-md border border-[#1A2E4E] flex-wrap">
-            {[
-              'General & Org',
-              'Users & Matrix',
-              'Pipelines & Fields',
-              'Security & Telemetry',
-              'Integrations Hub',
-              'Lockdown & States'
-            ].map((v) => (
-              <button
-                key={v}
-                onClick={() => {
-                  setSimulatorTab(v as any);
-                  if (v === 'General & Org') setActiveSection('Organization Identity');
-                  if (v === 'Users & Matrix') setActiveSection('User Directory');
-                  if (v === 'Pipelines & Fields') setActiveSection('Pipelines & Stages');
-                  if (v === 'Security & Telemetry') setActiveSection('Audit Telemetry');
-                  if (v === 'Integrations Hub') setActiveSection('Integrations Hub');
-                  if (v === 'Lockdown & States') setActiveSection('Billing & Currency');
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition cursor-pointer ${
-                  simulatorTab === v
-                    ? 'bg-[#B91C1C] text-white font-bold shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+      {/* Top Enterprise Status Bar */}
+      <div className="bg-[#0A1628] text-white px-6 py-2.5 text-xs flex flex-wrap items-center justify-between border-b border-[#14233D] gap-2">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 font-bold tracking-wider text-slate-200 uppercase text-[11px]">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Settings &amp; Administration Console</span>
+          </span>
+          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="text-slate-400 hidden sm:inline">Multi-Tenant PostgreSQL Architecture Active</span>
         </div>
 
         {/* Telemetry Status Strip with Rollback & Save */}
         <div className="flex items-center gap-2.5">
           <span className="flex items-center gap-1.5 text-[11px] text-slate-300 mr-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            Telemetry Synchronized (2.4k ops/s)
+            Telemetry Synchronized
           </span>
 
           <button
@@ -807,11 +1264,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                     <div className="pt-2 flex justify-end">
                       <button
-                        onClick={handleSaveChanges}
-                        className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                        onClick={handleSaveOrgIdentity}
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                       >
                         <Save className="w-3.5 h-3.5" />
-                        <span>Save Organization Identity</span>
+                        <span>{isSaving ? 'Saving...' : 'Save Organization Identity'}</span>
                       </button>
                     </div>
                   </div>
@@ -925,11 +1383,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                 <div className="flex justify-end pt-2">
                   <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                    onClick={handleSaveRegional}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save Regional Settings</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Regional Settings'}</span>
                   </button>
                 </div>
               </div>
@@ -1040,11 +1499,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                 <div className="flex justify-end pt-2">
                   <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                    onClick={handleSavePreferences}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save My Preferences</span>
+                    <span>{isSaving ? 'Saving...' : 'Save My Preferences'}</span>
                   </button>
                 </div>
               </div>
@@ -1060,23 +1520,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-blue-500" />
                       <h2 className="text-base font-bold text-[#0B1727] dark:text-white">
-                        User Directory &amp; Team Members
+                        User Directory &amp; Permissions Management
                       </h2>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                        {usersList.length} Total Seats
+                        {usersList.length} Active Accounts
                       </span>
                     </div>
                     <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">
-                      Manage agency staff accounts, role assignments, designations &amp; 2FA status.
+                      Create users via Email ID, assign granular module permissions, and manage credentials.
                     </p>
                   </div>
-                  <button
-                    onClick={() => setShowInviteModal(true)}
-                    className="px-3.5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Invite Team Member</span>
-                  </button>
+                  {isOwnerOrAdmin && (
+                    <button
+                      onClick={() => {
+                        setNewUserEmail('');
+                        setNewUserName('');
+                        setNewUserRole('sales_lead');
+                        setNewUserDesignation('Growth Specialist');
+                        setNewUserPassword('Optivir@2026');
+                        setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                        setShowInviteModal(true);
+                      }}
+                      className="px-3.5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create User &amp; Assign Permissions</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Filter and Search Bar */}
@@ -1085,7 +1555,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="text"
-                      placeholder="Search by name, email, or role..."
+                      placeholder="Search by email, name, or role..."
                       value={teamSearch}
                       onChange={(e) => setTeamSearch(e.target.value)}
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-xl"
@@ -1112,10 +1582,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
                       <tr>
-                        <th className="py-3 px-4">Team Member</th>
-                        <th className="py-3 px-4">Assigned Role</th>
+                        <th className="py-3 px-4">User &amp; Email ID</th>
+                        <th className="py-3 px-4">Role</th>
                         <th className="py-3 px-4">Designation</th>
-                        <th className="py-3 px-4">2FA Security</th>
+                        <th className="py-3 px-4">Authorized Modules</th>
                         <th className="py-3 px-4">Status</th>
                         <th className="py-3 px-4 text-right">Actions</th>
                       </tr>
@@ -1123,118 +1593,501 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {usersList
                         .filter(u => teamRoleFilter === 'all' || u.role === teamRoleFilter)
-                        .filter(u => !teamSearch || u.name.toLowerCase().includes(teamSearch.toLowerCase()) || u.email.toLowerCase().includes(teamSearch.toLowerCase()))
-                        .map((u) => (
-                          <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2.5">
-                                <div className={`w-8 h-8 rounded-lg ${u.avatarBg} text-white font-bold flex items-center justify-center text-xs shrink-0`}>
-                                  {u.initials}
+                        .filter(u => !teamSearch || (u.name && u.name.toLowerCase().includes(teamSearch.toLowerCase())) || (u.email && u.email.toLowerCase().includes(teamSearch.toLowerCase())))
+                        .map((u) => {
+                          const tabs: string[] = u.allowed_tabs || [];
+                          const isUniversal = u.is_owner || u.role === 'owner' || tabs.includes('*') || u.email?.toLowerCase() === 'optivirads@gmail.com';
+
+                          return (
+                            <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`w-8 h-8 rounded-lg ${u.avatarBg || 'bg-slate-700'} text-white font-bold flex items-center justify-center text-xs shrink-0`}>
+                                    {u.initials || (u.email ? u.email[0].toUpperCase() : 'U')}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                      <span>{u.name || u.email.split('@')[0]}</span>
+                                      {u.email?.toLowerCase() === 'optivirads@gmail.com' && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-900">
+                                          Super Admin
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{u.email}</div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="font-bold text-slate-900 dark:text-white">{u.name}</div>
-                                  <div className="text-[11px] text-slate-400">{u.email}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="font-medium text-slate-800 dark:text-slate-200">{u.roleLabel}</span>
-                            </td>
-                            <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.designation}</td>
-                            <td className="py-3 px-4">
-                              {u.twoFactor ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                  <Check className="w-3 h-3" /> Enforced
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="font-medium text-slate-800 dark:text-slate-200">{u.roleLabel || u.role}</span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.designation || 'Specialist'}</td>
+                              <td className="py-3 px-4 max-w-xs">
+                                {isUniversal ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800">
+                                    <ShieldCheck className="w-3 h-3" /> Full Access (All 13 Modules)
+                                  </span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1">
+                                    {tabs.length === 0 ? (
+                                      <span className="text-[10px] text-slate-400">Dashboard only</span>
+                                    ) : (
+                                      tabs.slice(0, 4).map(tab => (
+                                        <span key={tab} className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-medium border border-slate-200 dark:border-slate-700">
+                                          {tab}
+                                        </span>
+                                      ))
+                                    )}
+                                    {tabs.length > 4 && (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                                        +{tabs.length - 4} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
+                                  {u.status}
                                 </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
-                                  Pending
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
-                                {u.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                onClick={() => showToast(`Resent setup invite to ${u.email}`)}
-                                className="text-slate-500 hover:text-slate-800 dark:hover:text-white font-semibold text-[11px] mr-3 cursor-pointer"
-                              >
-                                Re-Invite
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setUsersList(usersList.filter(x => x.id !== u.id));
-                                  showToast(`Removed ${u.name} from directory`);
-                                }}
-                                className="text-rose-500 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                                {isOwnerOrAdmin && !isUniversal && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingUser(u);
+                                      setEditRole(u.role || 'sales_lead');
+                                      setEditDesignation(u.designation || '');
+                                      setEditAllowedTabs(u.allowed_tabs || ['dashboard']);
+                                      setShowEditPermissionsModal(true);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 font-semibold text-[11px] mr-3 cursor-pointer"
+                                    title="Edit Module Permissions"
+                                  >
+                                    Permissions
+                                  </button>
+                                )}
+                                {isOwnerOrAdmin && (
+                                  <button
+                                    onClick={() => {
+                                      setResettingUser(u);
+                                      setAdminNewPassword('');
+                                      setShowResetPasswordModal(true);
+                                    }}
+                                    className="text-amber-600 hover:text-amber-800 dark:hover:text-amber-400 font-semibold text-[11px] mr-3 cursor-pointer"
+                                    title="Reset User Password"
+                                  >
+                                    Reset Password
+                                  </button>
+                                )}
+                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && !u.is_owner && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Are you sure you want to remove ${u.name || u.email} from the workspace?`)) return;
+                                      try {
+                                        await api.deleteSettingsUser(u.id);
+                                        await loadUsers();
+                                        showToast(`Removed ${u.name || u.email} from directory`);
+                                      } catch (err: any) {
+                                        showToast(`Error removing user: ${err.message}`);
+                                      }
+                                    }}
+                                    className="text-rose-500 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Invite Modal */}
+                {/* 1. Create User & Assign Permissions Modal */}
                 {showInviteModal && (
                   <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
                       <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                        <h4 className="font-bold text-slate-900 dark:text-white">Invite New Team Member</h4>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm">Create User &amp; Assign Permissions</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">Register user by email ID and configure accessible modules</p>
+                        </div>
                         <button onClick={() => setShowInviteModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                       </div>
-                      <form onSubmit={(e) => {
+
+                      <form onSubmit={async (e) => {
                         e.preventDefault();
-                        if (!newUserName.trim() || !newUserEmail.trim()) return;
-                        const newU = {
-                          id: `usr-${Date.now()}`,
-                          name: newUserName,
-                          email: newUserEmail,
-                          role: newUserRole,
-                          roleLabel: newUserRole === 'sales_lead' ? 'Sales Lead / AE' : newUserRole === 'media_buyer' ? 'Performance Lead' : 'Finance Controller',
-                          designation: newUserDesignation,
-                          status: 'Invited',
-                          twoFactor: false,
-                          lastLogin: 'Never',
-                          initials: newUserName.substring(0, 2).toUpperCase(),
-                          avatarBg: 'bg-blue-600'
-                        };
-                        setUsersList([newU, ...usersList]);
-                        setShowInviteModal(false);
-                        setNewUserName('');
-                        setNewUserEmail('');
-                        showToast(`Invitation sent to ${newU.email}!`);
-                      }} className="space-y-3 text-xs">
+                        if (!newUserEmail.trim()) {
+                          showToast('Email address is required', 'error');
+                          return;
+                        }
+                        try {
+                          const res = await api.createSettingsUser({
+                            name: newUserName.trim() || undefined,
+                            email: newUserEmail.trim(),
+                            role: newUserRole,
+                            designation: newUserDesignation.trim() || 'Specialist',
+                            password: newUserPassword.trim() || 'Optivir@2026',
+                            allowed_tabs: newUserAllowedTabs
+                          });
+                          setShowInviteModal(false);
+                          setNewUserName('');
+                          setNewUserEmail('');
+                          setNewUserPassword('Optivir@2026');
+                          await loadUsers();
+                          showToast(res.message || `User ${newUserEmail} created with permissions assigned!`);
+                        } catch (err: any) {
+                          showToast(`Error creating user: ${err.message}`);
+                        }
+                      }} className="space-y-4 text-xs">
+                        
+                        {/* Email ID (Primary identifier) */}
                         <div>
-                          <label className="font-semibold block mb-1">Full Name</label>
-                          <input type="text" required placeholder="e.g. Maya Sharma" value={newUserName} onChange={e => setNewUserName(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="font-semibold text-slate-800 dark:text-slate-200">Email ID (Primary Login)</label>
+                            <span className="text-[10px] text-rose-500 font-bold">Required</span>
+                          </div>
+                          <input
+                            type="email"
+                            required
+                            placeholder="user@optivirads.com"
+                            value={newUserEmail}
+                            onChange={e => setNewUserEmail(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#DC2626]"
+                          />
                         </div>
-                        <div>
-                          <label className="font-semibold block mb-1">Corporate Email</label>
-                          <input type="email" required placeholder="maya@optivir.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
+
+                        {/* Name & Initial Password */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="font-semibold block mb-1">Role Type</label>
-                            <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Full Name (Optional)</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Maya Sharma (or blank)"
+                              value={newUserName}
+                              onChange={e => setNewUserName(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#DC2626]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Initial Password</label>
+                            <input
+                              type="text"
+                              placeholder="Default: Optivir@2026"
+                              value={newUserPassword}
+                              onChange={e => setNewUserPassword(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#DC2626]"
+                            />
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">User can change after login</span>
+                          </div>
+                        </div>
+
+                        {/* Role & Designation */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
+                            <select
+                              value={newUserRole}
+                              onChange={e => {
+                                const role = e.target.value;
+                                setNewUserRole(role);
+                                if (role === 'sales_lead') {
+                                  setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                                } else if (role === 'media_buyer') {
+                                  setNewUserAllowedTabs(['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports']);
+                                } else if (role === 'finance_lead') {
+                                  setNewUserAllowedTabs(['dashboard', 'finance', 'proposals', 'reports']);
+                                }
+                              }}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                            >
                               <option value="sales_lead">Sales Lead</option>
-                              <option value="media_buyer">Media Buyer</option>
-                              <option value="finance_lead">Finance Lead</option>
+                              <option value="media_buyer">Media &amp; Ads Lead</option>
+                              <option value="finance_lead">Finance &amp; Billing Lead</option>
+                              <option value="account_manager">Client Account Manager</option>
                             </select>
                           </div>
                           <div>
-                            <label className="font-semibold block mb-1">Designation</label>
-                            <input type="text" value={newUserDesignation} onChange={e => setNewUserDesignation(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Designation</label>
+                            <input
+                              type="text"
+                              value={newUserDesignation}
+                              onChange={e => setNewUserDesignation(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                            />
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                          <button type="button" onClick={() => setShowInviteModal(false)} className="px-3 py-2 rounded-xl text-slate-400 hover:text-white">Cancel</button>
-                          <button type="submit" className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl shadow-xs">Dispatch Invite</button>
+
+                        {/* Granular Module Permissions Checklist */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Assign Module Permissions ({newUserAllowedTabs.length} Selected)</span>
+                            </label>
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id))}
+                                className="text-blue-600 hover:underline cursor-pointer"
+                              >
+                                All
+                              </button>
+                              <span className="text-slate-300 dark:text-slate-700">•</span>
+                              <button
+                                type="button"
+                                onClick={() => setNewUserAllowedTabs(['dashboard'])}
+                                className="text-slate-500 hover:underline cursor-pointer"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-48 overflow-y-auto">
+                            {AVAILABLE_CRM_MODULES.map(mod => {
+                              const isChecked = newUserAllowedTabs.includes(mod.id);
+                              return (
+                                <label
+                                  key={mod.id}
+                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${
+                                    isChecked
+                                      ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
+                                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setNewUserAllowedTabs([...newUserAllowedTabs, mod.id]);
+                                      } else {
+                                        setNewUserAllowedTabs(newUserAllowedTabs.filter(t => t !== mod.id));
+                                      }
+                                    }}
+                                    className="mt-0.5 rounded text-[#DC2626] focus:ring-0"
+                                  />
+                                  <span className="font-semibold leading-tight">{mod.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setShowInviteModal(false)}
+                            className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl shadow-xs cursor-pointer"
+                          >
+                            Create User
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Edit Permissions Modal */}
+                {showEditPermissionsModal && editingUser && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm">Edit User Permissions</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">Configuring modules for {editingUser.email}</p>
+                        </div>
+                        <button onClick={() => setShowEditPermissionsModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                      </div>
+
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        try {
+                          await api.updateSettingsUser(editingUser.id, {
+                            role: editRole,
+                            designation: editDesignation,
+                            allowed_tabs: editAllowedTabs
+                          });
+                          setShowEditPermissionsModal(false);
+                          await loadUsers();
+                          showToast(`Updated permissions for ${editingUser.email}!`);
+                        } catch (err: any) {
+                          showToast(`Error updating permissions: ${err.message}`);
+                        }
+                      }} className="space-y-4 text-xs">
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
+                            <select
+                              value={editRole}
+                              onChange={e => setEditRole(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                            >
+                              <option value="sales_lead">Sales Lead</option>
+                              <option value="media_buyer">Media &amp; Ads Lead</option>
+                              <option value="finance_lead">Finance &amp; Billing Lead</option>
+                              <option value="account_manager">Client Account Manager</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Designation</label>
+                            <input
+                              type="text"
+                              value={editDesignation}
+                              onChange={e => setEditDesignation(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Granular Module Permissions Checklist */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Authorized Tabs &amp; Modules ({editAllowedTabs.length} Selected)</span>
+                            </label>
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id))}
+                                className="text-blue-600 hover:underline cursor-pointer"
+                              >
+                                Select All
+                              </button>
+                              <span className="text-slate-300 dark:text-slate-700">•</span>
+                              <button
+                                type="button"
+                                onClick={() => setEditAllowedTabs(['dashboard'])}
+                                className="text-slate-500 hover:underline cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-48 overflow-y-auto">
+                            {AVAILABLE_CRM_MODULES.map(mod => {
+                              const isChecked = editAllowedTabs.includes(mod.id);
+                              return (
+                                <label
+                                  key={mod.id}
+                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${
+                                    isChecked
+                                      ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
+                                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setEditAllowedTabs([...editAllowedTabs, mod.id]);
+                                      } else {
+                                        setEditAllowedTabs(editAllowedTabs.filter(t => t !== mod.id));
+                                      }
+                                    }}
+                                    className="mt-0.5 rounded text-[#DC2626] focus:ring-0"
+                                  />
+                                  <span className="font-semibold leading-tight">{mod.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setShowEditPermissionsModal(false)}
+                            className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs cursor-pointer"
+                          >
+                            Save Permissions
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Admin Reset Password Modal */}
+                {showResetPasswordModal && resettingUser && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-4 h-4 text-amber-500" />
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm">Reset User Password</h4>
+                        </div>
+                        <button onClick={() => setShowResetPasswordModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Set a new password for <span className="font-bold text-slate-900 dark:text-white">{resettingUser.email}</span>. They can sign in immediately using this password.
+                      </p>
+
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (adminNewPassword.length < 6) {
+                          showToast('Password must be at least 6 characters long', 'error');
+                          return;
+                        }
+                        setIsAdminResetting(true);
+                        try {
+                          await api.resetUserPassword(resettingUser.id, adminNewPassword);
+                          showToast(`Password successfully reset for ${resettingUser.email}!`, 'success');
+                          setShowResetPasswordModal(false);
+                          setAdminNewPassword('');
+                        } catch (err: any) {
+                          showToast(`Failed to reset password: ${err.message}`, 'error');
+                        } finally {
+                          setIsAdminResetting(false);
+                        }
+                      }} className="space-y-4 text-xs">
+                        <div>
+                          <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">New Password</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Enter new password (min 6 chars)"
+                            value={adminNewPassword}
+                            onChange={e => setAdminNewPassword(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#DC2626]"
+                          />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setShowResetPasswordModal(false)}
+                            className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isAdminResetting}
+                            className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-xs cursor-pointer disabled:opacity-50"
+                          >
+                            {isAdminResetting ? 'Resetting...' : 'Confirm Password Reset'}
+                          </button>
                         </div>
                       </form>
                     </div>
@@ -1333,11 +2186,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                 <div className="flex justify-end pt-2">
                   <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                    onClick={handleSaveRoleMatrix}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save Role Matrix</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Role Matrix'}</span>
                   </button>
                 </div>
               </div>
@@ -1371,24 +2225,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   {podsList.map(pod => (
-                    <div key={pod.id} className={`p-4 rounded-2xl border ${pod.color} space-y-3 bg-white dark:bg-slate-900 shadow-xs`}>
+                    <div key={pod.id} className={`p-4 rounded-2xl border ${pod.color || 'border-blue-500/40'} space-y-3 bg-white dark:bg-slate-900 shadow-xs`}>
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="font-bold text-sm text-slate-900 dark:text-white">{pod.name}</h4>
-                          <span className="text-[11px] text-slate-400">Pod Lead: <strong>{pod.lead}</strong></span>
+                          <span className="text-[11px] text-slate-400">Pod Lead: <strong>{pod.lead || pod.metadata?.lead || 'Unassigned'}</strong></span>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {pod.membersCount} Specialists
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {pod.membersCount || pod.members_count || 3} Specialists
+                          </span>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to delete pod "${pod.name}"?`)) {
+                                try {
+                                  await api.deleteSettingsTeam(pod.id);
+                                  showToast(`Pod "${pod.name}" deleted [200 OK]`);
+                                  loadTeams();
+                                } catch (err: any) {
+                                  showToast(`Failed to delete pod: ${err.message}`);
+                                }
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            title="Delete Pod"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
                         <div>
                           <div className="text-[10px] text-slate-400">Active Clients</div>
-                          <div className="font-bold text-slate-900 dark:text-white text-xs">{pod.activeClients} Brands</div>
+                          <div className="font-bold text-slate-900 dark:text-white text-xs">{pod.activeClients || pod.active_clients || 0} Brands</div>
                         </div>
                         <div>
                           <div className="text-[10px] text-slate-400">Monthly Target / Metric</div>
-                          <div className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">{pod.target}</div>
+                          <div className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">{pod.target || '₹10,00,000/mo'}</div>
                         </div>
                       </div>
                     </div>
@@ -1403,21 +2276,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <h4 className="font-bold text-slate-900 dark:text-white">Create Agency Pod</h4>
                         <button onClick={() => setShowPodModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                       </div>
-                      <form onSubmit={(e) => {
+                      <form onSubmit={async (e) => {
                         e.preventDefault();
                         if (!newPodName.trim()) return;
-                        setPodsList([...podsList, {
-                          id: `pod-${Date.now()}`,
-                          name: newPodName,
-                          lead: newPodLead,
-                          membersCount: 3,
-                          activeClients: 0,
-                          target: `₹${parseInt(newPodTarget).toLocaleString('en-IN')}/mo`,
-                          color: 'border-blue-500/40 bg-blue-500/5'
-                        }]);
-                        setShowPodModal(false);
-                        setNewPodName('');
-                        showToast(`Pod "${newPodName}" created!`);
+                        setIsSaving(true);
+                        try {
+                          await api.createSettingsTeam({
+                            name: newPodName.trim(),
+                            target: `₹${parseInt(newPodTarget || '0').toLocaleString('en-IN')}/mo`,
+                            metadata: { lead: newPodLead }
+                          });
+                          setShowPodModal(false);
+                          setNewPodName('');
+                          showToast(`Pod "${newPodName}" created in database [200 OK]`);
+                          loadTeams();
+                        } catch (err: any) {
+                          showToast(`Error creating pod: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
                       }} className="space-y-3 text-xs">
                         <div>
                           <label className="font-semibold block mb-1">Pod Title</label>
@@ -1426,7 +2303,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <div>
                           <label className="font-semibold block mb-1">Lead Specialist</label>
                           <select value={newPodLead} onChange={e => setNewPodLead(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
-                            {usersList.map(u => <option key={u.id} value={u.name}>{u.name} ({u.roleLabel})</option>)}
+                            {usersList.map(u => <option key={u.id} value={u.name}>{u.name} ({u.roleLabel || u.role})</option>)}
                           </select>
                         </div>
                         <div>
@@ -1435,7 +2312,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                           <button type="button" onClick={() => setShowPodModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
-                          <button type="submit" className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl">Create Pod</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Creating...' : 'Create Pod'}
+                          </button>
                         </div>
                       </form>
                     </div>
@@ -1475,10 +2354,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <span className="font-bold text-slate-900 dark:text-white">Enforce Two-Factor Authentication (2FA)</span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Mandate TOTP authenticator (Google Authenticator / 1Password) for all 5 active tenant users.
+                        Mandate TOTP authenticator (Google Authenticator / 1Password) for all tenant users.
                       </p>
                     </div>
-                    <button onClick={() => { setTwoFactorEnforced(!twoFactorEnforced); showToast('2FA policy updated'); }} className="cursor-pointer">
+                    <button onClick={() => setTwoFactorEnforced(!twoFactorEnforced)} className="cursor-pointer">
                       <div className={`w-11 h-6 rounded-full p-1 transition ${twoFactorEnforced ? 'bg-[#DC2626] flex justify-end' : 'bg-slate-300 dark:bg-slate-700 flex justify-start'}`}>
                         <div className="w-4 h-4 rounded-full bg-white shadow-xs"></div>
                       </div>
@@ -1528,7 +2407,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           if (newIpAddress.trim()) {
                             setIpWhitelist([...ipWhitelist, newIpAddress.trim()]);
                             setNewIpAddress('');
-                            showToast(`Whitelisted IP: ${newIpAddress.trim()}`);
+                            showToast(`Added IP rule: ${newIpAddress.trim()} (Click Save to persist)`);
                           }
                         }}
                         className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg text-xs cursor-pointer"
@@ -1545,22 +2424,118 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       ))}
                     </div>
                   </div>
+
+                  {/* Self-Service Change Password Section */}
+                  <div className="p-4 bg-slate-50 dark:bg-[#0A101C] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-rose-500" />
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white">Change Account Password</span>
+                          <span className="text-[11px] text-slate-500 block">Logged in as {user?.email || activePersona.email}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        Self-Service
+                      </span>
+                    </div>
+
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!selfCurrentPassword) {
+                          showToast('Please enter your current password', 'error');
+                          return;
+                        }
+                        if (selfNewPassword.length < 6) {
+                          showToast('New password must be at least 6 characters', 'error');
+                          return;
+                        }
+                        if (selfNewPassword !== selfConfirmPassword) {
+                          showToast('New passwords do not match', 'error');
+                          return;
+                        }
+
+                        setIsSelfChangingPassword(true);
+                        try {
+                          const res = await api.changePassword(selfCurrentPassword, selfNewPassword);
+                          if (res.success) {
+                            showToast('Password changed successfully!', 'success');
+                            setSelfCurrentPassword('');
+                            setSelfNewPassword('');
+                            setSelfConfirmPassword('');
+                          } else {
+                            showToast(res.message || 'Failed to change password', 'error');
+                          }
+                        } catch (err: any) {
+                          showToast(err.message || 'Failed to change password. Verify current password.', 'error');
+                        } finally {
+                          setIsSelfChangingPassword(false);
+                        }
+                      }}
+                      className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1"
+                    >
+                      <div>
+                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Current Password</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Current password"
+                          value={selfCurrentPassword}
+                          onChange={e => setSelfCurrentPassword(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">New Password</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Min 6 characters"
+                          value={selfNewPassword}
+                          onChange={e => setSelfNewPassword(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Confirm Password</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            required
+                            placeholder="Re-type new"
+                            value={selfConfirmPassword}
+                            onChange={e => setSelfConfirmPassword(e.target.value)}
+                            className="flex-1 p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isSelfChangingPassword}
+                            className="px-3 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            {isSelfChangingPassword ? 'Updating...' : 'Update'}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
                 </div>
 
                 <div className="flex justify-end pt-2">
                   <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                    onClick={handleSaveSecurity}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save Security Policies</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Security Policies'}</span>
                   </button>
                 </div>
               </div>
             )}
 
             {/* ========================================================================= */}
-            {/* 8. TAB: PIPELINES & STAGES (Target from screenshot!)                     */}
+            {/* 8. TAB: PIPELINES & STAGES                                               */}
             {/* ========================================================================= */}
             {activeSection === 'Pipelines & Stages' && (
               <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-6 shadow-xs space-y-5">
@@ -1593,16 +2568,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-500">Active Pipeline:</span>
                     <select
-                      value={selectedPipelineName}
-                      onChange={(e) => setSelectedPipelineName(e.target.value)}
+                      value={activePipelineId}
+                      onChange={(e) => {
+                        const pipeId = e.target.value;
+                        setActivePipelineId(pipeId);
+                        const selected = pipelinesList.find(p => p.id === pipeId);
+                        if (selected) {
+                          setSelectedPipelineName(selected.name);
+                          setPipelineStages(selected.stages || []);
+                        }
+                      }}
                       className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-bold text-slate-900 dark:text-white"
                     >
-                      <option>Enterprise Retainers Pipeline</option>
-                      <option>Performance Ads Fast-Track</option>
-                      <option>Inbound Consultation Sprint</option>
+                      {pipelinesList.length > 0 ? (
+                        pipelinesList.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))
+                      ) : (
+                        <option value="">Default Pipeline</option>
+                      )}
                     </select>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-mono">Weighted Total: ₹58,85,000</span>
+                  <span className="text-[11px] text-slate-400 font-mono">Real-time Stage Sync</span>
                 </div>
 
                 {/* Stages List */}
@@ -1616,11 +2603,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center text-xs shrink-0">
                           {idx + 1}
                         </div>
-                        <div className={`w-3 h-3 rounded-full ${stage.color} shrink-0`}></div>
+                        <div className={`w-3 h-3 rounded-full ${stage.color || 'bg-blue-500'} shrink-0`}></div>
                         <div>
                           <h4 className="font-bold text-xs text-slate-900 dark:text-white">{stage.name}</h4>
                           <span className="text-[10px] text-slate-400">
-                            {stage.dealCount} active deals in pipeline ({stage.totalValue})
+                            {stage.dealCount || stage.deal_count || 0} active deals in pipeline ({stage.totalValue || '₹0'})
                           </span>
                         </div>
                       </div>
@@ -1631,10 +2618,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800 dark:text-slate-200">
                             <input
                               type="number"
-                              value={stage.probability}
-                              onChange={(e) => {
+                              value={stage.probability ?? stage.win_probability ?? 0}
+                              onChange={async (e) => {
                                 const val = parseInt(e.target.value) || 0;
-                                setPipelineStages(pipelineStages.map(s => s.id === stage.id ? { ...s, probability: val } : s));
+                                setPipelineStages(pipelineStages.map(s => s.id === stage.id ? { ...s, probability: val, win_probability: val } : s));
+                                try {
+                                  await api.updateSettingsStage(stage.id, { win_probability: val });
+                                } catch (err) {
+                                  console.warn('Stage update error:', err);
+                                }
                               }}
                               className="w-14 p-1 bg-slate-50 dark:bg-slate-800 border rounded text-center text-xs"
                             />
@@ -1646,17 +2638,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <span className="text-[10px] text-slate-400 block">Inactivity SLA</span>
                           <div className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-200">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{stage.slaDays > 0 ? `${stage.slaDays} Days` : 'No SLA'}</span>
+                            <span>{(stage.slaDays || stage.sla_days) > 0 ? `${stage.slaDays || stage.sla_days} Days` : 'No SLA'}</span>
                           </div>
                         </div>
 
                         <button
-                          onClick={() => {
-                            if (pipelineStages.length > 2) {
-                              setPipelineStages(pipelineStages.filter(s => s.id !== stage.id));
-                              showToast(`Stage "${stage.name}" removed`);
-                            } else {
+                          onClick={async () => {
+                            if (pipelineStages.length <= 2) {
                               showToast('A pipeline requires at least 2 stages');
+                              return;
+                            }
+                            if (confirm(`Delete stage "${stage.name}"?`)) {
+                              try {
+                                await api.deleteSettingsStage(stage.id);
+                                showToast(`Stage "${stage.name}" deleted [200 OK]`);
+                                loadPipelines();
+                              } catch (err: any) {
+                                showToast(`Failed to delete stage: ${err.message}`);
+                              }
                             }
                           }}
                           className="p-1.5 text-slate-400 hover:text-rose-500 transition cursor-pointer"
@@ -1677,23 +2676,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <h4 className="font-bold text-slate-900 dark:text-white">Add New Pipeline Stage</h4>
                         <button onClick={() => setShowAddStageModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                       </div>
-                      <form onSubmit={(e) => {
+                      <form onSubmit={async (e) => {
                         e.preventDefault();
                         if (!newStageName.trim()) return;
-                        const newS = {
-                          id: `stg-${Date.now()}`,
-                          order: pipelineStages.length + 1,
-                          name: newStageName.trim(),
-                          probability: newStageProb,
-                          slaDays: newStageSla,
-                          color: 'bg-teal-500',
-                          dealCount: 0,
-                          totalValue: '₹0'
-                        };
-                        setPipelineStages([...pipelineStages, newS]);
-                        setShowAddStageModal(false);
-                        setNewStageName('');
-                        showToast(`Added stage "${newS.name}" with ${newS.probability}% probability!`);
+                        setIsSaving(true);
+                        try {
+                          await api.createSettingsStage(activePipelineId || (pipelinesList[0]?.id), {
+                            name: newStageName.trim(),
+                            win_probability: newStageProb,
+                            sla_days: newStageSla
+                          });
+                          setShowAddStageModal(false);
+                          setNewStageName('');
+                          showToast(`Added stage "${newStageName.trim()}" to database [200 OK]`);
+                          loadPipelines();
+                        } catch (err: any) {
+                          showToast(`Failed to create stage: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
                       }} className="space-y-3 text-xs">
                         <div>
                           <label className="font-semibold block mb-1">Stage Name</label>
@@ -1711,22 +2712,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                           <button type="button" onClick={() => setShowAddStageModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
-                          <button type="submit" className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl">Create Stage</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Creating...' : 'Create Stage'}
+                          </button>
                         </div>
                       </form>
                     </div>
                   </div>
                 )}
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Pipeline Stages</span>
-                  </button>
-                </div>
               </div>
             )}
 
@@ -1783,18 +2776,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {customFieldsList
-                        .filter(cf => cf.entity === customFieldsEntity)
+                        .filter(cf => (cf.entity || '').toLowerCase() === customFieldsEntity.toLowerCase())
                         .map(cf => (
                           <tr key={cf.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                            <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{cf.name}</td>
-                            <td className="py-3 px-4 font-mono text-slate-500 text-[11px]">{cf.key}</td>
+                            <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{cf.name || cf.field_name}</td>
+                            <td className="py-3 px-4 font-mono text-slate-500 text-[11px]">{cf.key || cf.field_key}</td>
                             <td className="py-3 px-4">
                               <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold">
-                                {cf.type}
+                                {cf.type || cf.field_type}
                               </span>
                             </td>
                             <td className="py-3 px-4">
-                              {cf.required ? (
+                              {(cf.required || cf.is_required) ? (
                                 <span className="text-emerald-600 font-bold">Required</span>
                               ) : (
                                 <span className="text-slate-400">Optional</span>
@@ -1802,9 +2795,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <button
-                                onClick={() => {
-                                  setCustomFieldsList(customFieldsList.filter(x => x.id !== cf.id));
-                                  showToast(`Removed custom field "${cf.name}"`);
+                                onClick={async () => {
+                                  if (confirm(`Delete custom field "${cf.name || cf.field_name}"?`)) {
+                                    try {
+                                      await api.deleteCustomFieldDefinition(cf.id);
+                                      showToast(`Custom field "${cf.name || cf.field_name}" deleted [200 OK]`);
+                                      loadCustomFields();
+                                    } catch (err: any) {
+                                      showToast(`Failed to delete custom field: ${err.message}`);
+                                    }
+                                  }
                                 }}
                                 className="text-rose-500 hover:text-rose-700 cursor-pointer text-xs"
                               >
@@ -1825,21 +2825,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <h4 className="font-bold text-slate-900 dark:text-white">Add Custom Field to {customFieldsEntity}</h4>
                         <button onClick={() => setShowAddCustomFieldModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                       </div>
-                      <form onSubmit={(e) => {
+                      <form onSubmit={async (e) => {
                         e.preventDefault();
                         if (!newFieldName.trim()) return;
                         const key = newFieldName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-                        setCustomFieldsList([...customFieldsList, {
-                          id: `cf-${Date.now()}`,
-                          entity: customFieldsEntity,
-                          name: newFieldName.trim(),
-                          key,
-                          type: newFieldType,
-                          required: newFieldRequired
-                        }]);
-                        setShowAddCustomFieldModal(false);
-                        setNewFieldName('');
-                        showToast(`Added field "${newFieldName.trim()}" to ${customFieldsEntity}!`);
+                        setIsSaving(true);
+                        try {
+                          await api.createCustomFieldDefinition({
+                            entity: customFieldsEntity,
+                            name: newFieldName.trim(),
+                            key,
+                            type: newFieldType,
+                            required: newFieldRequired
+                          });
+                          setShowAddCustomFieldModal(false);
+                          setNewFieldName('');
+                          showToast(`Added custom field "${newFieldName.trim()}" [200 OK]`);
+                          loadCustomFields();
+                        } catch (err: any) {
+                          showToast(`Failed to create custom field: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
                       }} className="space-y-3 text-xs">
                         <div>
                           <label className="font-semibold block mb-1">Field Label</label>
@@ -1862,7 +2869,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                           <button type="button" onClick={() => setShowAddCustomFieldModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
-                          <button type="submit" className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl">Save Field</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Saving...' : 'Save Field'}
+                          </button>
                         </div>
                       </form>
                     </div>
@@ -1901,12 +2910,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     className="flex-1 p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl"
                   />
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!newTagName.trim()) return;
                       const formatted = newTagName.trim().startsWith('#') ? newTagName.trim() : `#${newTagName.trim()}`;
-                      setTagsList([...tagsList, { id: `tag-${Date.now()}`, name: formatted, usageCount: 0, badgeClass: newTagColor }]);
-                      setNewTagName('');
-                      showToast(`Created tag "${formatted}"!`);
+                      try {
+                        await api.createSystemTag({
+                          name: formatted,
+                          color: newTagColor
+                        });
+                        setNewTagName('');
+                        showToast(`Created tag "${formatted}" in database [200 OK]`);
+                        loadTags();
+                      } catch (err: any) {
+                        showToast(`Failed to create tag: ${err.message}`);
+                      }
                     }}
                     className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl cursor-pointer"
                   >
@@ -1919,17 +2936,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   {tagsList.map(tag => (
                     <div key={tag.id} className="p-3 bg-slate-50/50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${tag.badgeClass}`}>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${tag.badgeClass || tag.color || 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800'}`}>
                           {tag.name}
                         </span>
-                        <span className="text-[10px] text-slate-400">{tag.usageCount} uses</span>
+                        <span className="text-[10px] text-slate-400">{tag.usageCount || tag.usage_count || 0} uses</span>
                       </div>
                       <button
-                        onClick={() => {
-                          setTagsList(tagsList.filter(x => x.id !== tag.id));
-                          showToast(`Tag "${tag.name}" deleted`);
+                        onClick={async () => {
+                          if (confirm(`Delete tag "${tag.name}"?`)) {
+                            try {
+                              await api.deleteSystemTag(tag.id);
+                              showToast(`Tag "${tag.name}" deleted [200 OK]`);
+                              loadTags();
+                            } catch (err: any) {
+                              showToast(`Failed to delete tag: ${err.message}`);
+                            }
+                          }
                         }}
                         className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                        title="Delete Tag"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1957,7 +2982,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     </p>
                   </div>
                   <button
-                    onClick={() => showToast('New service package modal ready')}
+                    onClick={() => setShowServiceModal(true)}
                     className="px-3.5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1973,25 +2998,120 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <h4 className="font-bold text-sm text-slate-900 dark:text-white">{srv.name}</h4>
                           <span className="text-[11px] text-slate-400">{srv.category}</span>
                         </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                          SAC {srv.sacCode}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                            SAC {srv.sacCode || srv.sac_code || '998361'}
+                          </span>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Delete service "${srv.name}"?`)) {
+                                try {
+                                  await api.deleteService(srv.id);
+                                  showToast(`Service "${srv.name}" deleted [200 OK]`);
+                                  loadServices();
+                                } catch (err: any) {
+                                  showToast(`Failed to delete service: ${err.message}`);
+                                }
+                              }
+                            }}
+                            className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
+                            title="Delete Service"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-baseline justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div>
                           <span className="text-[10px] text-slate-400 block">Default Retainer / Price</span>
                           <span className="font-bold text-sm text-slate-900 dark:text-white font-mono">
-                            ₹{srv.price.toLocaleString('en-IN')}
-                            <span className="text-xs text-slate-400 font-normal"> / {srv.pricingModel}</span>
+                            ₹{Number(srv.price || 0).toLocaleString('en-IN')}
+                            <span className="text-xs text-slate-400 font-normal"> / {srv.pricingModel || srv.pricing_model || 'Monthly Retainer'}</span>
                           </span>
                         </div>
                         <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          {srv.deliverablesCount} Scope Items
+                          {srv.deliverablesCount || srv.deliverables_count || 5} Scope Items
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Add Service Package Modal */}
+                {showServiceModal && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h4 className="font-bold text-slate-900 dark:text-white">Add Service Package</h4>
+                        <button onClick={() => setShowServiceModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                      </div>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newServiceName.trim()) return;
+                        setIsSaving(true);
+                        try {
+                          await api.createService({
+                            name: newServiceName.trim(),
+                            category: newServiceCategory,
+                            pricing_model: newServiceModel,
+                            price: parseFloat(newServicePrice) || 0,
+                            sac_code: '998361',
+                            tax_rate: '18% GST',
+                            deliverables_count: 5,
+                            description: newServiceDesc
+                          });
+                          setShowServiceModal(false);
+                          setNewServiceName('');
+                          setNewServiceDesc('');
+                          showToast(`Service "${newServiceName.trim()}" created [200 OK]`);
+                          loadServices();
+                        } catch (err: any) {
+                          showToast(`Failed to create service: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }} className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-semibold block mb-1">Package Name</label>
+                          <input type="text" required placeholder="e.g. Meta Ads Growth Sprint" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold block mb-1">Category</label>
+                            <select value={newServiceCategory} onChange={e => setNewServiceCategory(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
+                              <option value="Performance Marketing">Performance Marketing</option>
+                              <option value="SEO & Content">SEO & Content</option>
+                              <option value="Web Dev & Tech">Web Dev & Tech</option>
+                              <option value="Creative Studio">Creative Studio</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-semibold block mb-1">Pricing Model</label>
+                            <select value={newServiceModel} onChange={e => setNewServiceModel(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
+                              <option value="Monthly Retainer">Monthly Retainer</option>
+                              <option value="Fixed Milestone">Fixed Milestone</option>
+                              <option value="Hourly Rate">Hourly Rate</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Default Price (INR ₹)</label>
+                          <input type="number" required value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Description</label>
+                          <textarea rows={2} value={newServiceDesc} onChange={e => setNewServiceDesc(e.target.value)} placeholder="Package scope and deliverables..." className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button type="button" onClick={() => setShowServiceModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Creating...' : 'Create Service'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2012,7 +3132,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       Attribution channels used to track cost per lead (CPL) and acquisition ROI.
                     </p>
                   </div>
-                  <span className="text-xs text-slate-400">{sourcesList.length} Channels Active</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">{sourcesList.length} Channels Active</span>
+                    <button
+                      onClick={() => setShowLeadSourceModal(true)}
+                      className="px-3 py-1.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Channel</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs">
@@ -2024,6 +3153,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <th className="py-3 px-4">Target Cost Per Lead (CPL)</th>
                         <th className="py-3 px-4">Total Leads Attributed</th>
                         <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2032,19 +3162,96 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{src.name}</td>
                           <td className="py-3 px-4 text-slate-500">{src.channel}</td>
                           <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
-                            {src.costPerLead > 0 ? `₹${src.costPerLead.toLocaleString('en-IN')}` : '₹0 (Organic)'}
+                            {(src.costPerLead || src.cost_per_lead) > 0 ? `₹${Number(src.costPerLead || src.cost_per_lead).toLocaleString('en-IN')}` : '₹0 (Organic)'}
                           </td>
-                          <td className="py-3 px-4">{src.totalLeads} Leads</td>
+                          <td className="py-3 px-4">{src.totalLeads || src.total_leads || 0} Leads</td>
                           <td className="py-3 px-4">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                              {src.status}
+                              {src.status || 'Active'}
                             </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Delete lead source "${src.name}"?`)) {
+                                  try {
+                                    await api.deleteLeadSource(src.id);
+                                    showToast(`Lead source "${src.name}" deleted [200 OK]`);
+                                    loadLeadSources();
+                                  } catch (err: any) {
+                                    showToast(`Failed to delete lead source: ${err.message}`);
+                                  }
+                                }
+                              }}
+                              className="text-rose-500 hover:text-rose-700 cursor-pointer text-xs"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Add Lead Source Modal */}
+                {showLeadSourceModal && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h4 className="font-bold text-slate-900 dark:text-white">Add Attribution Channel</h4>
+                        <button onClick={() => setShowLeadSourceModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                      </div>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newSourceName.trim()) return;
+                        setIsSaving(true);
+                        try {
+                          await api.createLeadSource({
+                            name: newSourceName.trim(),
+                            channel: newSourceChannel,
+                            cost_per_lead: parseFloat(newSourceCpl) || 0,
+                            status: 'Active'
+                          });
+                          setShowLeadSourceModal(false);
+                          setNewSourceName('');
+                          showToast(`Lead source "${newSourceName.trim()}" created [200 OK]`);
+                          loadLeadSources();
+                        } catch (err: any) {
+                          showToast(`Failed to create lead source: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }} className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-semibold block mb-1">Channel / Source Name</label>
+                          <input type="text" required placeholder="e.g. YouTube In-Stream Ads" value={newSourceName} onChange={e => setNewSourceName(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Channel Group</label>
+                          <select value={newSourceChannel} onChange={e => setNewSourceChannel(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
+                            <option value="Paid Social">Paid Social</option>
+                            <option value="Paid Search">Paid Search</option>
+                            <option value="Organic SEO">Organic SEO</option>
+                            <option value="B2B Social">B2B Social</option>
+                            <option value="Executive Referral">Executive Referral</option>
+                            <option value="Inbound Web">Inbound Web</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Target CPL (INR ₹)</label>
+                          <input type="number" value={newSourceCpl} onChange={e => setNewSourceCpl(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button type="button" onClick={() => setShowLeadSourceModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Creating...' : 'Create Channel'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2065,7 +3272,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       Master templates for MSAs, SOWs, and CBIC SAC 998361 compliant Proposals.
                     </p>
                   </div>
-                  <span className="text-xs text-slate-400">4 Core Templates</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">{templatesList.length} Core Templates</span>
+                    <button
+                      onClick={() => {
+                        setEditingTemplate(null);
+                        setTemplateName('');
+                        setTemplateType('Legal Contract');
+                        setTemplateVersion('v1.0');
+                        setTemplateTerms('Net 30, IP Assigned Upon Payment');
+                        setTemplateContent('');
+                        setShowTemplateModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ New Template</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3 text-xs">
@@ -2075,24 +3299,118 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-slate-900 dark:text-white text-sm">{tmpl.name}</h4>
                           <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                            {tmpl.version}
+                            {tmpl.version || 'v1.0'}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-1">
-                          {tmpl.type} • {tmpl.standardTerms} • SAC {tmpl.sacCode}
+                          {tmpl.type} • {tmpl.standardTerms || tmpl.standard_terms || 'Standard terms'} • SAC {tmpl.sacCode || tmpl.sac_code || '998361'}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => showToast(`Opening template editor for ${tmpl.name}`)}
+                          onClick={() => {
+                            setEditingTemplate(tmpl);
+                            setTemplateName(tmpl.name);
+                            setTemplateType(tmpl.type || tmpl.category || 'Legal Contract');
+                            setTemplateVersion(tmpl.version || 'v1.0');
+                            setTemplateTerms(tmpl.standardTerms || tmpl.standard_terms || '');
+                            setTemplateContent(tmpl.content || '');
+                            setShowTemplateModal(true);
+                          }}
                           className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition cursor-pointer"
                         >
                           Edit Content
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Delete template "${tmpl.name}"?`)) {
+                              try {
+                                await api.deleteDocumentTemplate(tmpl.id);
+                                showToast(`Template "${tmpl.name}" deleted [200 OK]`);
+                                loadDocumentTemplates();
+                              } catch (err: any) {
+                                showToast(`Failed to delete template: ${err.message}`);
+                              }
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                          title="Delete Template"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Add/Edit Document Template Modal */}
+                {showTemplateModal && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h4 className="font-bold text-slate-900 dark:text-white">{editingTemplate ? 'Edit Document Template' : 'Create Document Template'}</h4>
+                        <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                      </div>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!templateName.trim()) return;
+                        setIsSaving(true);
+                        try {
+                          await api.saveDocumentTemplate({
+                            id: editingTemplate?.id,
+                            name: templateName.trim(),
+                            type: templateType,
+                            version: templateVersion,
+                            standard_terms: templateTerms,
+                            content: templateContent,
+                            sac_code: '998361'
+                          });
+                          setShowTemplateModal(false);
+                          showToast(`Template "${templateName.trim()}" saved to database [200 OK]`);
+                          loadDocumentTemplates();
+                        } catch (err: any) {
+                          showToast(`Failed to save template: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }} className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-semibold block mb-1">Template Title</label>
+                          <input type="text" required value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Master Services Agreement (MSA)" className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold block mb-1">Type / Category</label>
+                            <select value={templateType} onChange={e => setTemplateType(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl">
+                              <option value="Legal Contract">Legal Contract</option>
+                              <option value="Operations Scope">Operations Scope</option>
+                              <option value="Sales Quotation">Sales Quotation</option>
+                              <option value="Financial Ledger">Financial Ledger</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-semibold block mb-1">Version</label>
+                            <input type="text" value={templateVersion} onChange={e => setTemplateVersion(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Standard Terms &amp; Conditions</label>
+                          <input type="text" value={templateTerms} onChange={e => setTemplateTerms(e.target.value)} placeholder="e.g. Net 30, IP Assigned Upon Payment" className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl" />
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1">Contract Body / Template Clauses</label>
+                          <textarea rows={5} value={templateContent} onChange={e => setTemplateContent(e.target.value)} placeholder="Master contractual terms and conditions text..." className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-mono text-[11px]" />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button type="button" onClick={() => setShowTemplateModal(false)} className="px-3 py-2 text-slate-400">Cancel</button>
+                          <button type="submit" disabled={isSaving} className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSaving ? 'Saving...' : 'Save Template'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2153,11 +3471,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                 <div className="flex justify-end pt-2">
                   <button
-                    onClick={handleSaveChanges}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                    onClick={handleSaveBilling}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save Billing Information</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Billing Information'}</span>
                   </button>
                 </div>
               </div>
@@ -2168,7 +3487,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
             {/* ========================================================================= */}
             {activeSection === 'Audit Telemetry' && (
               <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-6 shadow-xs space-y-5">
-                <div className="pb-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                <div className="pb-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <Activity className="w-4 h-4 text-emerald-500" />
@@ -2180,23 +3499,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       Immutable 256-bit event trail documenting security actions, exports, and permission modifications.
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      const csvContent = "data:text/csv;charset=utf-8," + ["Action,Operator,Details,IP,Timestamp", ...telemetryLogs.map(l => `${l.action},${l.operator},"${l.details}",${l.ip},${l.timestamp}`)].join("\n");
-                      const encodedUri = encodeURI(csvContent);
-                      const link = document.createElement("a");
-                      link.setAttribute("href", encodedUri);
-                      link.setAttribute("download", "optivir_audit_telemetry.csv");
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      showToast('Exported audit telemetry log as CSV!');
-                    }}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export Audit CSV</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Filter audit events..."
+                      value={telemetrySearch}
+                      onChange={e => setTelemetrySearch(e.target.value)}
+                      className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+                    />
+                    <button
+                      onClick={loadAuditLogs}
+                      disabled={isLoadingSection}
+                      className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isLoadingSection ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const filtered = telemetryLogs.filter(l =>
+                          !telemetrySearch ||
+                          (l.action && l.action.toLowerCase().includes(telemetrySearch.toLowerCase())) ||
+                          (l.operator && l.operator.toLowerCase().includes(telemetrySearch.toLowerCase())) ||
+                          (l.details && l.details.toLowerCase().includes(telemetrySearch.toLowerCase()))
+                        );
+                        const csvContent = "data:text/csv;charset=utf-8," + ["Action,Operator,Details,IP,Timestamp,Status", ...filtered.map(l => `"${l.action || ''}","${l.operator || ''}","${(l.details || '').replace(/"/g, '""')}","${l.ip || ''}","${l.timestamp || ''}","${l.status || 'SUCCESS'}"`)].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", "optivir_audit_telemetry.csv");
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showToast('Exported audit telemetry log as CSV!');
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export Audit CSV</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs">
@@ -2212,20 +3554,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {telemetryLogs.map(log => (
-                        <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">[{log.action}]</td>
-                          <td className="py-3 px-4 font-semibold">{log.operator}</td>
-                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{log.details}</td>
-                          <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{log.ip}</td>
-                          <td className="py-3 px-4 text-slate-400">{log.timestamp}</td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                              {log.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {telemetryLogs
+                        .filter(l =>
+                          !telemetrySearch ||
+                          (l.action && l.action.toLowerCase().includes(telemetrySearch.toLowerCase())) ||
+                          (l.operator && l.operator.toLowerCase().includes(telemetrySearch.toLowerCase())) ||
+                          (l.details && l.details.toLowerCase().includes(telemetrySearch.toLowerCase()))
+                        )
+                        .map(log => (
+                          <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                            <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">[{log.action}]</td>
+                            <td className="py-3 px-4 font-semibold">{log.operator}</td>
+                            <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{log.details}</td>
+                            <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{log.ip}</td>
+                            <td className="py-3 px-4 text-slate-400">{log.timestamp}</td>
+                            <td className="py-3 px-4">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                {log.status || 'SUCCESS'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>

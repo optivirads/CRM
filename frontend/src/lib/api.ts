@@ -47,6 +47,13 @@ class ApiClient {
     return this.request<{ success: boolean; data: any }>('/auth/me');
   }
 
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ success: boolean; message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
   // Dashboard
   async getDashboardStats() {
     return this.request<{ success: boolean; data: any }>('/dashboard/stats');
@@ -414,6 +421,422 @@ class ApiClient {
 
   async getAdAccountDetails(adAccountId: string) {
     return this.request<{ success: boolean; data: any; message?: string }>(`/integrations/ad-accounts/${adAccountId}/details`);
+  }
+
+  // ==========================================
+  // Settings API Methods (Real PostgreSQL persistence)
+  // ==========================================
+
+  // 1. Organization Identity
+  async getOrganizationSettings() {
+    return this.request<{ success: boolean; data: any }>('/settings/organization');
+  }
+
+  async updateOrganizationSettings(payload: {
+    legal_name?: string;
+    brand_name?: string;
+    tax_gstin?: string;
+    tax_pan?: string;
+    domain_website?: string;
+    industry?: string;
+    support_email?: string;
+    switchboard_phone?: string;
+    logo_url?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/organization', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 2. General Regional
+  async getRegionalSettings() {
+    return this.request<{ success: boolean; data: any }>('/settings/regional');
+  }
+
+  async updateRegionalSettings(payload: {
+    timezone?: string;
+    currency?: string;
+    date_format?: string;
+    fiscal_year?: string;
+    auto_shift_adjustment?: boolean;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/regional', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 3. User Preferences
+  async getUserPreferences() {
+    return this.request<{ success: boolean; data: any }>('/settings/preferences');
+  }
+
+  async updateUserPreferences(payload: {
+    landing_workspace?: string;
+    density_profile?: string;
+    auditory_chimes?: boolean;
+    telemetry_diff?: boolean;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 4. User Directory
+  async getSettingsUsers() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/users');
+  }
+
+  async createSettingsUser(payload: {
+    name?: string;
+    email: string;
+    role?: string;
+    designation?: string;
+    team_id?: string;
+    phone?: string;
+    password?: string;
+    allowed_tabs?: string[];
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resetUserPassword(userId: string, password: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  }
+
+  async updateSettingsUser(id: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSettingsUser(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 5. Roles & Permissions
+  async getSettingsRoles() {
+    return this.request<{ success: boolean; data: any[]; allPermissions?: any[] }>('/settings/roles');
+  }
+
+  async createSettingsRole(payload: { name: string; description?: string; permissions?: string[] }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/roles', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSettingsRolePermissions(roleId: string, permissions: string[] | Record<string, boolean>) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/roles/${roleId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
+    });
+  }
+
+  async deleteSettingsRole(roleId: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/roles/${roleId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 6. Teams & Pods
+  async getSettingsTeams() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/teams');
+  }
+
+  async createSettingsTeam(payload: {
+    name: string;
+    lead?: string;
+    target?: string;
+    description?: string;
+    color?: string;
+    metadata?: any;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/teams', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSettingsTeam(id: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/teams/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSettingsTeam(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/teams/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 7. SSO & Security 2FA
+  async getSecuritySettings() {
+    return this.request<{ success: boolean; data: any }>('/settings/security');
+  }
+
+  async updateSecuritySettings(payload: {
+    two_factor_enforced?: boolean;
+    session_timeout?: string;
+    failed_lockout_limit?: string;
+    ip_whitelist?: string[];
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/security', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 8. Pipelines & Stages
+  async getSettingsPipelines() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/pipelines');
+  }
+
+  async createSettingsPipeline(payload: { name: string; is_default?: boolean }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/pipelines', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createSettingsStage(pipelineId: string, payload: {
+    name: string;
+    probability?: number;
+    win_probability?: number;
+    sla_days?: number;
+    color?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/pipelines/${pipelineId}/stages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSettingsStage(id: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/stages/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSettingsStage(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/stages/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 9. Custom Fields
+  async getCustomFieldDefinitions(entityType?: string) {
+    return this.request<{ success: boolean; data: any[] }>(`/settings/custom-fields${entityType ? `?entity_type=${entityType}` : ''}`);
+  }
+
+  async createCustomFieldDefinition(payload: {
+    entity: string;
+    name: string;
+    key?: string;
+    type: string;
+    required?: boolean;
+    options?: any[];
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/custom-fields', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteCustomFieldDefinition(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/custom-fields/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 10. System Tags
+  async getSystemTags() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/tags');
+  }
+
+  async createSystemTag(payload: { name: string; color?: string }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/tags', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSystemTag(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/tags/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 11. Services Catalog
+  async getServicesCatalog() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/services');
+  }
+
+  async createService(payload: {
+    name: string;
+    category?: string;
+    pricing_model?: string;
+    price?: number;
+    description?: string;
+    sac_code?: string;
+    tax_rate?: string;
+    deliverables_count?: number;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/services', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateService(id: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/services/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteService(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/services/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 12. Lead Sources
+  async getSettingsLeadSources() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/lead-sources');
+  }
+
+  async createLeadSource(payload: {
+    name: string;
+    channel?: string;
+    cost_per_lead?: number;
+    is_active?: boolean;
+    status?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/lead-sources', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateLeadSource(id: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/settings/lead-sources/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteLeadSource(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/lead-sources/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 13. Document Templates
+  async getDocumentTemplates() {
+    return this.request<{ success: boolean; data: any[] }>('/settings/document-templates');
+  }
+
+  async saveDocumentTemplate(payload: {
+    id?: string;
+    name: string;
+    type?: string;
+    version?: string;
+    sac_code?: string;
+    standard_terms?: string;
+    content?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/document-templates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteDocumentTemplate(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/document-templates/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 14. Billing & Currency
+  async getBillingSettings() {
+    return this.request<{ success: boolean; data: any }>('/settings/billing');
+  }
+
+  async updateBillingSettings(payload: {
+    gstin?: string;
+    pan?: string;
+    state_code?: string;
+    bank_name?: string;
+    account_no?: string;
+    ifsc?: string;
+    invoice_prefix?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/billing', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 15. Audit Telemetry
+  async getAuditLogs(limit: number = 50) {
+    return this.request<{ success: boolean; data: any[] }>(`/settings/audit-logs?limit=${limit}`);
+  }
+
+  // Proposals
+  async getProposals() {
+    return this.request<{ success: boolean; data: any[] }>('/sales/proposals');
+  }
+
+  async createProposal(payload: any) {
+    return this.request<{ success: boolean; data: any }>('/sales/proposals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateProposal(id: string, payload: any) {
+    return this.request<{ success: boolean; data: any }>(`/sales/proposals/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteProposal(id: string) {
+    return this.request<{ success: boolean; message?: string }>(`/sales/proposals/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createActivity(payload: {
+    type: string;
+    subject: string;
+    description?: string;
+    lead_id?: string;
+    company_id?: string;
+    contact_id?: string;
+    deal_id?: string;
+    client_id?: string;
+    project_id?: string;
+    duration_minutes?: number;
+  }) {
+    return this.request<{ success: boolean; data: any }>('/activities', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 }
 

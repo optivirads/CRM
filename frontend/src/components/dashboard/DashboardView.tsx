@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { useAuth } from '@/lib/auth-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   TrendingUp,
   AlertTriangle,
@@ -52,7 +54,8 @@ import {
   Zap,
   Timer,
   Printer,
-  BookOpen
+  BookOpen,
+  Rocket
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -62,6 +65,9 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCreateInvoice }) => {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'short' });
+  const currentYear = new Date().getFullYear();
   // 02. DASHBOARD Switcher: 'management' | 'sales' | 'marketing' | 'finance' | 'my'
   const [activeDashboardMode, setActiveDashboardMode] = useState<'management' | 'sales' | 'marketing' | 'finance' | 'my'>('management');
 
@@ -70,7 +76,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
   const [stopwatchSeconds, setStopwatchSeconds] = useState(0);
 
   // Filter Dropdowns
-  const [selectedDateRange, setSelectedDateRange] = useState('This Month (Oct 1 – Oct 31, 2026)');
+  const [selectedDateRange, setSelectedDateRange] = useState(`This Month (${currentMonthName} ${currentYear})`);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState('All Teams');
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
@@ -89,6 +95,160 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
   const [dismissedEscalations, setDismissedEscalations] = useState(false);
   const [deals, setDeals] = useState<Array<{ name: string; client: string; amount: string; stage: string; prob: string; owner: string; action: string }>>([]);
 
+  // Client Onboarding Dashboard State
+  const [onboardingAccounts, setOnboardingAccounts] = useState<any[]>([]);
+  const [dbClients, setDbClients] = useState<any[]>([]);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [onboardingClientName, setOnboardingClientName] = useState('');
+  const [onboardingTier, setOnboardingTier] = useState('Enterprise Retainer');
+  const [onboardingValue, setOnboardingValue] = useState('₹1,00,000 / mo');
+  const [onboardingLeadPM, setOnboardingLeadPM] = useState('Elena Rostova');
+
+  // Live PostgreSQL Dashboard Stats
+  const [stats, setStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoadingStats(true);
+        const [statsRes, dealsRes, clientsRes] = await Promise.all([
+          api.getDashboardStats().catch(() => ({ success: false, data: null })),
+          api.getDeals().catch(() => ({ success: false, data: [] })),
+          api.getClients().catch(() => ({ success: false, data: [] }))
+        ]);
+
+        if (statsRes?.data) {
+          setStats(statsRes.data);
+        }
+
+        if (dealsRes?.data && Array.isArray(dealsRes.data)) {
+          setDeals(dealsRes.data.map((d: any) => ({
+            name: d.name,
+            client: d.company_name || 'Direct Client',
+            amount: `₹${Number(d.value || 0).toLocaleString('en-IN')}`,
+            stage: d.stage_name || d.stage || 'Pipeline Lead',
+            prob: `${d.probability || 50}%`,
+            owner: 'OptiVir Admin',
+            action: 'Send Follow-up'
+          })));
+        }
+
+        if (clientsRes?.data && Array.isArray(clientsRes.data)) {
+          setDbClients(clientsRes.data);
+          if (clientsRes.data.length > 0 && !onboardingClientName) {
+            setOnboardingClientName(clientsRes.data[0].company_name || clientsRes.data[0].name || '');
+          }
+
+          // Load existing onboarding accounts from localStorage
+          let savedAccounts: any[] = [];
+          if (typeof window !== 'undefined') {
+            try {
+              const saved = localStorage.getItem('optivir_onboarding_accounts');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  savedAccounts = parsed.filter((a: any) => !['onb-1', 'onb-2', 'onb-3'].includes(a.id));
+                }
+              }
+            } catch {}
+          }
+
+          // Merge database clients into onboarding list
+          const existingNames = new Set(savedAccounts.map((a: any) => a.name?.toLowerCase()));
+          const autoCandidates: any[] = [];
+          for (const c of clientsRes.data) {
+            const cName = c.company_name || c.name;
+            if (cName && !existingNames.has(cName.toLowerCase())) {
+              autoCandidates.push({
+                id: c.id,
+                name: cName,
+                avatarText: cName.slice(0, 2).toUpperCase(),
+                contractTier: c.billing_frequency ? `${c.billing_frequency.toUpperCase()} Retainer` : 'Enterprise Retainer',
+                contractValue: c.contract_value ? `₹${Number(c.contract_value).toLocaleString('en-IN')} / mo` : '₹1,00,000 / mo',
+                am: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'OptiVir Admin',
+                pm: 'Elena Rostova',
+                currentStage: c.status === 'Onboarding' ? 'Sales Handoff & Intake' : (c.onboarding_progress > 0 ? 'Technical Setup & CAPI' : 'Kickoff & Asset Collection'),
+                stageIndex: c.onboarding_progress >= 100 ? 4 : (c.onboarding_progress >= 75 ? 3 : (c.onboarding_progress >= 40 ? 2 : (c.onboarding_progress > 0 ? 1 : 0))),
+                completedSteps: Math.max(3, Math.round(((c.onboarding_progress || 12) / 100) * 24)),
+                totalSteps: 24,
+                daysInOnboarding: 1,
+                totalDaysTarget: 14,
+                hasBlocker: c.health_status === 'At Risk',
+                status: c.status || 'Active'
+              });
+            }
+          }
+
+          const mergedOnboarding = [...savedAccounts, ...autoCandidates];
+          setOnboardingAccounts(mergedOnboarding);
+          if (autoCandidates.length > 0 && typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('optivir_onboarding_accounts', JSON.stringify(mergedOnboarding));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard stats:', err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const handleLaunchOnboarding = (accountOrClient: any) => {
+    const accId = accountOrClient.id;
+    const accName = accountOrClient.name || accountOrClient.company_name || 'Client';
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('optivir_selected_onboarding_id', accId);
+    }
+    showToast(`Opening 24-Step Onboarding Engine for ${accName}...`, 'success');
+    onNavigate('onboarding');
+  };
+
+  const handleCreateOnboardingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onboardingClientName.trim()) {
+      showToast('Please select or enter client name', 'error');
+      return;
+    }
+    const trimmed = onboardingClientName.trim();
+    const matched = dbClients.find(c => (c.company_name || c.name)?.toLowerCase() === trimmed.toLowerCase());
+    const newAcc = {
+      id: matched?.id || `onb-${Date.now()}`,
+      name: trimmed,
+      avatarText: trimmed.slice(0, 2).toUpperCase(),
+      contractTier: onboardingTier,
+      contractValue: onboardingValue,
+      am: 'OptiVir Admin',
+      pm: onboardingLeadPM,
+      currentStage: 'Sales Handoff & Intake',
+      stageIndex: 0,
+      completedSteps: 3,
+      totalSteps: 24,
+      daysInOnboarding: 1,
+      totalDaysTarget: 14,
+      hasBlocker: false,
+      primaryContact: {
+        name: 'Managing Director',
+        role: 'Client Leadership',
+        email: `contact@${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`
+      }
+    };
+
+    const updated = [newAcc, ...onboardingAccounts.filter((a: any) => a.name.toLowerCase() !== trimmed.toLowerCase())];
+    setOnboardingAccounts(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('optivir_onboarding_accounts', JSON.stringify(updated));
+      localStorage.setItem('optivir_selected_onboarding_id', newAcc.id);
+    }
+    setShowOnboardingModal(false);
+    showToast(`Onboarding initialized for ${trimmed}!`, 'success');
+    onNavigate('onboarding');
+  };
+
   const toggleTask = (id: string) => {
     setTasksState((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -105,6 +265,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
   };
 
   const completedTasksCount = Object.values(tasksState).filter(Boolean).length;
+
+  // Computed live metrics from PostgreSQL
+  const overdueTasksCount = Number(stats?.projects?.overdue_tasks || 0);
+  const unpaidInvoicesAmount = Number(stats?.finance?.outstanding_receivables || 0);
+  const staleLeadsCount = Array.isArray(stats?.actionCenter?.urgentFollowups) ? stats.actionCenter.urgentFollowups.length : 0;
+  const pendingProposalsCount = Number(stats?.sales?.active_deals || 0);
+  const projectsAtRiskCount = Number(stats?.clients?.clients_at_risk || 0);
+  const totalFrictionItems = overdueTasksCount + (unpaidInvoicesAmount > 0 ? 1 : 0) + staleLeadsCount + projectsAtRiskCount;
+
+  const totalRevenue = Number(stats?.finance?.total_collected || stats?.clients?.total_annual_contract_value || 0);
+  const targetRevenue = Math.max(totalRevenue, Number(stats?.clients?.total_annual_contract_value || 100000));
+  const activeClientsCount = Number(stats?.clients?.active_clients ?? stats?.clients?.total_clients ?? 0);
+  const newLeadsCount = Number(stats?.sales?.total_leads || 0);
+  const wonDealsCount = Number(stats?.sales?.won_deals || 0);
+  const winVelocityRate = newLeadsCount > 0 ? Math.round((wonDealsCount / newLeadsCount) * 100) : 0;
 
   return (
     <div className="pb-16 transition-colors duration-200">
@@ -125,15 +300,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC] tracking-tight">
-                  Good morning, Alex
+                  {(() => {
+                    const hour = new Date().getHours();
+                    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                    const name = user?.firstName || (user?.email ? user.email.split('@')[0] : 'Admin');
+                    return `${greeting}, ${name}`;
+                  })()}
                 </h1>
                 <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-[#111E34] border border-[#E2E6EC] dark:border-[#152238] text-[10px] font-bold text-[#5A6A80] dark:text-[#94A3B8] flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                  Q4 Command Mode
+                  Command Mode
                 </span>
               </div>
               <p className="text-xs text-[#5A6A80] dark:text-[#94A3B8] mt-0.5">
-                Here is your consolidated operational trajectory for today, October 24, 2026.
+                Here is your consolidated operational trajectory for today, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
               </p>
             </div>
           </div>
@@ -169,10 +349,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               {showDateDropdown && (
                 <div className="absolute left-0 top-10 w-64 bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-xl shadow-xl z-30 p-1 text-xs animate-in fade-in zoom-in-95 duration-100">
                   {[
-                    'This Month (Oct 1 – Oct 31, 2026)',
-                    'Previous Month (Sep 1 – Sep 30, 2026)',
-                    'Q4 FY2026 (Oct 1 – Dec 31, 2026)',
-                    'Year to Date (FY2026)'
+                    `This Month (${currentMonthName} ${currentYear})`,
+                    'Previous Month',
+                    `Current Quarter (${currentYear})`,
+                    `Year to Date (${currentYear})`
                   ].map((d) => (
                     <div
                       key={d}
@@ -354,6 +534,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
                     <Receipt className="w-3.5 h-3.5 text-emerald-600" />
                     <span>New Invoice</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateDropdown(false);
+                      setShowOnboardingModal(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-[#0B1727] dark:text-white cursor-pointer"
+                  >
+                    <Rocket className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Start Onboarding</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -425,7 +615,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-2xs">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>OPERATIONAL FRICTION</span>
-            <span className="bg-white/25 text-white px-1.5 py-0.2 rounded text-[10px]">0 Items</span>
+            <span className="bg-white/25 text-white px-1.5 py-0.2 rounded text-[10px]">{totalFrictionItems} Items</span>
           </div>
 
           {/* Friction items */}
@@ -433,27 +623,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             onClick={() => onNavigate('tasks')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
           >
-            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span className={`w-2 h-2 rounded-full ${overdueTasksCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Overdue Tasks</span>
-            <span className="font-bold text-slate-600 dark:text-slate-400">0</span>
+            <span className="font-bold text-slate-600 dark:text-slate-400">{overdueTasksCount}</span>
           </button>
 
           <button
             onClick={() => onNavigate('finance')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
           >
-            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span className={`w-2 h-2 rounded-full ${unpaidInvoicesAmount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Unpaid Invoices</span>
-            <span className="font-bold text-slate-600 dark:text-slate-400">₹0</span>
+            <span className="font-bold text-slate-600 dark:text-slate-400">₹{unpaidInvoicesAmount.toLocaleString('en-IN')}</span>
           </button>
 
           <button
             onClick={() => onNavigate('leads')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
           >
-            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span className={`w-2 h-2 rounded-full ${staleLeadsCount > 0 ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
             <span>Stale Leads (&gt;24h)</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">0</span>
+            <span className="font-bold text-slate-700 dark:text-slate-300">{staleLeadsCount}</span>
           </button>
 
           <button
@@ -462,16 +652,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           >
             <span className="w-2 h-2 rounded-full bg-slate-400"></span>
             <span>Pending Proposals</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">0</span>
+            <span className="font-bold text-slate-700 dark:text-slate-300">{pendingProposalsCount}</span>
           </button>
 
           <button
             onClick={() => onNavigate('projects')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
           >
-            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span className={`w-2 h-2 rounded-full ${projectsAtRiskCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Project At-Risk</span>
-            <span className="font-bold text-slate-600 dark:text-slate-400">0</span>
+            <span className="font-bold text-slate-600 dark:text-slate-400">{projectsAtRiskCount}</span>
           </button>
         </div>
 
@@ -498,18 +688,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">₹0.00</span>
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> +0.0%
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">₹{totalRevenue.toLocaleString('en-IN')}</span>
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                <TrendingUp className="w-3 h-3" /> Live
               </span>
             </div>
             <div className="mt-2.5">
               <div className="flex justify-between text-[11px] text-[#8492A6] mb-1">
-                <span>Target: ₹0.00</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">0.0%</span>
+                <span>Target: ₹{targetRevenue.toLocaleString('en-IN')}</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  {targetRevenue > 0 ? Math.min(100, Math.round((totalRevenue / targetRevenue) * 100)) : 0}%
+                </span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-[#111E34] h-1.5 rounded-full overflow-hidden">
-                <div className="bg-[#0B1727] dark:bg-white h-full rounded-full" style={{ width: '0%' }}></div>
+                <div
+                  className="bg-[#0B1727] dark:bg-white h-full rounded-full transition-all duration-500"
+                  style={{ width: `${targetRevenue > 0 ? Math.min(100, Math.round((totalRevenue / targetRevenue) * 100)) : 0}%` }}
+                ></div>
               </div>
             </div>
           </div>
@@ -525,14 +720,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">0</span>
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> +0.0%
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">{activeClientsCount}</span>
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                <TrendingUp className="w-3 h-3" /> Live
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#8492A6] mt-3 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span>Quarter Net Additions</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">0 onboarded</span>
+              <span className="flex items-center gap-1">
+                <Rocket className="w-3 h-3 text-[#B91C1C]" />
+                <span>Onboarding Starting</span>
+              </span>
+              <button
+                onClick={() => onNavigate('onboarding')}
+                className="font-semibold text-slate-800 dark:text-slate-200 hover:text-[#B91C1C] dark:hover:text-rose-400 transition cursor-pointer"
+              >
+                {onboardingAccounts.length > 0 ? `${onboardingAccounts.length} active in suite →` : `${activeClientsCount} onboarded`}
+              </button>
             </div>
           </div>
         </div>
@@ -547,14 +750,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">0</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">{newLeadsCount}</span>
               <span className="text-xs font-semibold text-slate-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> +0.0%
+                <TrendingUp className="w-3 h-3" /> Live
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#8492A6] mt-3 pt-1 border-t border-slate-100 dark:border-slate-800">
               <span>MQL to SQL</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">0.0% conversion</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {newLeadsCount > 0 ? 'Active pipeline' : '0.0% conversion'}
+              </span>
             </div>
           </div>
         </div>
@@ -569,14 +774,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">0.0%</span>
+              <span className="text-2xl font-bold text-[#0B1727] dark:text-[#F8FAFC]">{winVelocityRate}%</span>
               <span className="text-xs font-semibold text-slate-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> +0.0%
+                <TrendingUp className="w-3 h-3" /> Live
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-[#8492A6] mt-3 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span>Industry Benchmark</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">0.0% baseline</span>
+              <span>Won Deals</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{wonDealsCount} closed</span>
             </div>
           </div>
         </div>
@@ -707,7 +912,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
 
               {/* Tooltip over October point */}
               <div className="absolute top-7 left-[80%] -translate-x-1/2 bg-[#0B1727] dark:bg-white text-white dark:text-[#0B1727] px-3 py-1.5 rounded-lg shadow-xl text-[11px] font-bold text-center pointer-events-none z-10">
-                <span>OCTOBER ACTUAL</span>
+                <span>CURRENT MONTH ACTUAL</span>
                 <span className="block text-xs font-extrabold">₹0.00 MTD</span>
               </div>
             </div>
@@ -971,6 +1176,168 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
       </div>
 
       {/* ========================================================================= */}
+      {/* 5B. CLIENT ONBOARDING STARTING & HANDOFF ENGINE                           */}
+      {/* ========================================================================= */}
+      <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-[#B91C1C] dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900/60 shrink-0 shadow-2xs">
+              <Rocket className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm text-[#0B1727] dark:text-[#F8FAFC]">
+                  Client Onboarding Starting &amp; Handoff Engine
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-[#B91C1C] dark:text-rose-300 text-[10px] font-bold">
+                  24-Step Blueprint
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-[#111E34] text-slate-600 dark:text-slate-300 text-[10px] font-semibold">
+                  {onboardingAccounts.length} Active {onboardingAccounts.length === 1 ? 'Account' : 'Accounts'}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#5A6A80] dark:text-[#94A3B8]">
+                Closed-won deal transitions, asset intake, Meta/Google CAPI verification, and SLA pacing
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowOnboardingModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Start Client Onboarding</span>
+            </button>
+            <button
+              onClick={() => onNavigate('onboarding')}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-[#111E34] hover:bg-slate-100 dark:hover:bg-[#16253C] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+            >
+              <span>Open Suite</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Phases Milestone Quick Progress Bar Guide */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 pt-1">
+          {[
+            { phase: 'Phase 1', title: 'Sales Handoff & Intake', steps: 'Steps 1–6', active: true, color: 'border-rose-500/80 bg-rose-50/40 dark:bg-rose-950/20' },
+            { phase: 'Phase 2', title: 'Asset & Credential Vault', steps: 'Steps 7–12', active: false, color: 'border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-[#0A101C]' },
+            { phase: 'Phase 3', title: 'CAPI & Tracking Setup', steps: 'Steps 13–18', active: false, color: 'border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-[#0A101C]' },
+            { phase: 'Phase 4', title: 'SOW Go-Live & Sprint', steps: 'Steps 19–24', active: false, color: 'border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-[#0A101C]' },
+          ].map((step, idx) => (
+            <div key={idx} className={`p-2.5 rounded-xl border ${step.color} flex flex-col justify-between`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{step.phase}</span>
+                <span className="text-[10px] text-slate-400 font-mono">{step.steps}</span>
+              </div>
+              <div className="font-semibold text-xs text-slate-900 dark:text-white mt-1">
+                {step.title}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Active Onboarding Client Cards List */}
+        <div className="mt-4 space-y-3">
+          {onboardingAccounts.length > 0 ? (
+            onboardingAccounts.map((acc: any) => {
+              const progressPct = Math.min(100, Math.round(((acc.completedSteps || 3) / (acc.totalSteps || 24)) * 100));
+              return (
+                <div
+                  key={acc.id}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-[#0A101C] hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-3.5 min-w-[260px]">
+                    <div className="w-10 h-10 rounded-xl bg-[#B91C1C] text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+                      {acc.avatarText || (acc.name || 'CL').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">
+                          {acc.name}
+                        </span>
+                        <span className="px-2 py-0.2 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800">
+                          Starting Onboarding
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                        <span>{acc.contractTier || 'Enterprise Retainer'}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{acc.contractValue || '₹1,00,000 / mo'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stage & Progress */}
+                  <div className="flex-1 max-w-md w-full">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#B91C1C]" />
+                        <span>{acc.currentStage || 'Phase 1: Sales Handoff & Intake'}</span>
+                      </span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                        {acc.completedSteps || 3} of 24 Steps ({progressPct}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[#B91C1C] h-full rounded-full transition-all duration-500"
+                        style={{ width: `${progressPct}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Team & SLA */}
+                  <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <div className="hidden sm:block text-right">
+                      <div className="text-[11px] text-slate-400">Target SLA</div>
+                      <div className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        <span>14 Days (On Track)</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleLaunchOnboarding(acc)}
+                      className="px-3.5 py-2 rounded-lg bg-[#0B1727] dark:bg-white text-white dark:text-[#0B1727] hover:bg-[#15243B] dark:hover:bg-slate-100 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <span>Launch 24-Step Blueprint</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-[#0A101C]">
+              <Rocket className="w-8 h-8 mx-auto mb-2 text-rose-500/60" />
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No client onboarding starting currently</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
+                When a deal closes or a new client is signed, launch the 24-step onboarding engine to coordinate handoffs.
+              </p>
+              {dbClients.length > 0 && (
+                <div className="inline-flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Quick start:</span>
+                  {dbClients.slice(0, 3).map((c: any) => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleLaunchOnboarding(c)}
+                      className="px-3 py-1.5 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-semibold cursor-pointer transition shadow-xs"
+                    >
+                      Start Onboarding for {c.company_name || c.name} →
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
       {/* 6. BOTTOM 3-COLUMN WIDGETS ROW (Matching Image 2)                        */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -1120,7 +1487,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
               <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">₹0.00</div>
               <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1">
                 <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold">0.0% Conf</span>
-                <span>Closing by Oct 31, 2026</span>
+                <span>Active pipeline target</span>
               </div>
             </div>
 
@@ -1529,7 +1896,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
       )}
 
       {/* ========================================================================= */}
-      {/* 5. MY DASHBOARD MODE (Alex Morgan Personal Cockpit)                       */}
+      {/* 5. MY DASHBOARD MODE (Personal Cockpit)                                   */}
       {/* ========================================================================= */}
       {activeDashboardMode === 'my' && (
         <div className="space-y-5 animate-in fade-in duration-200">
@@ -1715,6 +2082,158 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
         </div>
       </div>
       </div>
+
+      {/* Quick Start Client Onboarding Modal */}
+      {showOnboardingModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-[#B91C1C] dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900/60">
+                  <Rocket className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Start Client Onboarding Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Initialize the 24-step agency kickoff blueprint for an account
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOnboardingModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOnboardingSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                  Client Company *
+                </label>
+                {dbClients.length > 0 ? (
+                  <select
+                    value={onboardingClientName}
+                    onChange={(e) => setOnboardingClientName(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-[#080E18] border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option value="" disabled>Select client account...</option>
+                    {dbClients.map((c: any) => {
+                      const name = c.company_name || c.name;
+                      return (
+                        <option key={c.id} value={name}>
+                          {name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    value={onboardingClientName}
+                    onChange={(e) => setOnboardingClientName(e.target.value)}
+                    placeholder="e.g. Hijabi Ladies Beauty Salon"
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-[#080E18] border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    Service Retainer Tier
+                  </label>
+                  <select
+                    value={onboardingTier}
+                    onChange={(e) => setOnboardingTier(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-[#080E18] border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option>Enterprise Retainer</option>
+                    <option>Omnichannel Growth Retainer</option>
+                    <option>Performance Marketing SOW</option>
+                    <option>Creative Studio &amp; UGC Production</option>
+                    <option>Meta + Google CAPI Tracking</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    Contract Value / mo (₹)
+                  </label>
+                  <input
+                    type="text"
+                    value={onboardingValue}
+                    onChange={(e) => setOnboardingValue(e.target.value)}
+                    placeholder="e.g. ₹1,00,000 / mo"
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-[#080E18] border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    Lead PM Assigned
+                  </label>
+                  <select
+                    value={onboardingLeadPM}
+                    onChange={(e) => setOnboardingLeadPM(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-[#080E18] border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option>Elena Rostova</option>
+                    <option>Alex Morgan</option>
+                    <option>OptiVir Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    Target SLA
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value="14 Calendar Days"
+                    className="w-full px-3 py-2 border rounded-lg bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-[11px] text-rose-800 dark:text-rose-300 space-y-1">
+                <div className="font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>24-Step Lifecycle Automation</span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400">
+                  Initializes Sales Handoff, Credential Vault setup, Pixel CAPI event tracking, and SOW kickoff.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowOnboardingModal(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Rocket className="w-3.5 h-3.5" />
+                  <span>Launch 24-Step Blueprint</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

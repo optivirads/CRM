@@ -48,7 +48,7 @@ import {
 } from 'lucide-react';
 
 interface ClientsListViewProps {
-  onOpenClient360: (clientId?: string) => void;
+  onOpenClient360: (clientId?: string, clientName?: string) => void;
   onNavigate?: (tab: any) => void;
 }
 
@@ -132,9 +132,6 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     }, 900);
   };
 
-  // State simulator
-  const [activeSimulatorTab, setActiveSimulatorTab] = useState('1. Clients List');
-
   // Filter tabs
   const [activeFilterTab, setActiveFilterTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,9 +150,9 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newDomain, setNewDomain] = useState('');
   const [newIndustry, setNewIndustry] = useState('Technology');
   const [newPrimaryContact, setNewPrimaryContact] = useState('');
-  const [newAccountManager, setNewAccountManager] = useState('Alex Morgan');
+  const [newAccountManager, setNewAccountManager] = useState('OptiVir Admin');
   const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('annual_retainer');
-  const [newContractVal, setNewContractVal] = useState('₹18.5L / yr');
+  const [newContractVal, setNewContractVal] = useState('₹1,00,000');
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
@@ -178,8 +175,8 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           industry: c.industry || 'Technology',
           primaryContact: c.contact_first ? `${c.contact_first} ${c.contact_last || ''}`.trim() : (c.contact_email || 'Primary Contact'),
           contactRole: 'Lead Stakeholder',
-          accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'Alex Morgan',
-          amInitials: 'AM',
+          accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'OptiVir Admin',
+          amInitials: 'OP',
           amBg: 'bg-[#0A1628]',
           servicesCount: '3 Services',
           activeProjects: `${c.project_count || 0} Active`,
@@ -519,7 +516,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </div>
 
                       <button
-                        onClick={() => onOpenClient360(camp.clientId)}
+                        onClick={() => onOpenClient360(camp.clientId, camp.clientName)}
                         className="px-2.5 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition shrink-0"
                       >
                         Client 360 →
@@ -992,7 +989,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       onClick={(e) => {
                         // If clicking directly on checkbox, ignore row click
                         if ((e.target as HTMLElement).tagName === 'INPUT') return;
-                        onOpenClient360(client.id);
+                        onOpenClient360(client.id, client.name);
                       }}
                     >
                       <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>

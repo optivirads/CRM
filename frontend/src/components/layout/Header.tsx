@@ -22,11 +22,13 @@ import {
   Receipt,
   Check,
   X,
-  FileCheck
+  FileCheck,
+  KeyRound
 } from 'lucide-react';
 import { useAuth, AGENCY_PERSONAS } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useToast } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 
 interface HeaderProps {
   title: string;
@@ -55,6 +57,14 @@ export const Header: React.FC<HeaderProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Change Password Modal State
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const [notifications, setNotifications] = useState<Array<{
     id: number;
@@ -90,8 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (currentTab === 'leads') return { section: 'CRM', page: 'Leads' };
     if (currentTab === 'dashboard') return { section: 'Dashboard', page: 'Executive Overview' };
     if (currentTab === 'pipeline') return { section: 'CRM', page: 'Pipeline' };
-    if (currentTab === 'companies') return { section: 'CRM', page: 'Companies' };
-    if (currentTab === 'clients') return { section: 'Delivery', page: 'Clients' };
+    if (currentTab === 'companies' || currentTab === 'clients') return { section: 'CRM', page: 'Clients' };
     if (currentTab === 'finance') return { section: 'Revenue', page: 'Finance' };
     if (currentTab === 'marketing') return { section: 'Revenue', page: 'Marketing' };
     return { section: 'CRM', page: title };
@@ -357,6 +366,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);
+                    setPasswordError('');
+                    setOldPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setShowChangePasswordModal(true);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 cursor-pointer transition"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Change Password</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
                     if (onNavigate) onNavigate('settings');
                     showToast(`Opened settings for ${activePersona.name}`, 'info');
                   }}
@@ -430,6 +453,142 @@ export const Header: React.FC<HeaderProps> = ({
                 Close (Esc)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center text-rose-600">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Change Account Password</h3>
+                  <p className="text-xs text-slate-500">Update credentials for {user?.email || activePersona.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setPasswordError('');
+                  setOldPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {passwordError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setPasswordError('');
+
+                if (!oldPassword) {
+                  setPasswordError('Please enter your current password');
+                  return;
+                }
+                if (newPassword.length < 6) {
+                  setPasswordError('New password must be at least 6 characters');
+                  return;
+                }
+                if (newPassword !== confirmPassword) {
+                  setPasswordError('New password and confirm password do not match');
+                  return;
+                }
+
+                setIsChangingPassword(true);
+                try {
+                  const res = await api.changePassword(oldPassword, newPassword);
+                  if (res && res.success) {
+                    showToast('Password changed successfully!', 'success');
+                    setShowChangePasswordModal(false);
+                    setOldPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  } else {
+                    setPasswordError(res?.message || 'Failed to update password');
+                  }
+                } catch (err: any) {
+                  setPasswordError(err?.message || 'Failed to update password. Please verify current password.');
+                } finally {
+                  setIsChangingPassword(false);
+                }
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Current Password</label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangePasswordModal(false);
+                    setPasswordError('');
+                    setOldPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-5 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold transition cursor-pointer disabled:opacity-50"
+                >
+                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

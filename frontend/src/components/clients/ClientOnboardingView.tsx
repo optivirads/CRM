@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { api } from '@/lib/api';
 import {
   Rocket,
   CheckCircle2,
@@ -32,7 +33,7 @@ import {
 } from 'lucide-react';
 
 interface ClientOnboardingViewProps {
-  onOpenClient360?: (clientId?: string) => void;
+  onOpenClient360?: (clientId?: string, clientName?: string) => void;
   onNavigate?: (tab: any) => void;
 }
 
@@ -78,7 +79,13 @@ export const DEFAULT_ONBOARDING_ACCOUNTS: OnboardingAccount[] = [];
 export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOpenClient360, onNavigate }) => {
   const { showToast } = useToast();
   // Active selected client for detail view
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [selectedClientId, setSelectedClientId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('optivir_selected_onboarding_id');
+      if (saved) return saved;
+    }
+    return '';
+  });
 
   // Detail Subtab: 'handoff' | 'assets' | 'strategy' | 'blockers' | 'timeline'
   const [detailTab, setDetailTab] = useState<'handoff' | 'assets' | 'strategy' | 'blockers' | 'timeline'>('handoff');
@@ -131,6 +138,59 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
     }
     return DEFAULT_ONBOARDING_ACCOUNTS;
   });
+
+  // Load database clients automatically
+  useEffect(() => {
+    const fetchDbClients = async () => {
+      try {
+        const res = await api.getClients();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setAccounts(prev => {
+            const existingNames = new Set(prev.map(a => a.name.toLowerCase()));
+            const newMapped: OnboardingAccount[] = [];
+            for (const c of res.data) {
+              const name = c.company_name || c.name;
+              if (name && !existingNames.has(name.toLowerCase())) {
+                newMapped.push({
+                  id: c.id,
+                  name: name,
+                  domain: c.website || `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+                  avatarText: name.slice(0, 2).toUpperCase(),
+                  contractTier: c.billing_frequency ? `${c.billing_frequency.toUpperCase()} Retainer` : 'Enterprise Retainer',
+                  contractValue: c.contract_value ? `₹${Number(c.contract_value).toLocaleString('en-IN')} / mo` : '₹1,00,000 / mo',
+                  am: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'OptiVir Admin',
+                  pm: 'Elena Rostova',
+                  currentStage: c.status === 'Onboarding' ? 'Sales Handoff & Intake' : (c.onboarding_progress > 0 ? 'Technical Setup & CAPI' : 'Kickoff & Asset Collection'),
+                  stageIndex: 0,
+                  daysInOnboarding: 1,
+                  totalDaysTarget: 14,
+                  completedSteps: 3,
+                  totalSteps: 24,
+                  hasBlocker: c.health_status === 'At Risk',
+                  primaryContact: {
+                    name: `${c.contact_first || 'Primary'} ${c.contact_last || 'Contact'}`.trim(),
+                    role: 'Managing Director',
+                    email: c.contact_email || `contact@${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+                  }
+                });
+              }
+            }
+            if (newMapped.length > 0) {
+              const merged = [...prev, ...newMapped];
+              try {
+                localStorage.setItem('optivir_onboarding_accounts', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            }
+            return prev;
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to load DB clients for onboarding:', e);
+      }
+    };
+    fetchDbClients();
+  }, []);
 
   React.useEffect(() => {
     try {
@@ -308,7 +368,12 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
               return (
                 <div
                   key={acc.id}
-                  onClick={() => setSelectedClientId(acc.id)}
+                  onClick={() => {
+                    setSelectedClientId(acc.id);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('optivir_selected_onboarding_id', acc.id);
+                    }
+                  }}
                   className={`p-4 rounded-2xl border cursor-pointer transition-all duration-150 ${
                     isSelected
                       ? 'bg-white dark:bg-[#0B1424] border-[#B91C1C] ring-2 ring-[#B91C1C]/20 shadow-md'
@@ -413,7 +478,7 @@ export const ClientOnboardingView: React.FC<ClientOnboardingViewProps> = ({ onOp
               <div className="flex items-center gap-2 shrink-0">
                 {onOpenClient360 && (
                   <button
-                    onClick={() => onOpenClient360(selectedClient.id)}
+                    onClick={() => onOpenClient360(selectedClient.id, selectedClient.name)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 text-xs font-semibold text-slate-700 dark:text-slate-200 transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
