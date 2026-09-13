@@ -5,13 +5,40 @@ import { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
-// 1. Client List
+// 1. Client List with pagination
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { status, health, search } = req.query;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
-    let query = `
+    let whereClause = `WHERE c.organization_id = $1 AND c.deleted_at IS NULL`;
+    const params: any[] = [orgId];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND c.status = $${params.length}`;
+    }
+    if (health) {
+      params.push(health);
+      whereClause += ` AND c.health_status = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      whereClause += ` AND (comp.name ILIKE $${params.length} OR comp.industry ILIKE $${params.length})`;
+    }
+
+    const countRes = await db.query(`
+      SELECT COUNT(*) 
+      FROM clients c 
+      JOIN companies comp ON c.company_id = comp.id
+      ${whereClause};
+    `, params);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
+    const query = `
       SELECT 
         c.*,
         comp.name as company_name, comp.industry, comp.website, comp.city,
@@ -24,27 +51,22 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
-      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
+      ${whereClause}
+      ORDER BY c.contract_value DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
-    const params: any[] = [orgId];
 
-    if (status) {
-      params.push(status);
-      query += ` AND c.status = $${params.length}`;
-    }
-    if (health) {
-      params.push(health);
-      query += ` AND c.health_status = $${params.length}`;
-    }
-    if (search) {
-      params.push(`%${search}%`);
-      query += ` AND (comp.name ILIKE $${params.length} OR comp.industry ILIKE $${params.length})`;
-    }
-
-    query += ` ORDER BY c.contract_value DESC;`;
-
-    const result = await db.query(query, params);
-    res.json({ success: true, data: result.rows });
+    const result = await db.query(query, [...params, limit, offset]);
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

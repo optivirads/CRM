@@ -21,7 +21,8 @@ import {
   Bell,
   Rocket,
   CheckSquare,
-  Layers
+  Layers,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -50,9 +51,11 @@ export type NavItem =
 interface SidebarProps {
   currentTab: NavItem;
   onTabChange: (tab: NavItem) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpen = false, onClose }) => {
   const { user, canAccessTab } = useAuth();
 
   const navSections = [
@@ -99,61 +102,89 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
   ];
 
   return (
-    <aside className="w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-colors duration-200">
-      {/* 1. Header Brand — OptiVir CRM */}
-      <div className="p-3 border-b border-[#14233D] bg-[#070E1A]/60">
-        <button
-          onClick={() => onTabChange('dashboard')}
-          className="w-full flex items-center justify-center p-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm border border-slate-200/40 transition cursor-pointer"
-          title="OptiVir CRM Overview"
-        >
-          <img
-            src="/images/optivir-logo.png"
-            alt="OptiVir CRM"
-            className="h-8 w-auto max-w-full object-contain"
-          />
-        </button>
-      </div>
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden transition-opacity"
+          onClick={onClose}
+        />
+      )}
 
-      {/* 2. Navigation Sections */}
-      <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5 custom-scrollbar">
-        {navSections.map((section, idx) => {
-          const visibleItems = section.items.filter((item) => canAccessTab(item.id));
-          if (visibleItems.length === 0) return null;
+      {/* Sidebar Drawer */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-transform duration-200 ease-in-out
+        md:static md:translate-x-0
+        ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
+      `}>
+        {/* 1. Header Brand — OptiVir CRM */}
+        <div className="p-3 border-b border-[#14233D] bg-[#070E1A]/60 flex items-center justify-between gap-2">
+          <button
+            onClick={() => {
+              onTabChange('dashboard');
+              onClose && onClose();
+            }}
+            className="flex-1 flex items-center justify-center p-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm border border-slate-200/40 transition cursor-pointer"
+            title="OptiVir CRM Overview"
+          >
+            <img
+              src="/images/optivir-logo.png"
+              alt="OptiVir CRM"
+              className="h-8 w-auto max-w-full object-contain"
+            />
+          </button>
+          {/* Mobile Close Button */}
+          <button
+            onClick={onClose}
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-[#101F38] transition"
+            title="Close Menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-          return (
-            <div key={idx} className="space-y-1">
-              <p className="text-[10px] font-bold text-[#627797] tracking-widest px-2.5 uppercase">
-                {section.title}
-              </p>
-              <div className="space-y-0.5">
-                {visibleItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => onTabChange(item.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition duration-150 text-left ${
-                        isActive
-                          ? 'bg-[#0E274D] text-white font-semibold shadow-xs border border-[#1A3D73]'
-                          : 'text-[#94A3B8] hover:text-white hover:bg-[#101F38]'
-                      }`}
-                    >
-                      <Icon
-                        className={`w-4 h-4 shrink-0 transition ${
-                          isActive ? 'text-[#EF4444]' : 'text-[#64748B]'
+        {/* 2. Navigation Sections */}
+        <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5 custom-scrollbar">
+          {navSections.map((section, idx) => {
+            const visibleItems = section.items.filter((item) => canAccessTab(item.id));
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={idx} className="space-y-1">
+                <p className="text-[10px] font-bold text-[#627797] tracking-widest px-2.5 uppercase">
+                  {section.title}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = currentTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          onTabChange(item.id);
+                          onClose && onClose();
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition duration-150 text-left ${
+                          isActive
+                            ? 'bg-[#0E274D] text-white font-semibold shadow-xs border border-[#1A3D73]'
+                            : 'text-[#94A3B8] hover:text-white hover:bg-[#101F38]'
                         }`}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
+                      >
+                        <Icon
+                          className={`w-4 h-4 shrink-0 transition ${
+                            isActive ? 'text-[#EF4444]' : 'text-[#64748B]'
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
       {/* 3. Footer System Status & Quick Nav */}
       <div className="p-3.5 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B]">
@@ -170,5 +201,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange }) => 
         </div>
       </div>
     </aside>
+    </>
   );
 };

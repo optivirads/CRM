@@ -1,50 +1,165 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
+import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
-// 1. Invoices List
+const createInvoiceSchema = z.object({
+  client_id: z.string().optional(),
+  client_name: z.string().optional(),
+  invoice_number: z.string().optional(),
+  invoice_date: z.union([z.string(), z.date()]).optional(),
+  due_date: z.union([z.string(), z.date()]).optional(),
+  subtotal: z.number().optional(),
+  discount: z.number().optional(),
+  tax: z.number().optional(),
+  total: z.number().positive('Total must be greater than 0').optional(),
+  status: z.string().optional(),
+  notes: z.string().optional().nullable(),
+  items: z.array(z.object({
+    description: z.string().optional(),
+    quantity: z.number().optional(),
+    rate: z.number().optional(),
+    amount: z.number().optional()
+  })).optional()
+});
+
+const recordPaymentSchema = z.object({
+  invoice_id: z.string().min(1, 'Invoice ID is required'),
+  amount: z.number().positive('Payment amount must be positive'),
+  payment_date: z.union([z.string(), z.date()]).optional(),
+  payment_method: z.string().optional(),
+  reference_number: z.string().optional().nullable(),
+  notes: z.string().optional().nullable()
+});
+
+const createExpenseSchema = z.object({
+  category: z.string().min(1, 'Category is required'),
+  amount: z.number().positive('Amount must be positive'),
+  vendor: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  title: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  date: z.union([z.string(), z.date()]).optional(),
+  client_id: z.string().optional().nullable(),
+  project_id: z.string().optional().nullable()
+});
+
+// 1. Invoices List with pagination
 router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { status, clientId } = req.query;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
-    let query = `
+    let whereClause = `WHERE inv.organization_id = $1 AND inv.deleted_at IS NULL`;
+    const params: any[] = [orgId];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND inv.status = $${params.length}`;
+    }
+    if (clientId) {
+      params.push(clientId);
+      whereClause += ` AND inv.client_id = $${params.length}`;
+    }
+
+    const countRes = await db.query(`
+      SELECT COUNT(*) 
+      FROM invoices inv
+      JOIN clients c ON inv.client_id = c.id
+      ${whereClause};
+    `, params);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
+    const query = `
       SELECT 
         inv.*,
         c.id as client_id, comp.name as client_name
       FROM invoices inv
       JOIN clients c ON inv.client_id = c.id
       JOIN companies comp ON c.company_id = comp.id
-      WHERE inv.organization_id = $1 AND inv.deleted_at IS NULL
+      ${whereClause}
+      ORDER BY inv.due_date ASC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
-    const params: any[] = [orgId];
 
-    if (status) {
-      params.push(status);
-      query += ` AND inv.status = $${params.length}`;
-    }
-    if (clientId) {
-      params.push(clientId);
-      query += ` AND inv.client_id = $${params.length}`;
-    }
-
-    query += ` ORDER BY inv.due_date ASC;`;
-
-    const result = await db.query(query, params);
-    res.json({ success: true, data: result.rows });
+    const result = await db.query(query, [...params, limit, offset]);
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// 2. Payments List
-router.get('/payments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// 1b. Single Invoice Details (for PDF generation & preview)
+router.get('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const invoiceId = req.params.id;
 
   try {
+    const invRes = await db.query(`
+      SELECT 
+        inv.*,
+        c.id as client_id,
+        comp.name as client_name,
+        c.email as client_email,
+        c.gstin as client_gstin,
+        c.phone as client_phone,
+        comp.billing_address as client_billing_address
+      FROM invoices inv
+      JOIN clients c ON inv.client_id = c.id
+      JOIN companies comp ON c.company_id = comp.id
+      WHERE (inv.id = $1 OR inv.invoice_number = $1) AND inv.organization_id = $2 AND inv.deleted_at IS NULL
+      LIMIT 1;
+    `, [invoiceId, orgId]);
+
+    if (invRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invoice not found' });
+      return;
+    }
+
+    const inv = invRes.rows[0];
+
+    const itemsRes = await db.query(`
+      SELECT id, description, quantity, rate, amount
+      FROM invoice_items
+      WHERE invoice_id = $1
+      ORDER BY id ASC;
+    `, [inv.id]);
+
+    inv.items = itemsRes.rows;
+
+    res.json({ success: true, data: inv });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Payments List with pagination
+router.get('/payments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
+
+  try {
+    const countRes = await db.query('SELECT COUNT(*) FROM payments WHERE organization_id = $1;', [orgId]);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
     const result = await db.query(`
       SELECT 
         p.*,
@@ -55,17 +170,27 @@ router.get('/payments', requireAuth, async (req: AuthenticatedRequest, res: Resp
       JOIN clients c ON p.client_id = c.id
       JOIN companies comp ON c.company_id = comp.id
       WHERE p.organization_id = $1
-      ORDER BY p.payment_date DESC;
-    `, [orgId]);
+      ORDER BY p.payment_date DESC
+      LIMIT $2 OFFSET $3;
+    `, [orgId, limit, offset]);
 
-    res.json({ success: true, data: result.rows });
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // 3. Record Payment
-router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/payments', requireAuth, validateBody(recordPaymentSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const { invoice_id, amount, payment_date, payment_method, reference_number, notes } = req.body;
@@ -129,11 +254,17 @@ router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-// 4. Expenses List
+// 4. Expenses List with pagination
 router.get('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
+    const countRes = await db.query('SELECT COUNT(*) FROM expenses WHERE organization_id = $1 AND deleted_at IS NULL;', [orgId]);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
     const result = await db.query(`
       SELECT 
         e.*,
@@ -144,10 +275,20 @@ router.get('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Resp
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN projects p ON e.project_id = p.id
       WHERE e.organization_id = $1 AND e.deleted_at IS NULL
-      ORDER BY e.date DESC;
-    `, [orgId]);
+      ORDER BY e.date DESC
+      LIMIT $2 OFFSET $3;
+    `, [orgId, limit, offset]);
 
-    res.json({ success: true, data: result.rows });
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -206,7 +347,7 @@ router.delete('/expenses/:id', requireAuth, async (req: AuthenticatedRequest, re
 });
 
 // Create Invoice
-router.post('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/invoices', requireAuth, validateBody(createInvoiceSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const { client_id, client_name, invoice_number, invoice_date, due_date, subtotal, discount, tax, total, status, notes, items } = req.body;
@@ -316,7 +457,7 @@ router.patch('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res
 });
 
 // Create Expense
-router.post('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/expenses', requireAuth, validateBody(createExpenseSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const { category, amount, vendor, description, title, notes, date, client_id, project_id } = req.body;

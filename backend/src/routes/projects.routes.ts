@@ -5,13 +5,36 @@ import { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
-// 1. Projects List
+// 1. Projects List with pagination
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { status, clientId } = req.query;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = (page - 1) * limit;
 
   try {
-    let query = `
+    let whereClause = `WHERE p.organization_id = $1 AND p.deleted_at IS NULL`;
+    const params: any[] = [orgId];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND p.status = $${params.length}`;
+    }
+    if (clientId) {
+      params.push(clientId);
+      whereClause += ` AND p.client_id = $${params.length}`;
+    }
+
+    const countRes = await db.query(`
+      SELECT COUNT(*) 
+      FROM projects p
+      JOIN clients c ON p.client_id = c.id
+      ${whereClause};
+    `, params);
+    const total = parseInt(countRes.rows[0]?.count, 10) || 0;
+
+    const query = `
       SELECT 
         p.*,
         c.id as client_id, comp.name as client_name,
@@ -22,23 +45,22 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       JOIN clients c ON p.client_id = c.id
       JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN users u ON p.project_manager_id = u.id
-      WHERE p.organization_id = $1 AND p.deleted_at IS NULL
+      ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
-    const params: any[] = [orgId];
 
-    if (status) {
-      params.push(status);
-      query += ` AND p.status = $${params.length}`;
-    }
-    if (clientId) {
-      params.push(clientId);
-      query += ` AND p.client_id = $${params.length}`;
-    }
-
-    query += ` ORDER BY p.created_at DESC;`;
-
-    const result = await db.query(query, params);
-    res.json({ success: true, data: result.rows });
+    const result = await db.query(query, [...params, limit, offset]);
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

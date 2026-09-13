@@ -1029,10 +1029,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
+        {/* Mobile Horizontal Tabs (< lg) */}
+        <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar -mx-2 px-2">
+          {navGroups.flatMap(g => g.items).map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition ${
+                  isActive
+                    ? 'bg-[#0A1628] text-white shadow-xs dark:bg-rose-950/70 dark:border dark:border-rose-900/50'
+                    : 'bg-white dark:bg-[#0B1424] text-[#64748B] dark:text-[#94A3B8] border border-[#E2E6EC] dark:border-[#152238] hover:text-[#0B1727] dark:hover:text-white'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-rose-400' : 'text-slate-400'}`} />
+                <span>{item.id}</span>
+                {item.badge && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                    item.badgeColor || (isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300')
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 2. Main Two-Column Settings Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT SUB-NAVIGATION SIDEBAR (3 cols) */}
-          <div className="lg:col-span-3 space-y-5">
+          {/* LEFT SUB-NAVIGATION SIDEBAR (3 cols) — Visible on desktop */}
+          <div className="lg:col-span-3 space-y-5 hidden lg:block">
             <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-3 shadow-xs space-y-4">
               {navGroups.map((group, gIdx) => (
                 <div key={gIdx} className="space-y-1">
