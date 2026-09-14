@@ -154,6 +154,91 @@ router.post('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Re
   }
 });
 
+// 3b. Quick Log Ad Spend & KPI Metrics assigned to a Client
+router.post('/campaigns/quick-log', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const {
+    client_id,
+    campaign_id,
+    campaign_name,
+    platform = 'Meta',
+    date = new Date().toISOString().split('T')[0],
+    spend = 0,
+    impressions = 0,
+    reach = 0,
+    clicks = 0,
+    leads = 0,
+    conversions = 0,
+    revenue = 0,
+    notes
+  } = req.body;
+
+  if (!client_id) {
+    res.status(400).json({ success: false, message: 'client_id is required' });
+    return;
+  }
+
+  try {
+    let resolvedCampaignId = campaign_id;
+
+    if (!resolvedCampaignId) {
+      // Find existing campaign for client and platform or create a new one
+      const nameToSearch = campaign_name?.trim() || `${platform} Performance Retainer`;
+      const existing = await db.query(`
+        SELECT id FROM campaigns 
+        WHERE client_id = $1 AND organization_id = $2 AND (name ILIKE $3 OR platform = $4) AND deleted_at IS NULL
+        ORDER BY created_at DESC LIMIT 1;
+      `, [client_id, orgId, `%${nameToSearch}%`, platform]);
+
+      if (existing.rows.length > 0) {
+        resolvedCampaignId = existing.rows[0].id;
+      } else {
+        const newCamp = await db.query(`
+          INSERT INTO campaigns (
+            organization_id, client_id, name, platform, budget, status, objective, created_by
+          ) VALUES ($1, $2, $3, $4, $5, 'Active', 'Sales / ROAS', $6)
+          RETURNING id;
+        `, [orgId, client_id, nameToSearch, platform, Number(spend) * 10, userId]);
+        resolvedCampaignId = newCamp.rows[0].id;
+      }
+    }
+
+    // Insert or update daily metrics
+    const metricRes = await db.query(`
+      INSERT INTO campaign_metrics (
+        campaign_id, date, spend, impressions, reach, clicks, leads, conversions, revenue, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (campaign_id, date) 
+      DO UPDATE SET
+        spend = campaign_metrics.spend + EXCLUDED.spend,
+        impressions = campaign_metrics.impressions + EXCLUDED.impressions,
+        reach = campaign_metrics.reach + EXCLUDED.reach,
+        clicks = campaign_metrics.clicks + EXCLUDED.clicks,
+        leads = campaign_metrics.leads + EXCLUDED.leads,
+        conversions = campaign_metrics.conversions + EXCLUDED.conversions,
+        revenue = campaign_metrics.revenue + EXCLUDED.revenue,
+        notes = COALESCE(EXCLUDED.notes, campaign_metrics.notes)
+      RETURNING *;
+    `, [
+      resolvedCampaignId, date, Number(spend) || 0, Number(impressions) || 0,
+      Number(reach) || 0, Number(clicks) || 0, Number(leads) || 0,
+      Number(conversions) || 0, Number(revenue) || 0, notes || null
+    ]);
+
+    await recordAuditLog(orgId, userId, 'LOG_METRICS', 'campaign_metrics', metricRes.rows[0].id, null, metricRes.rows[0], req);
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully logged ad spend of ₹${spend} for ${platform}`,
+      data: metricRes.rows[0]
+    });
+  } catch (err: any) {
+    console.error('Failed to log campaign metrics:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // 4. Update Campaign
 router.patch('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;

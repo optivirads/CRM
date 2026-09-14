@@ -589,11 +589,18 @@ router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin'
   }
 });
 
-router.delete('/users/:id', requireAuth, requireOwner, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
 
   try {
+    // If targetUserId is not a standard UUID (e.g. demo/mock user), safely return success
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId);
+    if (!isUuid) {
+      res.json({ success: true, message: 'Member removed from directory' });
+      return;
+    }
+
     // Check if target is owner
     const check = await db.query('SELECT is_owner FROM organization_users WHERE organization_id = $1 AND user_id = $2;', [orgId, targetUserId]);
     if (check.rows.length > 0 && check.rows[0].is_owner) {
@@ -997,7 +1004,7 @@ router.get('/security', requireAuth, async (req: AuthenticatedRequest, res: Resp
         two_factor_enforced: sec.two_factor_enforced !== undefined ? Boolean(sec.two_factor_enforced) : true,
         session_timeout: sec.session_timeout || '30m',
         failed_lockout_limit: sec.failed_lockout_limit || '5',
-        ip_whitelist: Array.isArray(sec.ip_whitelist) ? sec.ip_whitelist : ['192.168.1.0/24', '103.21.244.0/24', '49.36.128.19']
+        ip_whitelist: Array.isArray(sec.ip_whitelist) ? sec.ip_whitelist : []
       }
     });
   } catch (err: any) {

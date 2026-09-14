@@ -251,7 +251,7 @@ export default function Home() {
         {/* Scrollable View Area */}
         <main className="flex-1 overflow-y-auto bg-[#F8F9FB] dark:bg-[#060B13] custom-scrollbar isolate relative z-0">
           {!canAccessTab(currentTab) ? (
-            <div className="max-w-xl mx-auto my-16 p-8 bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
+            <div className="max-w-xl mx-auto my-8 sm:my-16 p-5 sm:p-8 bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-[#DC2626] mx-auto flex items-center justify-center shadow-inner">
                 <ShieldAlert className="w-8 h-8" />
               </div>

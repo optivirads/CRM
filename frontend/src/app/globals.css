@@ -111,7 +111,28 @@ body {
   background: linear-gradient(135deg, #0B1727 0%, #15243B 100%);
 }
 
-/* Scrollbar styling */
+/* =========================================================================
+   Shadow utilities — Tailwind v3/v4 cross-compatible polyfills
+   ========================================================================= */
+.shadow-xs {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.shadow-2xs {
+  box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+/* =========================================================================
+   Table Responsive Helper
+   ========================================================================= */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =========================================================================
+   Scrollbar styling
+   ========================================================================= */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -127,9 +148,45 @@ body {
   background: rgba(100, 116, 139, 0.45);
 }
 
-/* ========================================================================= */
-/* Print Styles for Executive Reports & Tax Invoices (Data-driven A4 output) */
-/* ========================================================================= */
+/* =========================================================================
+   Mobile Tab Bar — horizontal scroll without scrollbar
+   ========================================================================= */
+.tab-bar-scroll {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+}
+.tab-bar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================================
+   View container — consistent responsive padding
+   ========================================================================= */
+.view-container {
+  max-width: 1700px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0.75rem;
+}
+@media (min-width: 640px) {
+  .view-container {
+    padding: 1rem;
+  }
+}
+@media (min-width: 1024px) {
+  .view-container {
+    padding: 1.5rem;
+  }
+}
+
+/* =========================================================================
+   Print Styles for Executive Reports & Tax Invoices (Data-driven A4 output)
+   ========================================================================= */
 @media print {
   @page {
     size: A4 portrait;
@@ -205,6 +262,3 @@ body {
     color: #B91C1C !important;
   }
 }
-
-
-

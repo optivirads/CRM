@@ -93,6 +93,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
   // Action Reminders state
   const [reminders, setReminders] = useState<{ [key: string]: string }>({});
   const [dismissedEscalations, setDismissedEscalations] = useState(false);
+
+  // In-Dashboard Filter Panel
+  type DashboardFilter = 'tasks' | 'finance' | 'leads' | 'proposals' | 'projects' | null;
+  const [activeDashboardFilter, setActiveDashboardFilter] = useState<DashboardFilter>(null);
+
+  const handleFrictionFilter = (filter: DashboardFilter) => {
+    setActiveDashboardFilter(prev => prev === filter ? null : filter);
+  };
+
   const [deals, setDeals] = useState<Array<{ name: string; client: string; amount: string; stage: string; prob: string; owner: string; action: string }>>([]);
 
   // Client Onboarding Dashboard State
@@ -283,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
 
   return (
     <div className="pb-16 transition-colors duration-200">
-      <div className="p-6 space-y-5 max-w-[1600px] mx-auto">
+      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 max-w-[1600px] mx-auto">
       {/* ========================================================================= */}
       {/* 1. TOP GREETING & COMMAND CONTROLS (Matching Image 2)                    */}
       {/* ========================================================================= */}
@@ -618,10 +627,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
             <span className="bg-white/25 text-white px-1.5 py-0.2 rounded text-[10px]">{totalFrictionItems} Items</span>
           </div>
 
-          {/* Friction items */}
+          {/* Friction items — clicking sets in-dashboard filter instead of navigating */}
           <button
-            onClick={() => onNavigate('tasks')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
+            onClick={() => handleFrictionFilter('tasks')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] transition border ${
+              activeDashboardFilter === 'tasks'
+                ? 'bg-rose-100 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                : 'bg-slate-100 dark:bg-[#111E34] border-transparent hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200'
+            }`}
           >
             <span className={`w-2 h-2 rounded-full ${overdueTasksCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Overdue Tasks</span>
@@ -629,8 +642,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </button>
 
           <button
-            onClick={() => onNavigate('finance')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
+            onClick={() => handleFrictionFilter('finance')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] transition border ${
+              activeDashboardFilter === 'finance'
+                ? 'bg-rose-100 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                : 'bg-slate-100 dark:bg-[#111E34] border-transparent hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200'
+            }`}
           >
             <span className={`w-2 h-2 rounded-full ${unpaidInvoicesAmount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Unpaid Invoices</span>
@@ -638,8 +655,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </button>
 
           <button
-            onClick={() => onNavigate('leads')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
+            onClick={() => handleFrictionFilter('leads')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] transition border ${
+              activeDashboardFilter === 'leads'
+                ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                : 'bg-slate-100 dark:bg-[#111E34] border-transparent hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200'
+            }`}
           >
             <span className={`w-2 h-2 rounded-full ${staleLeadsCount > 0 ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
             <span>Stale Leads (&gt;24h)</span>
@@ -647,8 +668,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </button>
 
           <button
-            onClick={() => onNavigate('proposals')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
+            onClick={() => handleFrictionFilter('proposals')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] transition border ${
+              activeDashboardFilter === 'proposals'
+                ? 'bg-blue-100 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300'
+                : 'bg-slate-100 dark:bg-[#111E34] border-transparent hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200'
+            }`}
           >
             <span className="w-2 h-2 rounded-full bg-slate-400"></span>
             <span>Pending Proposals</span>
@@ -656,8 +681,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
           </button>
 
           <button
-            onClick={() => onNavigate('projects')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#111E34] hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200 font-semibold text-[11px] transition"
+            onClick={() => handleFrictionFilter('projects')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] transition border ${
+              activeDashboardFilter === 'projects'
+                ? 'bg-rose-100 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                : 'bg-slate-100 dark:bg-[#111E34] border-transparent hover:bg-slate-200 dark:hover:bg-[#16253C] text-slate-800 dark:text-slate-200'
+            }`}
           >
             <span className={`w-2 h-2 rounded-full ${projectsAtRiskCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}></span>
             <span>Project At-Risk</span>
@@ -666,13 +695,258 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
         </div>
 
         <button
-          onClick={() => onNavigate('tasks')}
+          onClick={() => handleFrictionFilter(activeDashboardFilter === 'tasks' ? null : 'tasks')}
           className="text-xs font-semibold text-[#0B1727] dark:text-[#F8FAFC] hover:text-[#DC2626] flex items-center gap-1 transition pr-2"
         >
           <span>Review Queue</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
+
+      {/* ======================================================================== */}
+      {/* INLINE FILTER PANEL — shown when a friction filter is active             */}
+      {/* ======================================================================== */}
+      {activeDashboardFilter && (
+        <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl shadow-xs overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Panel Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-[#080E18]/40">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                activeDashboardFilter === 'tasks' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400' :
+                activeDashboardFilter === 'finance' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400' :
+                activeDashboardFilter === 'leads' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400' :
+                activeDashboardFilter === 'proposals' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' :
+                'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
+              }`}>
+                {activeDashboardFilter === 'tasks' && <CheckSquare className="w-3.5 h-3.5" />}
+                {activeDashboardFilter === 'finance' && <Receipt className="w-3.5 h-3.5" />}
+                {activeDashboardFilter === 'leads' && <UserPlus className="w-3.5 h-3.5" />}
+                {activeDashboardFilter === 'proposals' && <FileCheck className="w-3.5 h-3.5" />}
+                {activeDashboardFilter === 'projects' && <AlertTriangle className="w-3.5 h-3.5" />}
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  {activeDashboardFilter === 'tasks' && `Overdue Tasks (${overdueTasksCount})`}
+                  {activeDashboardFilter === 'finance' && `Unpaid Invoices · ₹${unpaidInvoicesAmount.toLocaleString('en-IN')}`}
+                  {activeDashboardFilter === 'leads' && `Stale Leads >24h (${staleLeadsCount})`}
+                  {activeDashboardFilter === 'proposals' && `Pending Proposals (${pendingProposalsCount})`}
+                  {activeDashboardFilter === 'projects' && `Projects At-Risk (${projectsAtRiskCount})`}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {activeDashboardFilter === 'tasks' && 'Tasks overdue across all projects — action required'}
+                  {activeDashboardFilter === 'finance' && 'Outstanding receivables requiring follow-up or settlement'}
+                  {activeDashboardFilter === 'leads' && 'Pipeline leads with no activity in over 24 hours'}
+                  {activeDashboardFilter === 'proposals' && 'Proposals awaiting client review or internal approval'}
+                  {activeDashboardFilter === 'projects' && 'Client projects with health status flagged as at-risk'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onNavigate(
+                  activeDashboardFilter === 'tasks' ? 'tasks' :
+                  activeDashboardFilter === 'finance' ? 'finance' :
+                  activeDashboardFilter === 'leads' ? 'leads' :
+                  activeDashboardFilter === 'proposals' ? 'proposals' :
+                  'projects'
+                )}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1727] hover:bg-[#14233D] dark:bg-white dark:hover:bg-slate-100 text-white dark:text-[#0B1727] text-xs font-bold transition shadow-xs"
+              >
+                <span>Open Full {activeDashboardFilter === 'tasks' ? 'Taskboard' : activeDashboardFilter === 'finance' ? 'Finance Ledger' : activeDashboardFilter === 'leads' ? 'Leads Module' : activeDashboardFilter === 'proposals' ? 'Proposals' : 'Projects'}</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setActiveDashboardFilter(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+                title="Dismiss filter"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Panel Body */}
+          <div className="p-5">
+            {/* TASKS FILTER */}
+            {activeDashboardFilter === 'tasks' && (
+              <div>
+                {overdueTasksCount === 0 ? (
+                  <div className="py-10 text-center">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/60" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No overdue tasks</p>
+                    <p className="text-xs text-slate-400 mt-1">All tasks are within their deadlines</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                      <span>{overdueTasksCount} task{overdueTasksCount !== 1 ? 's' : ''} require immediate attention</span>
+                    </div>
+                    {Array.from({ length: Math.min(overdueTasksCount, 5) }, (_, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">Overdue Task #{i + 1}</span>
+                          <span className="text-slate-500 dark:text-slate-400">— Past deadline</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-[10px] border border-rose-200 dark:border-rose-800">OVERDUE</span>
+                      </div>
+                    ))}
+                    {overdueTasksCount > 5 && (
+                      <p className="text-xs text-slate-400 text-center pt-1">+ {overdueTasksCount - 5} more overdue tasks — open the full Taskboard to view all</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* FINANCE FILTER */}
+            {activeDashboardFilter === 'finance' && (
+              <div>
+                {unpaidInvoicesAmount === 0 ? (
+                  <div className="py-10 text-center">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/60" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">All invoices settled</p>
+                    <p className="text-xs text-slate-400 mt-1">No outstanding receivables at this time</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Outstanding receivables of ₹{unpaidInvoicesAmount.toLocaleString('en-IN')} require settlement</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-3.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 text-center">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">₹{unpaidInvoicesAmount.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider mt-0.5">Total Outstanding</div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">{stats?.finance?.overdue_invoices ?? 0}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Overdue Invoices</div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center">
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">₹{Number(stats?.finance?.total_collected ?? 0).toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Collected MTD</div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0E1A2E]/60 border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2">
+                      <Receipt className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <span>Open the Finance Ledger to send payment reminders, reconcile receipts, and create new invoices.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LEADS FILTER */}
+            {activeDashboardFilter === 'leads' && (
+              <div>
+                {staleLeadsCount === 0 ? (
+                  <div className="py-10 text-center">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/60" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No stale leads</p>
+                    <p className="text-xs text-slate-400 mt-1">All pipeline leads have recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{staleLeadsCount} lead{staleLeadsCount !== 1 ? 's' : ''} with no activity in over 24 hours</span>
+                    </div>
+                    {(Array.isArray(stats?.actionCenter?.urgentFollowups) ? stats.actionCenter.urgentFollowups : []).slice(0, 5).map((lead: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.name || lead.company || `Lead #${i + 1}`}</span>
+                          {lead.stage && <span className="text-slate-400">• {lead.stage}</span>}
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold text-[10px] border border-amber-200 dark:border-amber-800">STALE</span>
+                      </div>
+                    ))}
+                    {staleLeadsCount > 5 && (
+                      <p className="text-xs text-slate-400 text-center pt-1">+ {staleLeadsCount - 5} more stale leads — open the Leads module to view all</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PROPOSALS FILTER */}
+            {activeDashboardFilter === 'proposals' && (
+              <div>
+                {pendingProposalsCount === 0 ? (
+                  <div className="py-10 text-center">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/60" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No pending proposals</p>
+                    <p className="text-xs text-slate-400 mt-1">All proposals are finalized or closed</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                      <FileCheck className="w-3.5 h-3.5 text-blue-500" />
+                      <span>{pendingProposalsCount} active deal{pendingProposalsCount !== 1 ? 's' : ''} in the pipeline awaiting progress</span>
+                    </div>
+                    {deals.slice(0, 5).map((d, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 text-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{d.name}</span>
+                            <span className="text-slate-400">{d.client} · {d.amount}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold text-[10px] border border-blue-200 dark:border-blue-800">{d.stage}</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{d.prob}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {deals.length === 0 && (
+                      <div className="py-6 text-center text-slate-400">
+                        <FileText className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                        <p className="text-xs">No deal data available — open the full Proposals module</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PROJECTS AT-RISK FILTER */}
+            {activeDashboardFilter === 'projects' && (
+              <div>
+                {projectsAtRiskCount === 0 ? (
+                  <div className="py-10 text-center">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/60" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">All projects on track</p>
+                    <p className="text-xs text-slate-400 mt-1">No projects flagged as at-risk</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                      <span>{projectsAtRiskCount} project{projectsAtRiskCount !== 1 ? 's' : ''} flagged as at-risk — executive review required</span>
+                    </div>
+                    {Array.from({ length: Math.min(projectsAtRiskCount, 5) }, (_, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">At-Risk Project #{i + 1}</span>
+                          <span className="text-slate-500">— Requires attention</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-[10px] border border-rose-200 dark:border-rose-800">AT RISK</span>
+                      </div>
+                    ))}
+                    {projectsAtRiskCount > 5 && (
+                      <p className="text-xs text-slate-400 text-center pt-1">+ {projectsAtRiskCount - 5} more at-risk projects — open the Projects module to view all</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 3. 4 PRIMARY KEY METRIC CARDS (Matching Image 2)                         */}

@@ -155,11 +155,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
           clientName: inv.client_name || 'Client Account',
           gstin: '29ABCDE1234F1Z5',
           refProposal: 'Commercial SOW',
-          dateIssued: inv.issue_date ? new Date(inv.issue_date).toLocaleDateString() : 'Today',
+          dateIssued: (inv.invoice_date || inv.issue_date) ? new Date(inv.invoice_date || inv.issue_date).toLocaleDateString() : 'Today',
           dateDue: inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '30 Days',
           amountGstInc: `₹${Number(inv.total || 0).toLocaleString('en-IN')}`,
           amountPaid: `₹${Number(inv.paid_amount || 0).toLocaleString('en-IN')}`,
-          balanceDue: `₹${Number(inv.balance_amount !== undefined ? inv.balance_amount : inv.total || 0).toLocaleString('en-IN')}`,
+          balanceDue: `₹${Number(inv.balance_amount !== undefined ? inv.balance_amount : Math.max(0, Number(inv.total || 0) - Number(inv.paid_amount || 0))).toLocaleString('en-IN')}`,
           status: inv.status || 'Pending',
           statusColor: inv.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200',
           isOverdue: inv.status === 'Overdue'
@@ -343,7 +343,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
         </div>
       </div>
 
-      <div className="max-w-[1700px] mx-auto p-6 space-y-6">
+      <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
         {/* ========================================================================= */}
         {/* SCREEN A: INVOICES LEDGER (Reference Image 4)                             */}
         {/* ========================================================================= */}

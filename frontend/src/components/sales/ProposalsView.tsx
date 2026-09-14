@@ -797,7 +797,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       {/* VIEW 1: PROPOSALS DIRECTORY LIST                                         */}
       {/* ========================================================================= */}
       {currentView === 'list' && (
-        <div className="max-w-[1700px] mx-auto p-6 space-y-6">
+        <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
           {/* Header & Quick Action Ribbon */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -1161,7 +1161,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       {/* VIEW 2: AGENCY PACKAGES VAULT (ADD PACKAGES & GENERATE FROM PACKAGE)      */}
       {/* ========================================================================= */}
       {currentView === 'packages' && (
-        <div className="max-w-[1700px] mx-auto p-6 space-y-6">
+        <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -2125,7 +2125,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           {/* TAB 4: PACKAGES CATALOG TAB                                           */}
           {/* ===================================================================== */}
           {activeDetailTab === '4. Packages Catalog' && (
-            <div className="max-w-[1700px] mx-auto p-6 space-y-6">
+            <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">

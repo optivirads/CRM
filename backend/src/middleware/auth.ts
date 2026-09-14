@@ -52,36 +52,6 @@ function parseTimeoutMs(value: string | undefined): number | null {
 }
 
 // ---------------------------------------------------------------------------
-// CIDR IP whitelist check
-// ---------------------------------------------------------------------------
-function ipInCidr(ip: string, cidr: string): boolean {
-  try {
-    // Handle plain IP (no subnet)
-    if (!cidr.includes('/')) {
-      return ip === cidr;
-    }
-    const [range, bits] = cidr.split('/');
-    const mask = ~(0xffffffff >>> parseInt(bits, 10));
-    const ipParts = ip.split('.').map(Number);
-    const rangeParts = range.split('.').map(Number);
-    if (ipParts.length !== 4 || rangeParts.length !== 4) return false;
-    const ipInt = ((ipParts[0] << 24) | (ipParts[1] << 16) | (ipParts[2] << 8) | ipParts[3]) >>> 0;
-    const rangeInt = ((rangeParts[0] << 24) | (rangeParts[1] << 16) | (rangeParts[2] << 8) | rangeParts[3]) >>> 0;
-    return (ipInt & mask) === (rangeInt & mask);
-  } catch {
-    return false;
-  }
-}
-
-function isIpAllowed(ip: string, whitelist: string[]): boolean {
-  if (!whitelist || whitelist.length === 0) return true; // No whitelist = allow all
-  for (const cidr of whitelist) {
-    if (ipInCidr(ip, cidr.trim())) return true;
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
 // Org security settings cache (short TTL to avoid per-request DB hits)
 // ---------------------------------------------------------------------------
 interface OrgSecuritySettings {
@@ -111,7 +81,7 @@ async function getOrgSecurity(orgId: string): Promise<OrgSecuritySettings> {
 }
 
 // ---------------------------------------------------------------------------
-// requireAuth — authenticate request, enforce session timeout + IP whitelist
+// requireAuth — authenticate request, enforce session timeout
 // ---------------------------------------------------------------------------
 export async function requireAuth(
   req: AuthenticatedRequest,
@@ -154,22 +124,6 @@ export async function requireAuth(
           });
           return;
         }
-      }
-    }
-
-    // Enforce IP whitelist
-    if (sec.ip_whitelist && sec.ip_whitelist.length > 0) {
-      const clientIp =
-        (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-        req.ip ||
-        '';
-      if (!isIpAllowed(clientIp, sec.ip_whitelist)) {
-        res.status(403).json({
-          success: false,
-          message: 'Access denied: your IP address is not on the organization whitelist.',
-          code: 'IP_BLOCKED'
-        });
-        return;
       }
     }
   }

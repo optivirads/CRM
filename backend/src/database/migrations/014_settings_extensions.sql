@@ -107,7 +107,7 @@ BEGIN
                 'two_factor_enforced', COALESCE((settings->'security'->>'two_factor_enforced')::boolean, true),
                 'session_timeout', COALESCE(settings->'security'->>'session_timeout', '30m'),
                 'failed_lockout_limit', COALESCE(settings->'security'->>'failed_lockout_limit', '5'),
-                'ip_whitelist', COALESCE(settings->'security'->'ip_whitelist', '["192.168.1.0/24", "103.21.244.0/24", "49.36.128.19"]'::jsonb)
+                'ip_whitelist', COALESCE(settings->'security'->'ip_whitelist', '[]'::jsonb)
             )
         ) || settings
         WHERE id = org_rec.id;
