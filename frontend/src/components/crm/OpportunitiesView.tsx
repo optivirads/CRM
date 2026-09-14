@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
+import { api } from '@/lib/api';
 import {
   Sparkles,
   Layers,
@@ -27,7 +28,9 @@ import {
   Building2,
   TrendingUp,
   Tag,
-  Briefcase
+  Briefcase,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 interface OpportunityRow {
@@ -45,7 +48,7 @@ interface OpportunityRow {
   hasProbDot?: boolean;
   weighted: string;
   expectedClose: string;
-  ownerInitials: 'AM' | 'MJ';
+  ownerInitials: 'AM' | 'MJ' | string;
   ownerName: string;
   ownerBg: string;
   source: string;
@@ -72,10 +75,14 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [opportunities, setOpportunities] = useState<OpportunityRow[]>(INITIAL_OPPORTUNITIES);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOps, setSelectedOps] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deletingOp, setDeletingOp] = useState<OpportunityRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOption, setSortOption] = useState<'newest' | 'value' | 'company'>('newest');
@@ -84,6 +91,61 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
   const [newCompany, setNewCompany] = useState('');
   const [newService, setNewService] = useState('');
   const [newValue, setNewValue] = useState('');
+
+  const fetchOpportunities = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getDeals();
+      if (res.success && Array.isArray(res.data)) {
+        setOpportunities(res.data.map((d: any) => {
+          const compName = d.company_name || d.name || 'Enterprise Prospect';
+          const valNum = Number(d.value || 0);
+          const probNum = Number(d.probability || 50);
+          const weightedNum = Math.round((valNum * probNum) / 100);
+          const ownerName = d.owner_first ? `${d.owner_first} ${d.owner_last || ''}`.trim() : 'OptiVir Admin';
+          const initials = (compName.slice(0, 2)).toUpperCase() || 'OP';
+
+          let stage: OpportunityRow['stage'] = 'Qualified';
+          const sName = (d.stage_name || '').toLowerCase();
+          if (sName.includes('won')) stage = 'Won';
+          else if (sName.includes('lost')) stage = 'Lost';
+          else if (sName.includes('discovery')) stage = 'Discovery';
+          else if (sName.includes('proposal')) stage = 'Proposal';
+          else if (sName.includes('negotiat')) stage = 'Negotiation';
+          else if (sName.includes('risk')) stage = 'At Risk';
+          else stage = 'Qualified';
+
+          return {
+            id: d.id,
+            companyName: compName,
+            serviceTitle: d.name || 'Performance Retainer',
+            serviceSubtitle: `${d.name || 'Retainer'} • Enterprise Scope`,
+            companyInitials: initials,
+            companyBg: 'bg-[#B91C1C]',
+            primaryContact: d.contact_first ? `${d.contact_first} ${d.contact_last || ''}`.trim() : (d.contact_email || 'Decision Maker'),
+            stage,
+            value: `₹${valNum.toLocaleString('en-IN')}`,
+            probability: `${probNum}%`,
+            weighted: `₹${weightedNum.toLocaleString('en-IN')}`,
+            expectedClose: d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Next Month',
+            ownerInitials: ((d.owner_first?.[0] || 'O') + (d.owner_last?.[0] || 'A')).toUpperCase(),
+            ownerName,
+            ownerBg: 'bg-red-600',
+            source: 'Direct Client',
+            lastActivity: d.updated_at ? new Date(d.updated_at).toLocaleDateString() : 'Recently',
+          };
+        }));
+      }
+    } catch (err: any) {
+      console.warn('Failed to load opportunities:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOpportunities();
+  }, []);
 
   const handleExportCsv = () => {
     exportToCsv(
@@ -117,37 +179,51 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
     }
   };
 
-  const handleCreateOpportunity = (e: React.FormEvent) => {
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompany) {
+    if (!newCompany.trim()) {
       showToast('Please enter a company name', 'error');
       return;
     }
-    const newOp: OpportunityRow = {
-      id: `op-${Date.now()}`,
-      companyName: newCompany,
-      serviceTitle: newService || 'Enterprise Retainer',
-      serviceSubtitle: `${newService || 'Enterprise Retainer'} • Direct`,
-      companyInitials: newCompany.slice(0, 2).toUpperCase(),
-      companyBg: 'bg-[#DC2626]',
-      primaryContact: 'Contact Pending',
-      stage: 'Qualified',
-      value: newValue ? (newValue.startsWith('₹') ? newValue : `₹${newValue}`) : '₹50,000 / mo',
-      probability: '50%',
-      weighted: '₹25,000 / mo',
-      expectedClose: 'Next Month',
-      ownerInitials: 'AM',
-      ownerName: 'Alex Morgan',
-      ownerBg: 'bg-red-600',
-      source: 'Direct Inbound',
-      lastActivity: 'Just now',
-    };
-    setOpportunities([newOp, ...opportunities]);
-    setNewCompany('');
-    setNewService('');
-    setNewValue('');
-    setShowCreateModal(false);
-    showToast(`Opportunity created for ${newCompany}`, 'success');
+    try {
+      setIsCreating(true);
+      const valNumber = parseFloat(newValue.replace(/[^0-9.]/g, '')) || 50000;
+      const res = await api.createDeal({
+        name: newService || `${newCompany} Growth Retainer`,
+        companyName: newCompany.trim(),
+        value: valNumber,
+        probability: 50
+      });
+      if (res.success) {
+        showToast(`Opportunity created for ${newCompany}`, 'success');
+        setShowCreateModal(false);
+        setNewCompany('');
+        setNewService('');
+        setNewValue('');
+        fetchOpportunities();
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create opportunity', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleDeleteOpportunity = async () => {
+    if (!deletingOp) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.deleteDeal(deletingOp.id);
+      if (res.success) {
+        showToast(`Opportunity "${deletingOp.companyName}" removed from database`, 'success');
+        setDeletingOp(null);
+        fetchOpportunities();
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete opportunity', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -544,12 +620,13 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
               <th className="p-4 font-bold">OWNER</th>
               <th className="p-4 font-bold">SOURCE</th>
               <th className="p-4 font-bold">LAST ACTIVITY</th>
+              <th className="p-4 font-bold text-right">ACTION</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
             {filteredOpportunities.length === 0 ? (
               <tr>
-                <td colSpan={12} className="p-12 text-center text-slate-500">
+                <td colSpan={13} className="p-12 text-center text-slate-500">
                   <Layers className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No opportunities found</p>
                   <p className="text-xs text-slate-400 mt-1">Create an opportunity to track potential deals.</p>
@@ -642,6 +719,18 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
                     </td>
                     <td className="p-4 text-slate-500 text-[11px]">
                       {op.lastActivity}
+                    </td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingOp(op);
+                        }}
+                        className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                        title="Delete opportunity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -784,6 +873,45 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingOp && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Delete Opportunity</h3>
+                <p className="text-xs text-slate-500">This will remove the deal from the pipeline and database.</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Are you sure you want to delete <span className="font-bold text-[#0B1727] dark:text-white">{deletingOp.companyName}</span> ({deletingOp.serviceTitle})?
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+              <button
+                type="button"
+                onClick={() => setDeletingOp(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#111E34] text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteOpportunity}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                {isDeleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{isDeleting ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

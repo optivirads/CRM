@@ -24,11 +24,19 @@ class ApiClient {
       headers,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { success: false, message: response.statusText || `Server returned HTTP ${response.status}` };
+    }
+
     if (!response.ok) {
-      const err: any = new Error(data.message || `API error: ${response.status}`);
-      err.details = data.details;
+      const err: any = new Error(data?.message || (response.status === 404 ? 'Resource not found' : `API error: ${response.status}`));
+      err.details = data?.details || text;
       err.data = data;
+      err.status = response.status;
       throw err;
     }
 
@@ -144,8 +152,7 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>('/sales/services');
   }
 
-  // Clients & Client 360°
-  async getClients(params: { status?: string; health?: string; search?: string } = {}) {
+  async getClients(params: { status?: string; health?: string; search?: string; accountManagerId?: string; myOnly?: string; all?: string } = {}) {
     const query = new URLSearchParams(params as any).toString();
     return this.request<{ success: boolean; data: any[] }>(`/clients${query ? `?${query}` : ''}`);
   }
@@ -158,6 +165,148 @@ class ApiClient {
     return this.request<{ success: boolean; progress: number }>(`/clients/${clientId}/onboarding/${checklistId}`, {
       method: 'PATCH',
       body: JSON.stringify({ is_completed: isCompleted }),
+    });
+  }
+
+  // Social Media Insights & Post Snapshots
+  async getClientSocialInsights(clientId: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        posts: any[];
+        summary: {
+          total_posts: number;
+          total_impressions: number;
+          total_reach: number;
+          total_likes: number;
+          total_comments: number;
+          total_shares: number;
+          total_saves: number;
+          total_clicks: number;
+          avg_engagement_rate: number;
+        };
+        platforms: any[];
+      };
+    }>(`/clients/${clientId}/social-insights`);
+  }
+
+  async createClientSocialPost(clientId: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/clients/${clientId}/social-insights`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteClientSocialPost(clientId: string, postId: string) {
+    return this.request<{ success: boolean; message: string }>(`/clients/${clientId}/social-insights/${postId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getClientSocialIntegrations(clientId: string) {
+    return this.request<{ success: boolean; data: any }>(`/clients/${clientId}/social-integrations`);
+  }
+
+  async updateClientSocialIntegrations(clientId: string, payload: any) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/clients/${clientId}/social-integrations`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async inspectClientMetaAccounts(clientId: string, accessToken: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        pages: Array<{
+          id: string;
+          name: string;
+          category?: string;
+          access_token?: string;
+          instagram?: {
+            id: string;
+            username?: string;
+            name?: string;
+            profile_picture_url?: string;
+          } | null;
+        }>;
+        directInstagram?: {
+          id: string;
+          username?: string;
+          account_type?: string;
+        } | null;
+        message?: string;
+        missingPermissions?: string[];
+      };
+    }>(`/clients/${clientId}/social-integrations/meta-inspect`, {
+      method: 'POST',
+      body: JSON.stringify({ accessToken }),
+    });
+  }
+
+  async connectClientMetaAccounts(clientId: string, payload: {
+    accessToken?: string;
+    pageId?: string;
+    pageAccessToken?: string;
+    pageName?: string;
+    instagramAccountId?: string;
+    instagramUsername?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/clients/${clientId}/social-integrations/meta-connect`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async syncClientSocialInsights(clientId: string) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/clients/${clientId}/social-insights/sync`, {
+      method: 'POST',
+    });
+  }
+
+  async discoverClientSocialPosts(clientId: string, params?: { urls?: string[]; handle?: string }) {
+    if (params && ((params.urls && params.urls.length > 0) || params.handle)) {
+      return this.request<{ success: boolean; data: { availablePosts: any[]; unimportedCount: number; platforms: string[]; clientName: string; clientId: string; message?: string } }>(`/clients/${clientId}/social-insights/discover`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+      });
+    }
+    return this.request<{ success: boolean; data: { availablePosts: any[]; unimportedCount: number; platforms: string[]; clientName: string; clientId: string; message?: string } }>(`/clients/${clientId}/social-insights/discover`);
+  }
+
+  async importSelectedSocialPosts(clientId: string, selectedPosts: any[]) {
+    return this.request<{ success: boolean; message: string; data: any }>(`/clients/${clientId}/social-insights/import-selected`, {
+      method: 'POST',
+      body: JSON.stringify({ selectedPosts }),
+    });
+  }
+
+  async inspectSocialPostUrl(clientId: string, url: string) {
+    return this.request<{ success: boolean; data: { title: string; description: string; thumbnail_url: string; platform: string; media_type: string; author?: string } }>(`/clients/${clientId}/social-insights/inspect-url`, {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  }
+
+  // Ad Spend & Quick Metric Logging
+  async quickLogAdSpend(payload: {
+    client_id: string;
+    campaign_id?: string;
+    campaign_name?: string;
+    platform?: string;
+    date?: string;
+    spend: number;
+    impressions?: number;
+    reach?: number;
+    clicks?: number;
+    leads?: number;
+    conversions?: number;
+    revenue?: number;
+    notes?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/marketing/campaigns/quick-log', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -837,6 +986,11 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request<{ success: boolean; data: any[] }>('/notifications');
   }
 }
 

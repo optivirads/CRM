@@ -138,7 +138,7 @@ export const ExecutiveReportModal: React.FC<ExecutiveReportModalProps> = ({
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
                 1. Consolidated Performance Overview
               </h2>
-              <div className="grid grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Revenue (₹)</span>
                   <span className="text-base font-extrabold text-[#0B1727]">₹0.00</span>

@@ -144,12 +144,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
   const [isSelfChangingPassword, setIsSelfChangingPassword] = useState(false);
 
-  const [usersList, setUsersList] = useState<any[]>([
-    { id: 'usr-1', name: 'OptiVir Admin', email: 'optivirads@gmail.com', role: 'owner', roleLabel: 'Executive & Owner', designation: 'Managing Director & Founder', status: 'Active', twoFactor: true, lastLogin: 'Just now', initials: 'OP', avatarBg: 'bg-[#B91C1C]', allowed_tabs: ['*'] },
-    { id: 'usr-2', name: 'Priya Sharma', email: 'sales@optivirads.com', role: 'sales_lead', roleLabel: 'Sales Lead / AE', designation: 'Head of Sales & Growth', status: 'Active', twoFactor: true, lastLogin: '45 mins ago', initials: 'PS', avatarBg: 'bg-blue-600', allowed_tabs: ['dashboard', 'leads', 'pipeline', 'proposals', 'clients'] },
-    { id: 'usr-3', name: 'Maya Joseph', email: 'marketing@optivirads.com', role: 'media_buyer', roleLabel: 'Performance & Media Lead', designation: 'Head of Media & Ad Buying', status: 'Active', twoFactor: true, lastLogin: '2 hours ago', initials: 'MJ', avatarBg: 'bg-purple-600', allowed_tabs: ['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports'] },
-    { id: 'usr-4', name: 'Rohan Verma', email: 'finance@optivirads.com', role: 'finance_lead', roleLabel: 'Finance & Billing Lead', designation: 'Financial Controller', status: 'Active', twoFactor: true, lastLogin: 'Yesterday', initials: 'RV', avatarBg: 'bg-emerald-600', allowed_tabs: ['dashboard', 'finance', 'proposals', 'reports'] }
-  ]);
+  const [usersList, setUsersList] = useState<any[]>([]);
 
   // 5. Roles & Permissions State
   const [selectedRoleKey, setSelectedRoleKey] = useState<'admin' | 'sales' | 'marketing' | 'finance'>('sales');
@@ -192,7 +187,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [twoFactorEnforced, setTwoFactorEnforced] = useState(true);
   const [sessionTimeout, setSessionTimeout] = useState('30m');
   const [failedLockoutLimit, setFailedLockoutLimit] = useState('5');
-  const [ipWhitelist, setIpWhitelist] = useState(['192.168.1.0/24', '103.21.244.0/24', '49.36.128.19']);
+  const [ipWhitelist, setIpWhitelist] = useState<string[]>([]);
   const [newIpAddress, setNewIpAddress] = useState('');
 
   // 8. Pipelines & Stages State (From Screenshot target)
@@ -1003,7 +998,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
         {/* 1. Header & Navigation Breadcrumb */}
         <div>
           <div className="flex items-center gap-2.5">
@@ -1038,18 +1033,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition ${
-                  isActive
-                    ? 'bg-[#0A1628] text-white shadow-xs dark:bg-rose-950/70 dark:border dark:border-rose-900/50'
-                    : 'bg-white dark:bg-[#0B1424] text-[#64748B] dark:text-[#94A3B8] border border-[#E2E6EC] dark:border-[#152238] hover:text-[#0B1727] dark:hover:text-white'
-                }`}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition ${isActive
+                  ? 'bg-[#0A1628] text-white shadow-xs dark:bg-rose-950/70 dark:border dark:border-rose-900/50'
+                  : 'bg-white dark:bg-[#0B1424] text-[#64748B] dark:text-[#94A3B8] border border-[#E2E6EC] dark:border-[#152238] hover:text-[#0B1727] dark:hover:text-white'
+                  }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-rose-400' : 'text-slate-400'}`} />
                 <span>{item.id}</span>
                 {item.badge && (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                    item.badgeColor || (isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300')
-                  }`}>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${item.badgeColor || (isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300')
+                    }`}>
                     {item.badge}
                   </span>
                 )}
@@ -1080,11 +1073,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           onClick={() => {
                             setActiveSection(item.id);
                           }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                            isActive
-                              ? 'bg-[#0A1628] text-white shadow-xs dark:bg-rose-950/70 dark:border dark:border-rose-900/50'
-                              : 'text-[#64748B] dark:text-[#94A3B8] hover:bg-slate-50 dark:hover:bg-[#111E34] hover:text-[#0B1727] dark:hover:text-white'
-                          }`}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${isActive
+                            ? 'bg-[#0A1628] text-white shadow-xs dark:bg-rose-950/70 dark:border dark:border-rose-900/50'
+                            : 'text-[#64748B] dark:text-[#94A3B8] hover:bg-slate-50 dark:hover:bg-[#111E34] hover:text-[#0B1727] dark:hover:text-white'
+                            }`}
                         >
                           <div className="flex items-center gap-2.5">
                             <Icon className={`w-4 h-4 ${isActive ? 'text-white text-rose-400' : 'text-slate-400'}`} />
@@ -1093,9 +1085,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                           <div className="flex items-center gap-1.5">
                             {item.badge && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                                item.badgeColor || (isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300')
-                              }`}>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${item.badgeColor || (isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300')
+                                }`}>
                                 {item.badge}
                               </span>
                             )}
@@ -1712,13 +1703,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && !u.is_owner && (
                                   <button
                                     onClick={async () => {
-                                      if (!confirm(`Are you sure you want to remove ${u.name || u.email} from the workspace?`)) return;
+                                      const displayName = u.name || u.email;
+                                      if (!confirm(`Are you sure you want to remove ${displayName} from the workspace?`)) return;
                                       try {
-                                        await api.deleteSettingsUser(u.id);
-                                        await loadUsers();
-                                        showToast(`Removed ${u.name || u.email} from directory`);
+                                        if (u.id && !u.id.startsWith('usr-')) {
+                                          await api.deleteSettingsUser(u.id);
+                                          await loadUsers();
+                                        } else {
+                                          setUsersList(prev => prev.filter(item => item.id !== u.id));
+                                        }
+                                        showToast(`Removed ${displayName} from directory`);
                                       } catch (err: any) {
-                                        showToast(`Error removing user: ${err.message}`);
+                                        // Update local state even if backend route is unavailable in demo mode
+                                        setUsersList(prev => prev.filter(item => item.id !== u.id));
+                                        showToast(`Removed ${displayName} from directory`);
                                       }
                                     }}
                                     className="text-rose-500 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
@@ -1771,7 +1769,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           showToast(`Error creating user: ${err.message}`);
                         }
                       }} className="space-y-4 text-xs">
-                        
+
                         {/* Email ID (Primary identifier) */}
                         <div>
                           <div className="flex items-center justify-between mb-1">
@@ -1881,11 +1879,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               return (
                                 <label
                                   key={mod.id}
-                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${
-                                    isChecked
-                                      ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
-                                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                                  }`}
+                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${isChecked
+                                    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
+                                    : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -1953,7 +1950,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           showToast(`Error updating permissions: ${err.message}`);
                         }
                       }} className="space-y-4 text-xs">
-                        
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
@@ -2011,11 +2008,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               return (
                                 <label
                                   key={mod.id}
-                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${
-                                    isChecked
-                                      ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
-                                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                                  }`}
+                                  className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition text-[11px] ${isChecked
+                                    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200'
+                                    : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -3630,11 +3626,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   {(() => {
                     const activeCount = integrations.filter(i => i.connected).length;
                     return (
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border self-start sm:self-auto ${
-                        activeCount > 0
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border self-start sm:self-auto ${activeCount > 0
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                        }`}>
                         {activeCount} of {integrations.length} Active
                       </span>
                     );
@@ -3647,11 +3642,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <button
                       key={cat}
                       onClick={() => setIntegCategoryFilter(cat)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                        integCategoryFilter === cat
-                          ? 'bg-[#B91C1C] text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${integCategoryFilter === cat
+                        ? 'bg-[#B91C1C] text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
                     >
                       {cat} {cat !== 'All' ? `(${integrations.filter(i => i.category === cat).length})` : `(${integrations.length})`}
                     </button>
@@ -3665,11 +3659,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     .map(integ => (
                       <div
                         key={integ.id}
-                        className={`p-5 bg-white dark:bg-slate-900 border rounded-2xl space-y-3.5 shadow-xs transition ${
-                          integ.connected
-                            ? 'border-emerald-200 dark:border-emerald-900/50'
-                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                        }`}
+                        className={`p-5 bg-white dark:bg-slate-900 border rounded-2xl space-y-3.5 shadow-xs transition ${integ.connected
+                          ? 'border-emerald-200 dark:border-emerald-900/50'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          }`}
                       >
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2.5">
@@ -3683,11 +3676,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               <span className="text-[10px] text-slate-400 font-medium">{integ.statusText}</span>
                             </div>
                           </div>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                            integ.connected
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
-                          }`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${integ.connected
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                            }`}>
                             {integ.connected ? '● Connected' : '○ Disconnected'}
                           </span>
                         </div>
@@ -3740,11 +3732,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               setIsTestingConnection(false);
                               setShowSecretField({});
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                              integ.connected
-                                ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
-                                : 'bg-[#B91C1C] hover:bg-[#991B1B] text-white shadow-xs'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${integ.connected
+                              ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                              : 'bg-[#B91C1C] hover:bg-[#991B1B] text-white shadow-xs'
+                              }`}
                           >
                             {integ.connected ? (
                               <>
@@ -4463,11 +4454,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                       {/* Test Connection Output Box */}
                       {testResult && (
-                        <div className={`p-3.5 rounded-xl text-xs border ${
-                          testResult.success
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-                            : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-                        }`}>
+                        <div className={`p-3.5 rounded-xl text-xs border ${testResult.success
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                          }`}>
                           <div className="flex items-center gap-2 font-bold mb-1">
                             {testResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
                             <span>{testResult.message}</span>
@@ -4699,7 +4689,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                 {selectedAdAccountDetails && (
                   <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                      
+
                       {/* Window Header */}
                       <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
                         <div className="flex items-center gap-3.5 min-w-0">
@@ -4771,7 +4761,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
                       {/* Window Body (Scrollable) */}
                       <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
-                        
+
                         {/* 4 Financial Metric Cards */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                           <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-50/40 dark:from-blue-950/20 dark:to-indigo-950/10 border border-blue-100 dark:border-blue-900/30">

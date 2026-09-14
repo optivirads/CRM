@@ -153,7 +153,7 @@ export const DocumentsView: React.FC = () => {
         </div>
       )}
 
-      <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
         {/* 1. Header & Navigation */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>

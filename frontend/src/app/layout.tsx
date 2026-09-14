@@ -44,7 +44,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.className} h-full antialiased selection:bg-[#DC2626] selection:text-white transition-colors duration-200`}>
+      <body
+        suppressHydrationWarning
+        className={`${inter.className} h-full antialiased selection:bg-[#DC2626] selection:text-white transition-colors duration-200`}
+      >
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>

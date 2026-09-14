@@ -1,16 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   LayoutDashboard,
   Users2,
   Contact2,
   Building2,
-  Sparkles,
   Kanban,
-  Briefcase,
   FolderClosed,
-  TrendingUp,
   BarChart3,
   Receipt,
   FileText,
@@ -18,10 +15,8 @@ import {
   Activity,
   FileSpreadsheet,
   Settings,
-  Bell,
   Rocket,
   CheckSquare,
-  Layers,
   X
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -56,7 +51,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpen = false, onClose }) => {
-  const { user, canAccessTab } = useAuth();
+  const { canAccessTab } = useAuth();
 
   const navSections = [
     {
@@ -106,19 +101,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar Drawer */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-transform duration-200 ease-in-out
-        md:static md:translate-x-0
+        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-transform duration-300 ease-in-out
+        md:static md:translate-x-0 md:z-auto
         ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* 1. Header Brand — OptiVir CRM */}
-        <div className="p-3 border-b border-[#14233D] bg-[#070E1A]/60 flex items-center justify-between gap-2">
+        <div className="p-3 border-b border-[#14233D] bg-[#070E1A]/60 flex items-center justify-between gap-2 shrink-0">
           <button
             onClick={() => {
               onTabChange('dashboard');
@@ -136,15 +132,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
           {/* Mobile Close Button */}
           <button
             onClick={onClose}
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-[#101F38] transition"
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-[#101F38] transition shrink-0"
             title="Close Menu"
+            aria-label="Close navigation"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 2. Navigation Sections */}
-        <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5 custom-scrollbar min-h-0">
           {navSections.map((section, idx) => {
             const visibleItems = section.items.filter((item) => canAccessTab(item.id));
             if (visibleItems.length === 0) return null;
@@ -167,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
                         }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition duration-150 text-left ${
                           isActive
-                            ? 'bg-[#0E274D] text-white font-semibold shadow-xs border border-[#1A3D73]'
+                            ? 'bg-[#0E274D] text-white font-semibold shadow-sm border border-[#1A3D73]'
                             : 'text-[#94A3B8] hover:text-white hover:bg-[#101F38]'
                         }`}
                       >
@@ -186,21 +183,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
           })}
         </div>
 
-      {/* 3. Footer System Status & Quick Nav */}
-      <div className="p-3.5 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B]">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#94A3B8]">System Status</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
-            <span className="text-emerald-400 font-semibold text-[11px]">Operational</span>
+        {/* 3. Footer System Status & Quick Nav */}
+        <div className="p-3.5 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B] shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#94A3B8]">System Status</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
+              <span className="text-emerald-400 font-semibold text-[11px]">Operational</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-[#94A3B8] font-mono">
+            <span className="hidden sm:inline">Quick Nav</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-[#112440] border border-[#1D365D] text-[10px] text-[#CBD5E1]">⌘K</kbd>
           </div>
         </div>
-        <div className="flex items-center gap-1 text-[11px] text-[#94A3B8] font-mono">
-          <span>Quick Nav</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-[#112440] border border-[#1D365D] text-[10px] text-[#CBD5E1]">⌘K</kbd>
-        </div>
-      </div>
-    </aside>
+      </aside>
     </>
   );
 };
