@@ -83,8 +83,31 @@ app.use(express.json({ limit: '500kb' }));
 app.use(express.urlencoded({ extended: false, limit: '500kb' }));
 
 // ---------------------------------------------------------------------------
-// Health Check
+// Root & Health Check
 // ---------------------------------------------------------------------------
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    status: 'online',
+    system: 'OptiVir CRM Enterprise API',
+    version: '1.0.0',
+    message: 'OptiVir CRM Backend API is operational and healthy.',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      dashboard: '/api/dashboard',
+      crm: '/api/crm',
+      sales: '/api/sales',
+      clients: '/api/clients',
+      projects: '/api/projects',
+      marketing: '/api/marketing',
+      finance: '/api/finance',
+      reports: '/api/reports',
+      settings: '/api/settings'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
@@ -109,6 +132,16 @@ app.use('/api/activities', activitiesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/settings', settingsRoutes);
+
+// ---------------------------------------------------------------------------
+// 404 Catch-All Handler
+// ---------------------------------------------------------------------------
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: `Cannot ${req.method} ${req.originalUrl} - Endpoint not found on OptiVir CRM Backend`
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Global Error Handler
