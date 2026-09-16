@@ -201,7 +201,10 @@ router.post(
       });
     } catch (err: any) {
       console.error('Login error:', err);
-      res.status(500).json({ success: false, message: 'Internal server error during authentication' });
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error during authentication: ' + (err?.message || err)
+      });
     }
   }
 );

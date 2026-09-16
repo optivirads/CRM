@@ -3,6 +3,7 @@ dotenv.config();
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { db } from './config/db';
 
 import authRoutes from './routes/auth.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -115,6 +116,24 @@ app.get('/health', (req: Request, res: Response) => {
     version: '1.0.0',
     timestamp: new Date().toISOString()
   });
+});
+
+app.get('/health/db', async (req: Request, res: Response) => {
+  try {
+    const dbRes = await db.query('SELECT current_database(), current_user, count(*) as user_count FROM users;');
+    const orgUsersRes = await db.query('SELECT count(*) as org_users_count FROM organization_users;');
+    res.json({
+      success: true,
+      database: dbRes.rows[0],
+      orgUsersCount: orgUsersRes.rows[0]?.org_users_count
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      detail: 'Failed connecting to database pool'
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
