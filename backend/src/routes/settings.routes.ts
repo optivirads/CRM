@@ -14,6 +14,7 @@ const createUserSchema = z.object({
   role: z.string().min(1, 'Role is required').optional(),
   designation: z.string().optional(),
   team_id: z.string().optional().nullable(),
+  client_id: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   allowed_tabs: z.array(z.string()).optional()
@@ -346,17 +347,21 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         ou.id as membership_id,
         ou.role_id,
         ou.team_id,
+        ou.client_id,
         ou.designation,
         ou.is_owner,
         ou.allowed_tabs,
         ou.status as member_status,
         r.name as role_name,
         r.slug as role_slug,
-        t.name as team_name
+        t.name as team_name,
+        comp.name as client_name
       FROM organization_users ou
       JOIN users u ON ou.user_id = u.id
       LEFT JOIN roles r ON ou.role_id = r.id
       LEFT JOIN teams t ON ou.team_id = t.id
+      LEFT JOIN clients c ON ou.client_id = c.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       WHERE ou.organization_id = $1
       ORDER BY ou.is_owner DESC, u.first_name ASC;
     `, [orgId]);
@@ -389,7 +394,7 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         email: u.email,
         phone: u.phone,
         role: u.role_slug || 'sales_lead',
-        roleLabel: u.is_owner ? 'Executive & Owner' : (u.role_name || 'Specialist'),
+        roleLabel: u.is_owner ? 'Executive & Owner' : (u.client_id ? `Client (${u.client_name || 'Assigned'})` : (u.role_name || 'Specialist')),
         designation: u.designation || (u.is_owner ? 'Managing Director & Founder' : 'Growth Specialist'),
         status: u.member_status === 'active' ? 'Active' : 'Pending Invite',
         twoFactor: true,
@@ -398,6 +403,8 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         avatarBg: avatarColors[idx % avatarColors.length],
         teamName: u.team_name,
         teamId: u.team_id,
+        clientId: u.client_id || null,
+        clientName: u.client_name || null,
         allowed_tabs: effectiveTabs
       };
     });
@@ -411,7 +418,18 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
 router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
-  const { name, email, role, designation, team_id, phone, password, allowed_tabs } = req.body;
+  const callerEmail = (req.user?.email || '').toLowerCase().trim();
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+
+  if (!isAuthorized) {
+    res.status(403).json({
+      success: false,
+      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to create users and assign permissions.'
+    });
+    return;
+  }
+
+  const { name, email, role, designation, team_id, client_id, phone, password, allowed_tabs } = req.body;
 
   if (!email || !email.trim()) {
     res.status(400).json({ success: false, message: 'Email address is required' });
@@ -464,16 +482,17 @@ router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), v
 
     // 3. Create or update organization_users membership
     await db.query(`
-      INSERT INTO organization_users (organization_id, user_id, role_id, team_id, designation, status, allowed_tabs)
-      VALUES ($1, $2, $3, $4, $5, 'active', $6)
+      INSERT INTO organization_users (organization_id, user_id, role_id, team_id, client_id, designation, status, allowed_tabs)
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
       ON CONFLICT (organization_id, user_id) DO UPDATE
       SET role_id = EXCLUDED.role_id,
           team_id = EXCLUDED.team_id,
+          client_id = EXCLUDED.client_id,
           designation = EXCLUDED.designation,
           status = 'active',
           allowed_tabs = EXCLUDED.allowed_tabs,
           updated_at = NOW();
-    `, [orgId, userId, roleId, team_id || null, designation || 'Specialist', assignedTabs]);
+    `, [orgId, userId, roleId, team_id || null, client_id || null, designation || 'Specialist', assignedTabs]);
 
     await recordAuditLog(
       orgId,
@@ -482,7 +501,7 @@ router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), v
       'organization_users',
       userId,
       null,
-      { email: cleanEmail, role, designation, allowed_tabs: assignedTabs },
+      { email: cleanEmail, role, designation, client_id, allowed_tabs: assignedTabs },
       req
     );
 
@@ -500,7 +519,18 @@ router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), v
 router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
-  const { role, designation, status, team_id, allowed_tabs } = req.body;
+  const callerEmail = (req.user?.email || '').toLowerCase().trim();
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+
+  if (!isAuthorized) {
+    res.status(403).json({
+      success: false,
+      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to modify user roles and permissions.'
+    });
+    return;
+  }
+
+  const { role, designation, status, team_id, client_id, allowed_tabs } = req.body;
 
   try {
     let roleId: string | undefined;
@@ -514,7 +544,7 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
 
     const targetTabs = Array.isArray(allowed_tabs) ? allowed_tabs : null;
 
-    const { rows } = await db.query(`
+    let updateQuery = `
       UPDATE organization_users
       SET 
         role_id = COALESCE($1, role_id),
@@ -522,10 +552,23 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
         status = COALESCE($3, status),
         team_id = COALESCE($4, team_id),
         allowed_tabs = COALESCE($5, allowed_tabs),
+    `;
+    const params: any[] = [roleId || null, designation, status, team_id || null, targetTabs];
+
+    if (client_id !== undefined) {
+      params.push(client_id || null);
+      updateQuery += ` client_id = $${params.length}, `;
+    }
+
+    params.push(orgId);
+    params.push(targetUserId);
+    updateQuery += `
         updated_at = NOW()
-      WHERE organization_id = $6 AND user_id = $7
+      WHERE organization_id = $${params.length - 1} AND user_id = $${params.length}
       RETURNING *;
-    `, [roleId || null, designation, status, team_id || null, targetTabs, orgId, targetUserId]);
+    `;
+
+    const { rows } = await db.query(updateQuery, params);
 
     if (rows.length === 0) {
       res.status(404).json({ success: false, message: 'Membership not found' });
@@ -539,7 +582,7 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
       'organization_users',
       targetUserId,
       null,
-      { role, designation, status, allowed_tabs: targetTabs },
+      { role, designation, status, client_id, allowed_tabs: targetTabs },
       req
     );
 
@@ -554,6 +597,17 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
 router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
+  const callerEmail = (req.user?.email || '').toLowerCase().trim();
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+
+  if (!isAuthorized) {
+    res.status(403).json({
+      success: false,
+      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to reset credentials.'
+    });
+    return;
+  }
+
   const { password } = req.body;
 
   if (!password || typeof password !== 'string' || password.length < 6) {
@@ -592,6 +646,16 @@ router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin'
 router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
+  const callerEmail = (req.user?.email || '').toLowerCase().trim();
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+
+  if (!isAuthorized) {
+    res.status(403).json({
+      success: false,
+      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to remove team members.'
+    });
+    return;
+  }
 
   try {
     // If targetUserId is not a standard UUID (e.g. demo/mock user), safely return success

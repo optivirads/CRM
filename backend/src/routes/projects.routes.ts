@@ -21,7 +21,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       params.push(status);
       whereClause += ` AND p.status = $${params.length}`;
     }
-    if (clientId) {
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      whereClause += ` AND p.client_id = $${params.length}`;
+    } else if (clientId) {
       params.push(clientId);
       whereClause += ` AND p.client_id = $${params.length}`;
     }
@@ -186,7 +189,10 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
       params.push(projectId);
       query += ` AND t.project_id = $${params.length}`;
     }
-    if (clientId) {
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      query += ` AND t.client_id = $${params.length}`;
+    } else if (clientId) {
       params.push(clientId);
       query += ` AND t.client_id = $${params.length}`;
     }
