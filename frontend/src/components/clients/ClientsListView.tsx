@@ -124,12 +124,17 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleSyncTelemetry = () => {
-    setIsSyncingTelemetry(true);
-    setTimeout(() => {
+  const handleSyncTelemetry = async () => {
+    try {
+      setIsSyncingTelemetry(true);
+      const res = await api.syncCampaignTelemetry();
+      await fetchClients();
+      showToast(res?.message || 'Live telemetry refreshed from Google Ads API v17 & Meta Marketing API v20!', 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to sync telemetry', 'error');
+    } finally {
       setIsSyncingTelemetry(false);
-      showToast('Live telemetry refreshed from Google Ads API v17 & Meta Marketing API v20!');
-    }, 900);
+    }
   };
 
   // Filter tabs
@@ -144,50 +149,100 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
 
+  // Industry list definition
+  const defaultIndustries = [
+    'Technology',
+    'Beauty & Wellness',
+    'Retail',
+    'Healthcare',
+    'Software',
+    'Financial Services',
+    'E-Commerce',
+    'Logistics',
+    'Real Estate',
+    'Marketing & Advertising',
+    'Hospitality',
+    'Education',
+    'Manufacturing',
+    'Automotive',
+    'Professional Services'
+  ];
+
   // Add Client Drawer/Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [newIndustry, setNewIndustry] = useState('Technology');
+  const [isCustomNewIndustry, setIsCustomNewIndustry] = useState(false);
+  const [customNewIndustryText, setCustomNewIndustryText] = useState('');
   const [newPrimaryContact, setNewPrimaryContact] = useState('');
-  const [newAccountManager, setNewAccountManager] = useState('OptiVir Admin');
-  const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('annual_retainer');
-  const [newContractVal, setNewContractVal] = useState('₹1,00,000');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactRole, setNewContactRole] = useState('Primary Contact');
+  const [newAccountManagerId, setNewAccountManagerId] = useState('');
+  const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
+  const [newContractVal, setNewContractVal] = useState('₹0');
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Edit Client Drawer/Modal State
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<ClientAccount | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editIndustry, setEditIndustry] = useState('Technology');
+  const [isCustomEditIndustry, setIsCustomEditIndustry] = useState(false);
+  const [customEditIndustryText, setCustomEditIndustryText] = useState('');
+  const [editDomain, setEditDomain] = useState('');
+  const [editPrimaryContact, setEditPrimaryContact] = useState('');
+  const [editContactEmail, setEditContactEmail] = useState('');
+  const [editContactPhone, setEditContactPhone] = useState('');
+  const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
+  const [editAccountManagerId, setEditAccountManagerId] = useState('');
+  const [editContractVal, setEditContractVal] = useState('0');
+  const [editBillingModel, setEditBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
+  const [editHealthStatus, setEditHealthStatus] = useState<string>('Healthy');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
   // Client accounts data from PostgreSQL
   const [clients, setClients] = useState<ClientAccount[]>([]);
+
+  const availableIndustries = Array.from(new Set([...defaultIndustries, ...clients.map((c) => c.industry).filter(Boolean)])).sort();
 
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const [res, campRes] = await Promise.all([
+      const [res, campRes, usersRes] = await Promise.all([
         api.getClients().catch(() => ({ success: false, data: [] })),
-        api.getCampaigns().catch(() => ({ success: false, data: [] }))
+        api.getCampaigns().catch(() => ({ success: false, data: [] })),
+        api.getSettingsUsers().catch(() => ({ success: false, data: [] }))
       ]);
+
+      if (usersRes.success && Array.isArray(usersRes.data)) {
+        setTeamMembers(usersRes.data);
+      }
 
       if (res.success && Array.isArray(res.data)) {
         setClients(res.data.map((c: any) => ({
           id: c.id,
           name: c.company_name || 'Client Account',
-          domain: c.website || `${(c.company_name || 'client').toLowerCase().replace(/\s+/g, '')}.com`,
+          domain: c.website || (c.company_name ? `${c.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com` : 'client.com'),
           avatarBg: 'bg-[#0A1628]',
           avatarText: (c.company_name || 'CL').substring(0, 2).toUpperCase(),
-          industry: c.industry || 'Technology',
-          primaryContact: c.contact_first ? `${c.contact_first} ${c.contact_last || ''}`.trim() : (c.contact_email || 'Primary Contact'),
-          contactRole: 'Lead Stakeholder',
+          industry: c.industry || 'General',
+          primaryContact: c.contact_first ? `${c.contact_first} ${c.contact_last || ''}`.trim() : (c.contact_email || '—'),
+          contactRole: c.contact_role || 'Primary Contact',
           accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'OptiVir Admin',
-          amInitials: 'OP',
+          amInitials: c.am_first ? `${c.am_first[0]}${c.am_last?.[0] || ''}`.toUpperCase() : 'OP',
           amBg: 'bg-[#0A1628]',
-          servicesCount: '3 Services',
+          servicesCount: c.services_count ? `${c.services_count} Services` : (c.project_count ? `${c.project_count} SOWs` : 'Retainer'),
           activeProjects: `${c.project_count || 0} Active`,
-          contractValue: c.contract_value ? `₹${Number(c.contract_value).toLocaleString('en-IN')}` : '₹0',
+          contractValue: c.contract_value && Number(c.contract_value) > 0 ? `₹${Number(c.contract_value).toLocaleString('en-IN')}` : '₹0',
           healthStatus: c.health_status || 'Healthy',
-          renewal: c.renewal_date ? new Date(c.renewal_date).toLocaleDateString() : 'Dec 2026',
-          lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Recently',
+          renewal: c.renewal_date ? new Date(c.renewal_date).toLocaleDateString() : 'Ongoing Retainer',
+          lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Active',
           billingStatus: c.status === 'Active' ? 'Paid' : (c.status || 'Active'),
           isAtRisk: c.health_status === 'At-Risk'
         })));
@@ -201,30 +256,30 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           const clk = Number(c.total_clicks || 0);
           const leads = Number(c.total_leads || 0);
           const conv = Number(c.total_conversions || 0);
-          const ctr = imp > 0 ? Number(((clk / imp) * 100).toFixed(2)) : 3.2;
-          const cpc = clk > 0 ? Math.round(spend / clk) : 45;
-          const cpl = leads > 0 ? Math.round(spend / leads) : 650;
-          const roas = c.avg_roas ? Number(c.avg_roas) : (spend > 0 && rev > 0 ? Number((rev / spend).toFixed(2)) : 4.0);
+          const ctr = imp > 0 ? Number(((clk / imp) * 100).toFixed(2)) : 0;
+          const cpc = clk > 0 ? Number((spend / clk).toFixed(2)) : 0;
+          const cpl = leads > 0 ? Number((spend / leads).toFixed(2)) : 0;
+          const roas = c.avg_roas ? Number(c.avg_roas) : (spend > 0 && rev > 0 ? Number((rev / spend).toFixed(2)) : 0);
 
           return {
             id: c.id,
             clientId: c.client_id || '',
-            clientName: c.client_name || 'Enterprise Client',
+            clientName: c.client_name || 'Client',
             platform: c.platform?.includes('Google') ? 'Google Ads' : 'Meta Ads',
             name: c.name,
-            objective: 'Lead Generation & Conversions',
-            status: c.status === 'Optimized' ? 'Optimized' : (c.status === 'Learning' ? 'Learning' : 'Running'),
-            dailyBudget: Math.round(spend / 30) || 5000,
+            objective: c.objective || 'Lead Generation & Conversions',
+            status: c.status || 'Active',
+            dailyBudget: spend > 0 ? Math.round(spend / 30) : 0,
             spentMtd: spend,
-            impressions: imp || 45000,
-            clicks: clk || 1800,
+            impressions: imp,
+            clicks: clk,
             ctr,
             cpc,
             cpl,
             conversions: conv || leads,
             attributedRevenue: rev,
             roas,
-            audiences: ['High Intent In-Market', 'Lookalike 1% Buyers'],
+            audiences: Array.isArray(c.audiences) ? c.audiences : [],
             lastSync: 'Live PostgreSQL'
           };
         }));
@@ -239,6 +294,77 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   useEffect(() => {
     fetchClients();
   }, []);
+
+  const openEditModal = (client: ClientAccount) => {
+    setEditingClient(client);
+    setEditName(client.name);
+    setEditIndustry(client.industry || 'Technology');
+    setIsCustomEditIndustry(false);
+    setCustomEditIndustryText('');
+    setEditDomain(client.domain || '');
+    setEditPrimaryContact(client.primaryContact !== '—' ? client.primaryContact : '');
+    setEditContactEmail('');
+    setEditContactPhone('');
+    setEditContactRole(client.contactRole || 'Lead Stakeholder');
+    const rawVal = client.contractValue ? client.contractValue.replace(/[^0-9]/g, '') : '0';
+    setEditContractVal(rawVal || '0');
+    setEditBillingModel(client.contractValue?.includes('Demand') ? 'on_demand' : client.contractValue?.includes('Pay-As-You-Go') ? 'pay_as_you_go' : 'monthly_retainer');
+    setEditHealthStatus(client.healthStatus || 'Healthy');
+    setShowEditClientModal(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClient) return;
+
+    try {
+      setIsSavingEdit(true);
+      const resolvedIndustry = isCustomEditIndustry && customEditIndustryText.trim()
+        ? customEditIndustryText.trim()
+        : editIndustry;
+      const parsedVal = (editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go')
+        ? 0
+        : parseFloat(String(editContractVal).replace(/[^0-9.]/g, '')) || 0;
+      const normBillingFreq = editBillingModel === 'annual_retainer' ? 'annually' : editBillingModel === 'on_demand' ? 'on_demand' : editBillingModel === 'pay_as_you_go' ? 'pay_as_you_go' : 'monthly';
+
+      const res = await api.updateClient(editingClient.id, {
+        company_name: editName.trim(),
+        industry: resolvedIndustry,
+        website: editDomain.trim() || null,
+        contact_name: editPrimaryContact.trim() || null,
+        contact_email: editContactEmail.trim() || null,
+        contact_phone: editContactPhone.trim() || null,
+        contact_role: editContactRole.trim() || 'Primary Contact',
+        account_manager_id: editAccountManagerId || null,
+        contract_value: parsedVal,
+        billing_frequency: normBillingFreq,
+        health_status: editHealthStatus
+      });
+
+      if (res.success) {
+        showToast(`Updated ${editName} details successfully!`, 'success');
+        setShowEditClientModal(false);
+        setEditingClient(null);
+        fetchClients();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update client', 'error');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const quickUpdateHealthStatus = async (client: ClientAccount, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextStatus = client.healthStatus === 'Healthy' ? 'Attention Needed' : client.healthStatus === 'Attention Needed' ? 'At-Risk' : 'Healthy';
+    try {
+      await api.updateClient(client.id, { health_status: nextStatus });
+      showToast(`Health updated to ${nextStatus}`, 'success');
+      fetchClients();
+    } catch (err: any) {
+      showToast('Failed to update health status', 'error');
+    }
+  };
 
   const toggleSelectAll = () => {
     if (selectedClients.length === clients.length) {
@@ -260,11 +386,25 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
 
     try {
       setIsCreating(true);
-      const parsedVal = parseFloat(newContractVal.replace(/[^0-9.]/g, '')) || 100000;
+      const resolvedIndustry = isCustomNewIndustry && customNewIndustryText.trim()
+        ? customNewIndustryText.trim()
+        : newIndustry;
+      const parsedVal = (newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go')
+        ? 0
+        : parseFloat(newContractVal.replace(/[^0-9.]/g, '')) || 0;
+      const normBillingFreq = newBillingModel === 'annual_retainer' ? 'annually' : newBillingModel === 'on_demand' ? 'on_demand' : newBillingModel === 'pay_as_you_go' ? 'pay_as_you_go' : 'monthly';
+
       const res = await api.createClient({
         company_name: newCompanyName.trim(),
+        industry: resolvedIndustry || 'Technology',
+        website: newDomain.trim() || null,
+        contact_name: newPrimaryContact.trim() || null,
+        contact_email: newContactEmail.trim() || null,
+        contact_phone: newContactPhone.trim() || null,
+        contact_role: newContactRole.trim() || 'Primary Contact',
+        account_manager_id: newAccountManagerId || null,
         contract_value: parsedVal,
-        billing_frequency: newBillingModel === 'annual_retainer' ? 'annual' : 'monthly',
+        billing_frequency: normBillingFreq,
         health_status: 'Healthy',
         status: 'Active'
       });
@@ -274,9 +414,16 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         setShowAddModal(false);
         setNewCompanyName('');
         setNewDomain('');
+        setNewIndustry('Technology');
+        setIsCustomNewIndustry(false);
+        setCustomNewIndustryText('');
         setNewPrimaryContact('');
-        setNewBillingModel('annual_retainer');
-        setNewContractVal('₹18.5L / yr');
+        setNewContactEmail('');
+        setNewContactPhone('');
+        setNewContactRole('Primary Contact');
+        setNewAccountManagerId('');
+        setNewBillingModel('monthly_retainer');
+        setNewContractVal('₹0');
         fetchClients();
       }
     } catch (err: any) {
@@ -1065,17 +1212,21 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Industry */}
-                      <td className="p-3.5">
-                        <span className="font-medium text-rose-600 dark:text-rose-400">
-                          {client.industry}
-                        </span>
+                      <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
+                        <div className="flex items-center gap-1.5 group/ind cursor-pointer" title="Click to edit industry">
+                          <span className="font-medium text-rose-600 dark:text-rose-400 group-hover/ind:underline">
+                            {client.industry}
+                          </span>
+                          <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/ind:opacity-100 transition shrink-0" />
+                        </div>
                       </td>
 
                       {/* Primary Contact */}
-                      <td className="p-3.5">
-                        <div>
-                          <div className="font-semibold text-slate-900 dark:text-slate-100">
-                            {client.primaryContact}
+                      <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
+                        <div className="group/cont cursor-pointer" title="Click to edit primary contact">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 group-hover/cont:text-rose-600 transition">
+                            <span>{client.primaryContact}</span>
+                            <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/cont:opacity-100 transition shrink-0" />
                           </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400">
                             {client.contactRole}
@@ -1084,16 +1235,17 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Account Manager */}
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2">
+                      <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
+                        <div className="flex items-center gap-2 group/am cursor-pointer" title="Click to edit account manager">
                           <div
                             className={`w-6 h-6 rounded-full ${client.amBg} text-white flex items-center justify-center text-[10px] font-bold shrink-0`}
                           >
                             {client.amInitials}
                           </div>
-                          <span className="font-medium text-rose-600 dark:text-rose-400">
+                          <span className="font-medium text-rose-600 dark:text-rose-400 group-hover/am:underline">
                             {client.accountManager}
                           </span>
+                          <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/am:opacity-100 transition shrink-0" />
                         </div>
                       </td>
 
@@ -1103,19 +1255,24 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                           <span className="text-slate-700 dark:text-slate-300 font-medium block">
                             {client.servicesCount}
                           </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCampaignClient(client.name);
-                              setViewMode('campaigns');
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition border border-slate-200 dark:border-slate-700 cursor-pointer"
-                            title="Inspect live Google Ads & Meta Ads telemetry for this client"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span>{client.id === 'c1' ? '4 Ads (G+M)' : client.id === 'c2' ? '2 Ads (G+M)' : '1 Ad (Meta)'}</span>
-                          </button>
+                          {(() => {
+                            const clientCampaigns = adCampaigns.filter(camp => camp.clientId === client.id || camp.clientName?.toLowerCase() === client.name?.toLowerCase());
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCampaignClient(client.name);
+                                  setViewMode('campaigns');
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition border border-slate-200 dark:border-slate-700 cursor-pointer"
+                                title="Inspect live Google Ads & Meta Ads telemetry for this client"
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${clientCampaigns.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                <span>{clientCampaigns.length > 0 ? `${clientCampaigns.length} Active Ad${clientCampaigns.length > 1 ? 's' : ''}` : '0 Ads (Connect)'}</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       </td>
 
@@ -1127,50 +1284,60 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Contract (TCV) */}
-                      <td className="p-3.5">
-                        {client.contractValue?.toLowerCase().includes('demand') || client.contractValue?.toLowerCase().includes('as-needed') || client.contractValue?.toLowerCase().includes('ad-hoc') ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                            <span>⚡ On-Demand Ads</span>
-                          </span>
-                        ) : client.contractValue?.toLowerCase().includes('pay-as-you-go') ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                            <span>Pay-As-You-Go</span>
-                          </span>
-                        ) : (
-                          <span className="font-bold text-slate-900 dark:text-slate-100">
-                            {client.contractValue || '—'}
-                          </span>
-                        )}
+                      <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
+                        <div className="cursor-pointer group/contract" title="Click to edit contract terms">
+                          {client.contractValue?.toLowerCase().includes('demand') || client.contractValue?.toLowerCase().includes('as-needed') || client.contractValue?.toLowerCase().includes('ad-hoc') ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <span>⚡ On-Demand Ads</span>
+                              <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/contract:opacity-100 transition" />
+                            </span>
+                          ) : client.contractValue?.toLowerCase().includes('pay-as-you-go') ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              <span>Pay-As-You-Go</span>
+                              <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/contract:opacity-100 transition" />
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 dark:text-slate-100 group-hover/contract:text-rose-600 transition">
+                                {client.contractValue || '—'}
+                              </span>
+                              <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/contract:opacity-100 transition" />
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Health Status */}
-                      <td className="p-3.5">
-                        {client.healthStatus === 'Healthy' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            Healthy
-                          </span>
-                        ) : client.healthStatus === 'Attention Needed' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            Attention Needed
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            At Risk
-                          </span>
-                        )}
+                      <td className="p-3.5" onClick={(e) => quickUpdateHealthStatus(client, e)}>
+                        <div className="cursor-pointer" title="Click to cycle status (Healthy -> Attention Needed -> At-Risk)">
+                          {client.healthStatus === 'Healthy' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:ring-2 hover:ring-emerald-400 transition">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Healthy
+                            </span>
+                          ) : client.healthStatus === 'Attention Needed' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:ring-2 hover:ring-amber-400 transition">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              Attention Needed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:ring-2 hover:ring-rose-400 transition">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                              At Risk
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Renewal */}
-                      <td className="p-3.5">
+                      <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
                         <span
-                          className={`font-medium ${
+                          className={`font-medium cursor-pointer hover:underline ${
                             client.renewalUrgent
                               ? 'text-rose-600 dark:text-rose-400 font-bold'
                               : 'text-slate-700 dark:text-slate-300'
                           }`}
+                          title="Click to edit renewal"
                         >
                           {client.renewal}
                         </span>
@@ -1195,18 +1362,25 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       </td>
 
                       {/* Actions */}
-                      <td className="p-3.5 pr-4 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingClient(client);
-                          }}
-                          title="Delete Client"
-                          className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="p-3.5 pr-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(client)}
+                            title="Edit Client Profile & Contract"
+                            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingClient(client)}
+                            title="Delete Client"
+                            className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1311,45 +1485,114 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Industry</label>
-                    <select
-                      value={newIndustry}
-                      onChange={(e) => setNewIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white"
-                    >
-                      <option>Technology</option>
-                      <option>Retail</option>
-                      <option>Healthcare</option>
-                      <option>Software</option>
-                      <option>Financial Services</option>
-                      <option>E-Commerce</option>
-                      <option>Logistics</option>
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">Industry *</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomNewIndustry(!isCustomNewIndustry);
+                          if (!isCustomNewIndustry) setCustomNewIndustryText('');
+                        }}
+                        className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 cursor-pointer"
+                      >
+                        {isCustomNewIndustry ? '← Choose List' : '+ Create New'}
+                      </button>
+                    </div>
+
+                    {isCustomNewIndustry ? (
+                      <input
+                        type="text"
+                        required
+                        value={customNewIndustryText}
+                        onChange={(e) => setCustomNewIndustryText(e.target.value)}
+                        placeholder="e.g. Beauty & Wellness"
+                        className="w-full px-3 py-2 border border-rose-300 dark:border-rose-700 bg-rose-50/20 dark:bg-rose-950/20 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                        autoFocus
+                      />
+                    ) : (
+                      <select
+                        value={newIndustry}
+                        onChange={(e) => {
+                          if (e.target.value === '__CREATE_NEW__') {
+                            setIsCustomNewIndustry(true);
+                            setCustomNewIndustryText('');
+                          } else {
+                            setNewIndustry(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                      >
+                        {availableIndustries.map((ind) => (
+                          <option key={ind} value={ind}>{ind}</option>
+                        ))}
+                        <option value="__CREATE_NEW__">✨ + Create New Industry...</option>
+                      </select>
+                    )}
                   </div>
 
                   <div>
                     <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Account Manager</label>
                     <select
-                      value={newAccountManager}
-                      onChange={(e) => setNewAccountManager(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white"
+                      value={newAccountManagerId}
+                      onChange={(e) => setNewAccountManagerId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
                     >
-                      <option>Alex Morgan</option>
-                      <option>Maya Joseph</option>
-                      <option>Marcus Vance</option>
+                      <option value="">Unassigned (Team Pool)</option>
+                      {teamMembers.map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                          {m.first_name || m.name || m.email} ({m.role || 'Member'})
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Primary Decision Maker / Contact</label>
-                  <input
-                    type="text"
-                    value={newPrimaryContact}
-                    onChange={(e) => setNewPrimaryContact(e.target.value)}
-                    placeholder="e.g. Vikram Malhotra (VP Growth)"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Primary Decision Maker / Contact</label>
+                    <input
+                      type="text"
+                      value={newPrimaryContact}
+                      onChange={(e) => setNewPrimaryContact(e.target.value)}
+                      placeholder="e.g. Vikram Malhotra"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Role / Designation</label>
+                    <input
+                      type="text"
+                      value={newContactRole}
+                      onChange={(e) => setNewContactRole(e.target.value)}
+                      placeholder="e.g. Managing Director"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Email</label>
+                    <input
+                      type="email"
+                      value={newContactEmail}
+                      onChange={(e) => setNewContactEmail(e.target.value)}
+                      placeholder="e.g. contact@client.com"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={newContactPhone}
+                      onChange={(e) => setNewContactPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -1413,9 +1656,257 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               <button
                 type="submit"
                 form="add-client-form"
-                className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold shadow-md transition"
+                disabled={isCreating}
+                className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center gap-1.5"
               >
-                Create Account
+                {isCreating ? 'Creating...' : 'Create Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Client Drawer / Modal */}
+      {showEditClientModal && editingClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/50 backdrop-blur-xs transition-opacity animate-in fade-in">
+          <div className="w-full max-w-lg h-full bg-white dark:bg-[#0F1D33] shadow-2xl p-6 overflow-y-auto flex flex-col justify-between border-l border-slate-200 dark:border-slate-800 animate-in slide-in-from-right duration-300">
+            <div>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Edit2 className="w-4 h-4 text-rose-600" />
+                    <span>Edit Client Profile &amp; Contract</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Update account metadata, primary contact, and retainer terms</p>
+                </div>
+                <button
+                  onClick={() => setShowEditClientModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form id="edit-client-form" onSubmit={handleSaveEdit} className="space-y-4 pt-5 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Company / Account Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="e.g. ZenVrae"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Company Domain / Website</label>
+                  <input
+                    type="text"
+                    value={editDomain}
+                    onChange={(e) => setEditDomain(e.target.value)}
+                    placeholder="e.g. zenvrae.com"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">Industry *</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomEditIndustry(!isCustomEditIndustry);
+                          if (!isCustomEditIndustry) setCustomEditIndustryText('');
+                        }}
+                        className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 cursor-pointer"
+                      >
+                        {isCustomEditIndustry ? '← Choose List' : '+ Create New'}
+                      </button>
+                    </div>
+
+                    {isCustomEditIndustry ? (
+                      <input
+                        type="text"
+                        required
+                        value={customEditIndustryText}
+                        onChange={(e) => setCustomEditIndustryText(e.target.value)}
+                        placeholder="e.g. Beauty & Wellness"
+                        className="w-full px-3 py-2 border border-rose-300 dark:border-rose-700 bg-rose-50/20 dark:bg-rose-950/20 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                        autoFocus
+                      />
+                    ) : (
+                      <select
+                        value={editIndustry}
+                        onChange={(e) => {
+                          if (e.target.value === '__CREATE_NEW__') {
+                            setIsCustomEditIndustry(true);
+                            setCustomEditIndustryText('');
+                          } else {
+                            setEditIndustry(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                      >
+                        {availableIndustries.map((ind) => (
+                          <option key={ind} value={ind}>{ind}</option>
+                        ))}
+                        <option value="__CREATE_NEW__">✨ + Create New Industry...</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Health Status</label>
+                    <select
+                      value={editHealthStatus}
+                      onChange={(e) => setEditHealthStatus(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                    >
+                      <option value="Healthy">Healthy</option>
+                      <option value="Attention Needed">Attention Needed</option>
+                      <option value="At-Risk">At-Risk</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Primary Contact Name</label>
+                    <input
+                      type="text"
+                      value={editPrimaryContact}
+                      onChange={(e) => setEditPrimaryContact(e.target.value)}
+                      placeholder="e.g. Maya Lin"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Role / Designation</label>
+                    <input
+                      type="text"
+                      value={editContactRole}
+                      onChange={(e) => setEditContactRole(e.target.value)}
+                      placeholder="e.g. Managing Director"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Email</label>
+                    <input
+                      type="email"
+                      value={editContactEmail}
+                      onChange={(e) => setEditContactEmail(e.target.value)}
+                      placeholder="e.g. contact@client.com"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={editContactPhone}
+                      onChange={(e) => setEditContactPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Assigned Account Manager</label>
+                  <select
+                    value={editAccountManagerId}
+                    onChange={(e) => setEditAccountManagerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white"
+                  >
+                    <option value="">Unassigned (Team Pool)</option>
+                    {teamMembers.map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.first_name || m.name || m.email} ({m.role || 'Member'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Billing &amp; Engagement Model *
+                  </label>
+                  <select
+                    value={editBillingModel}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setEditBillingModel(val);
+                      if (val === 'on_demand') {
+                        setEditContractVal('0');
+                      } else if (val === 'pay_as_you_go') {
+                        setEditContractVal('0');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white mb-2 text-xs"
+                  >
+                    <option value="annual_retainer">Annual Retainer (Fixed ACV)</option>
+                    <option value="monthly_retainer">Monthly Retainer (Annualized)</option>
+                    <option value="on_demand">⚡ On-Demand / As-Needed Ads (No Fixed ACV)</option>
+                    <option value="pay_as_you_go">Pay-As-You-Go Ad Campaigns (Spend %)</option>
+                    <option value="one_time">One-Time Project / Audit SOW</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Annual Contract Value (₹) {editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
+                  </label>
+                  <input
+                    type="number"
+                    value={editContractVal}
+                    onChange={(e) => setEditContractVal(e.target.value)}
+                    placeholder={editBillingModel === 'on_demand' ? '0' : 'e.g. 500000'}
+                    disabled={editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go'}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs"
+                  />
+                  {(editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go') && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                      <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
+                    </p>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEditClientModal(false)}
+                className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-client-form"
+                disabled={isSavingEdit}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-md transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isSavingEdit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

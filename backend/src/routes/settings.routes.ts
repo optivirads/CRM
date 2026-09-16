@@ -375,7 +375,7 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         else lastLoginText = `${Math.floor(mins / 1440)} days ago`;
       }
 
-      const isSuper = u.is_owner || u.role_slug === 'super_admin' || u.email?.toLowerCase() === 'optivirads@gmail.com';
+      const isSuper = u.is_owner || u.role_slug === 'super_admin' || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com';
       const effectiveTabs: string[] = isSuper 
         ? ['*'] 
         : (u.allowed_tabs && u.allowed_tabs.length > 0 ? u.allowed_tabs : ['dashboard']);
@@ -601,14 +601,16 @@ router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admi
       return;
     }
 
-    // Check if target is owner
-    const check = await db.query('SELECT is_owner FROM organization_users WHERE organization_id = $1 AND user_id = $2;', [orgId, targetUserId]);
-    if (check.rows.length > 0 && check.rows[0].is_owner) {
-      res.status(400).json({ success: false, message: 'Cannot remove organization owner' });
+    // Only optivirads@gmail.com is protected from deletion
+    const targetUser = await db.query('SELECT email FROM users WHERE id = $1;', [targetUserId]);
+    const targetEmail = (targetUser.rows[0]?.email || '').toLowerCase().trim();
+    if (targetEmail === 'optivirads@gmail.com') {
+      res.status(400).json({ success: false, message: 'optivirads@gmail.com is the primary organization account and cannot be deleted.' });
       return;
     }
 
     await db.query('DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2;', [orgId, targetUserId]);
+    await db.query('DELETE FROM users WHERE id = $1 AND email != $2;', [targetUserId, 'optivirads@gmail.com']).catch(() => {});
 
     await recordAuditLog(
       orgId,
@@ -617,7 +619,7 @@ router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admi
       'organization_users',
       targetUserId,
       null,
-      null,
+      { removedEmail: targetEmail },
       req
     );
 
@@ -1002,7 +1004,7 @@ router.get('/security', requireAuth, async (req: AuthenticatedRequest, res: Resp
       success: true,
       data: {
         two_factor_enforced: sec.two_factor_enforced !== undefined ? Boolean(sec.two_factor_enforced) : true,
-        session_timeout: sec.session_timeout || '30m',
+        session_timeout: sec.session_timeout || '7d',
         failed_lockout_limit: sec.failed_lockout_limit || '5',
         ip_whitelist: Array.isArray(sec.ip_whitelist) ? sec.ip_whitelist : []
       }

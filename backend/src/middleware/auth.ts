@@ -29,10 +29,14 @@ function getJwtSecret(): string {
 const JWT_SECRET = getJwtSecret();
 
 // ---------------------------------------------------------------------------
-// Token generation
+// Token generation (7-day persistence supported)
 // ---------------------------------------------------------------------------
-export function generateToken(user: AuthenticatedUser): string {
-  return jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
+export function generateToken(user: AuthenticatedUser, rememberMe: boolean = true): string {
+  const payload = {
+    ...user,
+    rememberMe
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: rememberMe ? '7d' : '24h' });
 }
 
 // ---------------------------------------------------------------------------
@@ -110,11 +114,12 @@ export async function requireAuth(
   if (decoded.organizationId) {
     const sec = await getOrgSecurity(decoded.organizationId);
 
-    // Enforce session timeout
-    const timeoutMs = parseTimeoutMs(sec.session_timeout);
-    if (timeoutMs !== null) {
-      const payload = decoded as any;
-      if (payload.iat) {
+    // Enforce session timeout only for non-persistent sessions (rememberMe === false)
+    // If rememberMe is true (or undefined/default), token validity is governed by the 7-day JWT expiration.
+    const payload = decoded as any;
+    if (payload.rememberMe === false && sec.session_timeout) {
+      const timeoutMs = parseTimeoutMs(sec.session_timeout);
+      if (timeoutMs !== null && payload.iat) {
         const ageMs = Date.now() - payload.iat * 1000;
         if (ageMs > timeoutMs) {
           res.status(401).json({

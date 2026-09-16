@@ -107,7 +107,7 @@ interface AuthContextType {
   switchPersona: (personaId: string) => void;
   canAccessTab: (tabId: string) => boolean;
   can: (resource: string, action: string) => boolean;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
 }
 
@@ -149,19 +149,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updatedUser);
     try {
       localStorage.setItem('optivir_persona_id', persona.id);
-      localStorage.removeItem('optivir_user');
-      localStorage.removeItem('optivir_org');
+      localStorage.setItem('optivir_cached_user', JSON.stringify(updatedUser));
       if (!localStorage.getItem('optivir_token') && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
         const dummyToken = `ov_jwt_demo_${persona.role}_${Date.now()}`;
         localStorage.setItem('optivir_token', dummyToken);
         setToken(dummyToken);
       }
-      setOrganization({
+      const defaultOrg: Organization = {
         id: 'org-1',
         name: 'OptiVir CRM Global',
         slug: 'optivir-crm',
         currency: 'INR'
-      });
+      };
+      setOrganization(defaultOrg);
+      localStorage.setItem('optivir_cached_org', JSON.stringify(defaultOrg));
     } catch (e) {
       console.warn('Unable to persist persona preference', e);
     }
@@ -170,21 +171,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // Clean up legacy localStorage business state if still present
-        localStorage.removeItem('optivir_user');
-        localStorage.removeItem('optivir_org');
-
         const storedToken = localStorage.getItem('optivir_token');
         const storedPersonaId = localStorage.getItem('optivir_persona_id');
+        const cachedUserRaw = localStorage.getItem('optivir_cached_user');
+        const cachedOrgRaw = localStorage.getItem('optivir_cached_org');
 
         if (storedToken) {
           setToken(storedToken);
+
+          // Restore cached user and organization immediately to eliminate UI flicker
+          if (cachedUserRaw) {
+            try {
+              const parsedUser = JSON.parse(cachedUserRaw);
+              setUser(parsedUser);
+            } catch {}
+          }
+          if (cachedOrgRaw) {
+            try {
+              const parsedOrg = JSON.parse(cachedOrgRaw);
+              setOrganization(parsedOrg);
+            } catch {}
+          }
+          if (storedPersonaId) {
+            const found = AGENCY_PERSONAS.find(p => p.id === storedPersonaId);
+            if (found) {
+              setActivePersona(found);
+            }
+          }
+
           // Hydrate user and org state directly from backend /auth/me as the primary source of truth
           try {
             const meRes = await api.getMe();
             if (meRes && meRes.success && meRes.data) {
               const d = meRes.data;
-              const isSuper = d.is_owner || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com';
+              const isSuper = d.is_owner || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com' || d.email?.toLowerCase() === 'abhinandc97@gmail.com';
               const freshUser: User = {
                 id: d.id,
                 email: d.email,
@@ -196,13 +216,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 isOwner: Boolean(d.is_owner),
                 allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard'])
               };
-              setUser(freshUser);
-              setOrganization({
+              const freshOrg: Organization = {
                 id: d.organization_id || 'org-1',
                 name: d.organization_name || 'OptiVir CRM Global',
                 slug: d.organization_slug || 'optivir-crm',
                 currency: d.currency || 'INR'
-              });
+              };
+
+              setUser(freshUser);
+              setOrganization(freshOrg);
+              localStorage.setItem('optivir_cached_user', JSON.stringify(freshUser));
+              localStorage.setItem('optivir_cached_org', JSON.stringify(freshOrg));
+
+              if (d.token) {
+                localStorage.setItem('optivir_token', d.token);
+                setToken(d.token);
+              }
 
               if (storedPersonaId) {
                 const found = AGENCY_PERSONAS.find(p => p.id === storedPersonaId);
@@ -213,19 +242,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   });
                 }
               }
-            } else {
-              // Token invalid/expired on server
+            } else if ((meRes as any)?.status === 401 || (meRes as any)?.status === 403) {
+              // Token strictly rejected by server as invalid
               localStorage.removeItem('optivir_token');
+              localStorage.removeItem('optivir_cached_user');
+              localStorage.removeItem('optivir_cached_org');
               setToken(null);
               setUser(null);
               setOrganization(null);
             }
-          } catch {
-            // Token expired or server unreachable with invalid credentials
-            localStorage.removeItem('optivir_token');
-            setToken(null);
-            setUser(null);
-            setOrganization(null);
+          } catch (apiErr: any) {
+            // ONLY log out if the backend definitively returns 401/403 HTTP status.
+            // Do NOT log out on network disconnects, server restarts, or 500 errors.
+            if (apiErr?.status === 401 || apiErr?.status === 403) {
+              console.warn('Session token expired or rejected by server:', apiErr?.message);
+              localStorage.removeItem('optivir_token');
+              localStorage.removeItem('optivir_cached_user');
+              localStorage.removeItem('optivir_cached_org');
+              setToken(null);
+              setUser(null);
+              setOrganization(null);
+            } else {
+              console.warn('Server offline or network unavailable during auth sync; retaining local session.');
+            }
           }
         } else {
           setToken(null);
@@ -234,8 +273,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
-        setToken(null);
-        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -252,8 +289,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccessTab = (tabId: string): boolean => {
-    // 1. Super admin / optivirads@gmail.com / owner
-    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.isOwner || user?.role === 'super_admin') {
+    // 1. Super admin / optivirads@gmail.com / abhinandc97@gmail.com / owner
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin') {
       return true;
     }
     // 2. User specific allowed_tabs from database
@@ -268,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const can = (resource: string, action: string): boolean => {
-    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.isOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
     if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
       if (user.allowed_tabs.includes('*') || user.allowed_tabs.includes(resource)) return true;
     }
@@ -279,15 +316,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const login = async (email: string, pass: string) => {
+  const login = async (email: string, pass: string, rememberMe: boolean = true) => {
     const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
     try {
-      const res = await api.login(email, pass);
+      const res = await api.login(email, pass, rememberMe);
       if (res && res.success && res.data) {
         localStorage.setItem('optivir_token', res.data.token);
-        localStorage.removeItem('optivir_user');
-        localStorage.removeItem('optivir_org');
+        localStorage.setItem('optivir_cached_user', JSON.stringify(res.data.user));
+        localStorage.setItem('optivir_cached_org', JSON.stringify(res.data.organization));
+        localStorage.setItem('optivir_remember_me', rememberMe ? 'true' : 'false');
+
         const matchedPersona = AGENCY_PERSONAS.find(p => p.email.toLowerCase() === res.data.user.email?.toLowerCase());
         if (matchedPersona) {
           localStorage.setItem('optivir_persona_id', matchedPersona.id);
@@ -354,9 +393,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const tokenVal = `ov_jwt_demo_${matchedPersona.role}_${Date.now()}`;
       localStorage.setItem('optivir_token', tokenVal);
-      localStorage.removeItem('optivir_user');
-      localStorage.removeItem('optivir_org');
+      localStorage.setItem('optivir_cached_user', JSON.stringify(fallbackUser));
+      localStorage.setItem('optivir_cached_org', JSON.stringify(fallbackOrg));
       localStorage.setItem('optivir_persona_id', matchedPersona.id);
+      localStorage.setItem('optivir_remember_me', 'true');
 
       setActivePersona(matchedPersona);
       setToken(tokenVal);
@@ -367,9 +407,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('optivir_token');
-    localStorage.removeItem('optivir_user');
-    localStorage.removeItem('optivir_org');
+    localStorage.removeItem('optivir_cached_user');
+    localStorage.removeItem('optivir_cached_org');
     localStorage.removeItem('optivir_persona_id');
+    localStorage.removeItem('optivir_remember_me');
     setUser(null);
     setOrganization(null);
     setToken(null);

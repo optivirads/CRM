@@ -244,10 +244,10 @@ export class SocialMediaSyncService {
             const vid = item.id?.videoId;
             if (!vid) continue;
             const stats = statsMap[vid] || {};
-            const views = parseInt(stats.viewCount || '0', 10) || 1200;
-            const likes = parseInt(stats.likeCount || '0', 10) || 85;
-            const comments = parseInt(stats.commentCount || '0', 10) || 14;
-            const er = Number((((likes + comments) / Math.max(views, 1)) * 100).toFixed(2));
+            const views = parseInt(stats.viewCount || '0', 10) || 0;
+            const likes = parseInt(stats.likeCount || '0', 10) || 0;
+            const comments = parseInt(stats.commentCount || '0', 10) || 0;
+            const er = views > 0 ? Number((((likes + comments) / views) * 100).toFixed(2)) : 0;
 
             posts.push({
               id: `yt-${vid}`,
@@ -258,12 +258,12 @@ export class SocialMediaSyncService {
               caption: item.snippet?.title || '',
               likes,
               comments,
-              shares: Math.floor(likes * 0.15),
-              saves: Math.floor(likes * 0.2),
+              shares: 0,
+              saves: 0,
               reach: views,
-              impressions: Math.round(views * 1.3),
-              clicks: Math.floor(views * 0.04),
-              engagement_rate: er > 0 ? er : 4.5,
+              impressions: views,
+              clicks: 0,
+              engagement_rate: er,
               top_insight: `${views.toLocaleString()} real views on YouTube; ${likes} audience likes.`,
               published_at: item.snippet?.publishedAt || new Date().toISOString(),
               is_imported: false
@@ -298,10 +298,10 @@ export class SocialMediaSyncService {
             const vid = vidMatch[1];
             const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : 'YouTube Video';
             const pubDate = pubMatch ? pubMatch[1] : new Date().toISOString();
-            const views = viewsMatch ? parseInt(viewsMatch[1], 10) : 1200;
-            const likes = Math.round(views * 0.04);
-            const comments = Math.round(views * 0.008);
-            const er = Number((((likes + comments) / Math.max(views, 1)) * 100).toFixed(2));
+            const views = viewsMatch ? parseInt(viewsMatch[1], 10) : 0;
+            const likes = 0;
+            const comments = 0;
+            const er = 0;
 
             posts.push({
               id: `yt-${vid}`,
@@ -312,12 +312,12 @@ export class SocialMediaSyncService {
               caption: title,
               likes,
               comments,
-              shares: Math.floor(likes * 0.2),
-              saves: Math.floor(likes * 0.15),
+              shares: 0,
+              saves: 0,
               reach: views,
-              impressions: Math.round(views * 1.35),
-              clicks: Math.floor(views * 0.035),
-              engagement_rate: er > 0 ? er : 4.8,
+              impressions: views,
+              clicks: 0,
+              engagement_rate: er,
               top_insight: `${views.toLocaleString()} live views recorded from official YouTube channel stream.`,
               published_at: pubDate,
               is_imported: false
@@ -363,12 +363,13 @@ export class SocialMediaSyncService {
     const discoveredPages: any[] = [];
     let directInstagram: any = null;
     const missingPermissions: string[] = [];
+    let lastMetaApiError: string | null = null;
 
     // 1. Inspect Token Permissions via /me/permissions
     try {
       const permRes = await fetch(`https://graph.facebook.com/v20.0/me/permissions?access_token=${cleanToken}`);
-      if (permRes.ok) {
-        const permData: any = await permRes.json();
+      const permData: any = await permRes.json();
+      if (permRes.ok && permData.data) {
         const grantedSet = new Set(
           (permData.data || []).filter((p: any) => p.status === 'granted').map((p: any) => p.permission)
         );
@@ -378,8 +379,12 @@ export class SocialMediaSyncService {
             missingPermissions.push(req);
           }
         }
+      } else if (permData.error) {
+        lastMetaApiError = permData.error.message || `Meta API Error (${permData.error.code})`;
       }
-    } catch {}
+    } catch (e: any) {
+      lastMetaApiError = e?.message || lastMetaApiError;
+    }
 
     // 2. Test direct Instagram Graph API (graph.instagram.com)
     try {
@@ -455,10 +460,37 @@ export class SocialMediaSyncService {
             } : null
           });
         }
+      } else if (accountsData.error) {
+        lastMetaApiError = accountsData.error.message || lastMetaApiError;
       }
     } catch {}
 
-    // 4. If me/accounts did not return pages, check if this is directly a Page Access Token (/me)
+    // 4. Query /me/businesses (Business accounts with linked Instagram Business accounts)
+    try {
+      const bizRes = await fetch(
+        `https://graph.facebook.com/v20.0/me/businesses?fields=id,name,instagram_business_accounts{id,username,name,profile_picture_url}&access_token=${cleanToken}`
+      );
+      if (bizRes.ok) {
+        const bizData: any = await bizRes.json();
+        if (bizData.data && Array.isArray(bizData.data)) {
+          for (const b of bizData.data) {
+            const igAccounts = b.instagram_business_accounts?.data || [];
+            for (const ig of igAccounts) {
+              if (ig && ig.id && !directInstagram) {
+                directInstagram = {
+                  id: ig.id,
+                  username: ig.username || '',
+                  name: ig.name || '',
+                  profile_picture_url: ig.profile_picture_url || ''
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // 5. If me/accounts did not return pages, check if this is directly a Page Access Token (/me)
     if (discoveredPages.length === 0) {
       try {
         const meRes = await fetch(
@@ -467,7 +499,7 @@ export class SocialMediaSyncService {
         const meData: any = await meRes.json();
 
         if (meData.id && meData.name) {
-          let ig = meData.instagram_business_account || meData.connected_instagram_account || null;
+          let ig = meData.instagram_business_account || meData.connected_instagram_account || directInstagram || null;
           if (!ig) {
             try {
               const igAccRes = await fetch(
@@ -494,11 +526,13 @@ export class SocialMediaSyncService {
               profile_picture_url: ig.profile_picture_url || ''
             } : null
           });
+        } else if (meData.error) {
+          lastMetaApiError = meData.error.message || lastMetaApiError;
         }
       } catch {}
     }
 
-    // 5. If direct Instagram was found and no pages, wrap it into a virtual account
+    // 6. If direct Instagram was found and no pages, wrap it into a virtual account
     if (directInstagram && discoveredPages.length === 0) {
       discoveredPages.push({
         id: `ig-direct-${directInstagram.id}`,
@@ -508,13 +542,20 @@ export class SocialMediaSyncService {
         instagram: {
           id: directInstagram.id,
           username: directInstagram.username,
-          name: directInstagram.username,
-          profile_picture_url: ''
+          name: directInstagram.name || directInstagram.username,
+          profile_picture_url: directInstagram.profile_picture_url || ''
         }
       });
     }
 
+    // 7. If still 0 discovered and we have a specific Meta API error (e.g. Session expired)
     if (discoveredPages.length === 0) {
+      if (lastMetaApiError) {
+        if (lastMetaApiError.toLowerCase().includes('expired') || lastMetaApiError.toLowerCase().includes('session')) {
+          throw new Error(`Your Meta Access Token has expired: "${lastMetaApiError}". Temporary Graph API Explorer tokens expire after 1–2 hours. Please generate a new User Access Token in Meta Graph API Explorer or create a permanent System User Token in Meta Business Suite.`);
+        }
+        throw new Error(`Meta API error: ${lastMetaApiError}. Please verify your access token is valid and has pages_show_list, pages_read_engagement, and instagram_basic permissions.`);
+      }
       throw new Error('No Facebook Pages or Instagram Business accounts were accessible with this Meta token. Please verify your token has pages_show_list, pages_read_engagement, and instagram_basic permissions.');
     }
 
@@ -644,8 +685,9 @@ export class SocialMediaSyncService {
                 const likes = item.like_count || item.reactions?.summary?.total_count || 0;
                 const comments = item.comments_count || item.comments?.summary?.total_count || 0;
                 const shares = item.shares?.count || 0;
-                const reach = Math.max(likes * 12, 100);
-                const er = Number((((likes + comments + shares) / reach) * 100).toFixed(2));
+                const reach = item.insights?.data?.find((ins: any) => ins.name === 'reach')?.values?.[0]?.value || 0;
+                const impressions = item.insights?.data?.find((ins: any) => ins.name === 'impressions')?.values?.[0]?.value || 0;
+                const er = reach > 0 ? Number((((likes + comments + shares) / reach) * 100).toFixed(2)) : 0;
 
                 posts.push({
                   id: `${platform.toLowerCase()}-${item.id}`,
@@ -657,10 +699,10 @@ export class SocialMediaSyncService {
                   likes,
                   comments,
                   shares,
-                  saves: Math.floor(likes * 0.1),
+                  saves: 0,
                   reach,
-                  impressions: Math.round(reach * 1.3),
-                  clicks: Math.floor(reach * 0.02),
+                  impressions,
+                  clicks: 0,
                   engagement_rate: er,
                   top_insight: `Verified live data fetched via Meta Graph API (${likes} reactions, ${comments} comments).`,
                   published_at: item.timestamp || item.created_time || new Date().toISOString(),

@@ -81,14 +81,25 @@ export function isEncrypted(value: string): boolean {
 }
 
 /**
- * Encrypts all string values inside a config object (shallow).
+ * Encrypts all string values inside a config object (and inside adAccounts array).
  * Non-string values (numbers, booleans, arrays, objects) are left as-is.
  * Already-encrypted values are left as-is (idempotent).
  */
 export function encryptConfigObject(config: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [k, v] of Object.entries(config)) {
-    if (typeof v === 'string' && v.length > 0 && !isEncrypted(v)) {
+    if (k === 'adAccounts' && Array.isArray(v)) {
+      result[k] = v.map((item: any) => {
+        if (item && typeof item === 'object') {
+          const itemCopy = { ...item };
+          if (itemCopy.access_token && typeof itemCopy.access_token === 'string' && itemCopy.access_token.length > 0 && !isEncrypted(itemCopy.access_token)) {
+            itemCopy.access_token = encryptSecret(itemCopy.access_token);
+          }
+          return itemCopy;
+        }
+        return item;
+      });
+    } else if (typeof v === 'string' && v.length > 0 && !isEncrypted(v)) {
       result[k] = encryptSecret(v);
     } else {
       result[k] = v;
@@ -98,13 +109,28 @@ export function encryptConfigObject(config: Record<string, any>): Record<string,
 }
 
 /**
- * Decrypts all string values inside a config object (shallow).
+ * Decrypts all string values inside a config object (and inside adAccounts array).
  * Non-encrypted string values are returned as-is.
  */
 export function decryptConfigObject(config: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [k, v] of Object.entries(config)) {
-    if (typeof v === 'string' && isEncrypted(v)) {
+    if (k === 'adAccounts' && Array.isArray(v)) {
+      result[k] = v.map((item: any) => {
+        if (item && typeof item === 'object') {
+          const itemCopy = { ...item };
+          if (itemCopy.access_token && typeof itemCopy.access_token === 'string' && isEncrypted(itemCopy.access_token)) {
+            try {
+              itemCopy.access_token = decryptSecret(itemCopy.access_token);
+            } catch {
+              itemCopy.access_token = '[DECRYPTION_FAILED]';
+            }
+          }
+          return itemCopy;
+        }
+        return item;
+      });
+    } else if (typeof v === 'string' && isEncrypted(v)) {
       try {
         result[k] = decryptSecret(v);
       } catch {

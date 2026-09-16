@@ -307,21 +307,50 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
-  const { company_id, company_name, primary_contact_id, contract_value, billing_frequency, health_status, status, renewal_date, start_date, notes } = req.body;
+  const {
+    company_id,
+    company_name,
+    industry,
+    website,
+    primary_contact_id,
+    contact_name,
+    contact_first,
+    contact_last,
+    contact_email,
+    contact_phone,
+    contact_role,
+    account_manager_id,
+    contract_value,
+    billing_frequency,
+    health_status,
+    status,
+    renewal_date,
+    start_date,
+    notes
+  } = req.body;
 
   try {
     let resolvedCompanyId = company_id;
     if (!resolvedCompanyId && company_name) {
       const compRes = await db.query(`
-        INSERT INTO companies (organization_id, name, created_by)
-        VALUES ($1, $2, $3)
+        INSERT INTO companies (organization_id, name, industry, website, created_by)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT DO NOTHING
         RETURNING id;
-      `, [orgId, company_name.trim(), userId]);
+      `, [orgId, company_name.trim(), industry || 'Technology', website || null, userId]);
       resolvedCompanyId = compRes.rows[0]?.id;
       if (!resolvedCompanyId) {
         const existing = await db.query('SELECT id FROM companies WHERE organization_id = $1 AND name ILIKE $2 LIMIT 1;', [orgId, company_name.trim()]);
         resolvedCompanyId = existing.rows[0]?.id;
+        if (resolvedCompanyId && (industry || website)) {
+          await db.query(`
+            UPDATE companies
+            SET industry = COALESCE($1, industry),
+                website = COALESCE($2, website),
+                updated_at = NOW()
+            WHERE id = $3;
+          `, [industry, website, resolvedCompanyId]);
+        }
       }
     }
 
@@ -330,6 +359,42 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
+    // Handle primary contact creation if provided
+    let resolvedContactId = primary_contact_id || null;
+    const rawContactName = contact_name || contact_first || '';
+    if (!resolvedContactId && (rawContactName || contact_email)) {
+      const parts = rawContactName.trim().split(/\s+/);
+      const fName = parts[0] || 'Contact';
+      const lName = parts.slice(1).join(' ') || '';
+
+      const contactRes = await db.query(`
+        INSERT INTO contacts (organization_id, company_id, first_name, last_name, email, phone, designation, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id;
+      `, [
+        orgId,
+        resolvedCompanyId,
+        fName,
+        lName || '',
+        contact_email || null,
+        contact_phone || null,
+        contact_role || 'Primary Contact',
+        userId
+      ]);
+      resolvedContactId = contactRes.rows[0]?.id;
+    }
+
+    const normBillingFreq = (() => {
+      if (!billing_frequency) return 'monthly';
+      const f = String(billing_frequency).toLowerCase().trim();
+      if (f === 'annual' || f === 'annually' || f.includes('annual')) return 'annually';
+      if (f === 'quarterly') return 'quarterly';
+      if (f === 'one_off' || f === 'one_time') return 'one_off';
+      if (f === 'on_demand' || f.includes('demand')) return 'on_demand';
+      if (f === 'pay_as_you_go') return 'pay_as_you_go';
+      return f;
+    })();
+
     const result = await db.query(`
       INSERT INTO clients (
         organization_id, company_id, primary_contact_id, account_manager_id, contract_value,
@@ -337,9 +402,18 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *;
     `, [
-      orgId, resolvedCompanyId, primary_contact_id || null, userId, contract_value || 0,
-      billing_frequency || 'monthly', health_status || 'Healthy', status || 'Active',
-      start_date || new Date(), renewal_date || null, notes || null, userId
+      orgId,
+      resolvedCompanyId,
+      resolvedContactId,
+      account_manager_id || userId,
+      contract_value || 0,
+      normBillingFreq,
+      health_status || 'Healthy',
+      status || 'Active',
+      start_date || new Date(),
+      renewal_date || null,
+      notes || null,
+      userId
     ]);
 
     await recordAuditLog(orgId, userId, 'CREATE', 'clients', result.rows[0].id, null, result.rows[0], req);
@@ -373,6 +447,66 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
+    // If company fields are provided, update company table
+    const {
+      company_name,
+      industry,
+      website,
+      city,
+      contact_first,
+      contact_last,
+      contact_email,
+      contact_phone,
+      contact_role
+    } = req.body;
+
+    if (current.rows[0].company_id && (company_name || industry !== undefined || website !== undefined || city !== undefined)) {
+      await db.query(`
+        UPDATE companies
+        SET 
+          name = COALESCE($1, name),
+          industry = COALESCE($2, industry),
+          website = COALESCE($3, website),
+          city = COALESCE($4, city),
+          updated_at = NOW()
+        WHERE id = $5 AND organization_id = $6;
+      `, [company_name, industry, website, city, current.rows[0].company_id, orgId]);
+    }
+
+    // If contact fields are provided, update or create contact
+    let cFirst = contact_first;
+    let cLast = contact_last;
+    if (!cFirst && req.body.contact_name) {
+      const parts = req.body.contact_name.trim().split(' ');
+      cFirst = parts[0];
+      cLast = parts.slice(1).join(' ') || '';
+    }
+
+    if (cFirst || contact_email) {
+      if (current.rows[0].primary_contact_id) {
+        await db.query(`
+          UPDATE contacts
+          SET 
+            first_name = COALESCE($1, first_name),
+            last_name = COALESCE($2, last_name),
+            email = COALESCE($3, email),
+            phone = COALESCE($4, phone),
+            designation = COALESCE($5, designation),
+            updated_at = NOW()
+          WHERE id = $6;
+        `, [cFirst, cLast, contact_email, contact_phone, contact_role, current.rows[0].primary_contact_id]);
+      } else {
+        const newContact = await db.query(`
+          INSERT INTO contacts (organization_id, company_id, first_name, last_name, email, phone, designation, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING id;
+        `, [orgId, current.rows[0].company_id, cFirst || 'Primary', cLast || 'Contact', contact_email || null, contact_phone || null, contact_role || 'Lead Stakeholder', userId]);
+        if (newContact.rows.length > 0) {
+          await db.query('UPDATE clients SET primary_contact_id = $1 WHERE id = $2;', [newContact.rows[0].id, clientId]);
+        }
+      }
+    }
+
     const updated = await db.query(`
       UPDATE clients
       SET 
@@ -403,17 +537,21 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       orgId
     ]);
 
-    // Fetch updated client with AM info
+    // Fetch updated client with company, contact & AM info
     const fullRes = await db.query(`
       SELECT 
         c.*,
+        comp.name as company_name, comp.industry, comp.website, comp.city,
+        ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email
       FROM clients c
+      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
       WHERE c.id = $1;
     `, [clientId]);
 
-    await recordAuditLog(orgId, userId, 'UPDATE', 'clients', clientId, current.rows[0], updated.rows[0], req);
+    await recordAuditLog(orgId, userId, 'UPDATE', 'clients', clientId, current.rows[0], fullRes.rows[0] || updated.rows[0], req);
     res.json({ success: true, data: fullRes.rows[0] || updated.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

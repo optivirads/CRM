@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '');
 
 class ApiClient {
   private getToken(): string | null {
@@ -19,7 +20,8 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
       ...options,
       headers,
     });
@@ -44,10 +46,10 @@ class ApiClient {
   }
 
   // Auth
-  async login(email: string, password: string) {
+  async login(email: string, password: string, rememberMe: boolean = true) {
     return this.request<{ success: boolean; data: any }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
     });
   }
 
@@ -288,27 +290,6 @@ class ApiClient {
     });
   }
 
-  // Ad Spend & Quick Metric Logging
-  async quickLogAdSpend(payload: {
-    client_id: string;
-    campaign_id?: string;
-    campaign_name?: string;
-    platform?: string;
-    date?: string;
-    spend: number;
-    impressions?: number;
-    reach?: number;
-    clicks?: number;
-    leads?: number;
-    conversions?: number;
-    revenue?: number;
-    notes?: string;
-  }) {
-    return this.request<{ success: boolean; message: string; data: any }>('/marketing/campaigns/quick-log', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
 
   // Projects & Tasks
   async getProjects(clientId?: string) {
@@ -365,10 +346,6 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>('/finance/expenses');
   }
 
-  // Marketing
-  async getCampaigns(clientId?: string) {
-    return this.request<{ success: boolean; data: any[] }>(`/marketing/campaigns${clientId ? `?clientId=${clientId}` : ''}`);
-  }
 
   async getMarketingAnalytics() {
     return this.request<{ success: boolean; data: any }>('/marketing/analytics');
@@ -484,6 +461,18 @@ class ApiClient {
   }
 
   // Marketing (CRUD)
+  async getCampaigns(clientId?: string) {
+    const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+    return this.request<{ success: boolean; data: any[] }>(`/marketing/campaigns${query}`);
+  }
+
+  async quickLogAdSpend(payload: any) {
+    return this.request<{ success: boolean; data: any; message?: string }>('/marketing/campaigns/quick-log', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async createCampaign(payload: any) {
     return this.request<{ success: boolean; data: any }>('/marketing/campaigns', {
       method: 'POST',
@@ -500,6 +489,42 @@ class ApiClient {
 
   async deleteCampaign(id: string) {
     return this.request<{ success: boolean; message: string }>(`/marketing/campaigns/${id}`, { method: 'DELETE' });
+  }
+
+  async getDiscoverableAdAccounts(platform: string = 'Meta') {
+    return this.request<{ success: boolean; data: any[] }>(`/marketing/ad-accounts/discover?platform=${encodeURIComponent(platform)}`);
+  }
+
+  async previewAdAccountCampaigns(adAccountId: string, platform: string = 'Meta', accessToken?: string, clientId?: string) {
+    let url = `/marketing/ad-accounts/preview-campaigns?ad_account_id=${encodeURIComponent(adAccountId)}&platform=${encodeURIComponent(platform)}`;
+    if (accessToken) {
+      url += `&access_token=${encodeURIComponent(accessToken)}`;
+    }
+    if (clientId) {
+      url += `&client_id=${encodeURIComponent(clientId)}`;
+    }
+    return this.request<{ success: boolean; data: any[]; alreadyInCrm?: any[]; totalDiscovered?: number }>(url);
+  }
+
+  async syncCampaignTelemetry(clientId?: string) {
+    return this.request<{ success: boolean; message: string; updatedCount?: number }>('/marketing/campaigns/sync-telemetry', {
+      method: 'POST',
+      body: JSON.stringify({ client_id: clientId }),
+    });
+  }
+
+  async connectAdAccountToClient(payload: {
+    client_id: string;
+    ad_account_id: string;
+    ad_account_name?: string;
+    platform?: string;
+    access_token?: string;
+    selected_campaign_ids?: string[];
+  }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/marketing/campaigns/connect-ad-account', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // Delete Operations (CRUD)

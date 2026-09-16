@@ -46,7 +46,7 @@ export const LoginView: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      await login(email.trim(), password.trim());
+      await login(email.trim(), password.trim(), rememberMe);
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
@@ -63,7 +63,7 @@ export const LoginView: React.FC = () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await login(persona.email, 'admin123');
+      await login(persona.email, 'admin123', true);
     } catch (err: any) {
       setErrorMessage(err.message || 'Quick login failed.');
     } finally {
@@ -398,7 +398,7 @@ export const LoginView: React.FC = () => {
       {/* 5. LAYER 5: SEMI-TRANSPARENT FLOATING FOOTER                              */}
       {/* ========================================================================= */}
       <footer className="relative z-20 w-full max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 border-t border-white/10 gap-2 bg-slate-950/30 backdrop-blur-xl rounded-t-2xl">
-        <div>© 2026 OptiVir Technologies Pvt. Ltd. • All Rights Reserved</div>
+        <div>© {new Date().getFullYear()} OptiVir Technologies Pvt. Ltd. • All Rights Reserved</div>
         <div className="flex items-center space-x-4">
           <span className="hover:text-white cursor-pointer transition">Security Whitepaper</span>
           <span className="hover:text-white cursor-pointer transition">GST Compliance Policy</span>

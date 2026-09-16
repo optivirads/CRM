@@ -151,6 +151,24 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [spendDate, setSpendDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [spendNotes, setSpendNotes] = useState<string>('');
 
+  // Connect Ad Account to Client State
+  const [showConnectAdAccountModal, setShowConnectAdAccountModal] = useState(false);
+  const [isConnectingAdAccount, setIsConnectingAdAccount] = useState(false);
+  const [isLoadingDiscoverAdAccounts, setIsLoadingDiscoverAdAccounts] = useState(false);
+  const [discoverableAdAccounts, setDiscoverableAdAccounts] = useState<any[]>([]);
+  const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>('');
+  const [customAdAccountId, setCustomAdAccountId] = useState<string>('');
+  const [connectPlatform, setConnectPlatform] = useState<string>('Meta');
+  const [customAccessToken, setCustomAccessToken] = useState<string>('');
+
+  // Multi-Client Campaign Selective Import
+  const [availableAdCampaigns, setAvailableAdCampaigns] = useState<any[]>([]);
+  const [alreadyInCrmCampaigns, setAlreadyInCrmCampaigns] = useState<any[]>([]);
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
+  const [isLoadingAdCampaigns, setIsLoadingAdCampaigns] = useState<boolean>(false);
+  const [isSyncingTelemetry, setIsSyncingTelemetry] = useState<boolean>(false);
+  const [modalCampaignSearch, setModalCampaignSearch] = useState<string>('');
+
   // Social Media Insights & Post Snapshots State
   const [socialData, setSocialData] = useState<{
     posts: any[];
@@ -297,7 +315,11 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
         // Load client-specific campaigns
         const campRes = await api.getCampaigns(targetId).catch(() => null);
-        if (campRes?.data && Array.isArray(campRes.data)) {
+        if (campRes?.data && Array.isArray(campRes.data) && campRes.data.length > 0) {
+          setDbCampaigns(campRes.data);
+        } else if (res?.data?.marketing?.campaigns && Array.isArray(res.data.marketing.campaigns)) {
+          setDbCampaigns(res.data.marketing.campaigns);
+        } else if (campRes?.data && Array.isArray(campRes.data)) {
           setDbCampaigns(campRes.data);
         }
       }
@@ -369,6 +391,37 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [showCommercialModal, setShowCommercialModal] = useState(false);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [showGenerateDeliverableModal, setShowGenerateDeliverableModal] = useState(false);
+
+  // Edit Account & Commercials Form State
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editIndustry, setEditIndustry] = useState('Technology');
+  const [editWebsite, setEditWebsite] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editContactFirst, setEditContactFirst] = useState('');
+  const [editContactLast, setEditContactLast] = useState('');
+  const [editContactEmail, setEditContactEmail] = useState('');
+  const [editContactPhone, setEditContactPhone] = useState('');
+  const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
+  const [editContractValue, setEditContractValue] = useState('0');
+  const [editBillingFrequency, setEditBillingFrequency] = useState('monthly');
+  const [editHealthStatus, setEditHealthStatus] = useState('Healthy');
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+
+  const openEditAccountModal = () => {
+    setEditCompanyName(liveClient?.company_name || activeClientName || '');
+    setEditIndustry(liveClient?.industry || 'Technology');
+    setEditWebsite(liveClient?.website || '');
+    setEditCity(liveClient?.city || '');
+    setEditContactFirst(liveClient?.contact_first || '');
+    setEditContactLast(liveClient?.contact_last || '');
+    setEditContactEmail(liveClient?.contact_email || '');
+    setEditContactPhone(liveClient?.contact_phone || '');
+    setEditContactRole(liveClient?.contact_role || 'Lead Stakeholder');
+    setEditContractValue(liveClient?.contract_value ? String(liveClient.contract_value) : '0');
+    setEditBillingFrequency(liveClient?.billing_frequency || 'monthly');
+    setEditHealthStatus(liveClient?.health_status || 'Healthy');
+    setShowEditModal(true);
+  };
 
   // Credential Vault & Delegation Architecture State
   const [vaultSubMode, setVaultSubMode] = useState<'delegation' | 'fallback_vault'>('delegation');
@@ -474,26 +527,31 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [campaignPlatformFilter, setCampaignPlatformFilter] = useState<'ALL' | 'GOOGLE' | 'META'>('ALL');
   const [campaignSearchQuery, setCampaignSearchQuery] = useState('');
 
-  const activeCampaigns = dbCampaigns.length > 0 ? dbCampaigns.map((c: any) => {
+  const activeCampaigns = dbCampaigns.length > 0 ? dbCampaigns.map((c: any, idx: number) => {
     const spend = Number(c.total_spend || c.spend || 0);
     const rev = Number(c.total_revenue || c.revenue || 0);
     const leads = Number(c.total_leads || c.leads || 0);
     const conv = Number(c.total_conversions || c.conversions || 0);
     const clicks = Number(c.total_clicks || c.clicks || 0);
     const imp = Number(c.total_impressions || c.impressions || 0);
-    const budget = Number(c.budget || (spend > 0 ? spend * 1.5 : 50000));
+    const reach = Number(c.total_reach || c.reach || Math.round(imp * 0.78) || 0);
+    const budget = Number(c.budget || spend || 0);
     const roas = c.avg_roas ? Number(c.avg_roas) : (spend > 0 && rev > 0 ? Number((rev / spend).toFixed(2)) : 0);
     const ctr = imp > 0 ? Number(((clicks / imp) * 100).toFixed(2)) : 0;
     const cpc = clicks > 0 ? Number((spend / clicks).toFixed(2)) : 0;
-    const cpl = leads > 0 ? Number((spend / leads).toFixed(2)) : 0;
+    const cpl = leads > 0 ? Number((spend / leads).toFixed(0)) : 0;
+    const cvr = clicks > 0 ? Number(((conv / clicks) * 100).toFixed(2)) : 0;
+    const adAccountNote = c.notes || '';
+    const adCreatives = (c.ads && Array.isArray(c.ads)) ? c.ads : [];
+    const adCount = adCreatives.length > 0 ? adCreatives.length : (c.ad_count || 1);
 
     return {
       id: c.id,
       name: c.name,
-      platform: c.platform?.includes('Google') ? 'Google Ads' : 'Meta Ads',
-      channel: c.platform?.includes('Google') ? 'Paid Search & PMax' : 'Instagram & Facebook Ads',
+      platform: c.platform?.includes('Google') ? 'Google Ads' : (c.platform?.includes('Meta') ? 'Meta Ads' : (c.platform || 'Other')),
+      channel: c.platform?.includes('Google') ? 'Paid Search & PMax' : 'Instagram Reels & FB Feed',
       status: c.status || 'Active',
-      targetAudience: c.objective || 'Lead Generation & Conversions',
+      targetAudience: c.objective || 'Lead Generation & Sales',
       spendMtd: spend,
       monthlyBudget: budget,
       attributedRev: rev,
@@ -501,13 +559,34 @@ export const Client360View: React.FC<Client360ViewProps> = ({
       conversions: conv || leads,
       clicks: clicks,
       impressions: imp,
+      reach: reach,
       roas: roas,
       dailyBudget: Math.round(budget / 30) || 0,
       ctr: ctr,
       cpc: cpc,
-      cpl: cpl
+      cpl: cpl,
+      cvr: cvr,
+      adCount: adCount,
+      adCreatives: adCreatives,
+      adAccountNote: adAccountNote
     };
   }) : [];
+
+  // Summary Metrics across all client ad campaigns
+  const totalCampaignSpend = activeCampaigns.reduce((acc, c) => acc + (c.spendMtd || 0), 0);
+  const totalCampaignBudget = activeCampaigns.reduce((acc, c) => acc + (c.monthlyBudget || 0), 0);
+  const totalCampaignAttributedRev = activeCampaigns.reduce((acc, c) => acc + (c.attributedRev || 0), 0);
+  const totalCampaignLeads = activeCampaigns.reduce((acc, c) => acc + (c.leads || 0), 0);
+  const totalCampaignConversions = activeCampaigns.reduce((acc, c) => acc + (c.conversions || 0), 0);
+  const totalCampaignClicks = activeCampaigns.reduce((acc, c) => acc + (c.clicks || 0), 0);
+  const totalCampaignImpressions = activeCampaigns.reduce((acc, c) => acc + (c.impressions || 0), 0);
+  const totalCampaignReach = activeCampaigns.reduce((acc, c) => acc + (c.reach || 0), 0);
+  const totalCampaignAdsCount = activeCampaigns.reduce((acc, c) => acc + (c.adCount || 3), 0);
+  const blendedCampaignRoas = totalCampaignSpend > 0 ? (totalCampaignAttributedRev / totalCampaignSpend).toFixed(2) : '0.00';
+  const blendedCampaignCtr = totalCampaignImpressions > 0 ? ((totalCampaignClicks / totalCampaignImpressions) * 100).toFixed(2) : '0.00';
+  const blendedCampaignCpc = totalCampaignClicks > 0 ? (totalCampaignSpend / totalCampaignClicks).toFixed(2) : '0.00';
+  const blendedCampaignCpl = totalCampaignLeads > 0 ? (totalCampaignSpend / totalCampaignLeads).toFixed(0) : '0';
+  const blendedBudgetPacing = totalCampaignBudget > 0 ? ((totalCampaignSpend / totalCampaignBudget) * 100).toFixed(1) : '0.0';
 
   const displayedSocialPosts = socialData.posts || [];
 
@@ -587,6 +666,113 @@ export const Client360View: React.FC<Client360ViewProps> = ({
       showToast(err.message || 'Failed to create campaign', 'error');
     } finally {
       setIsCreatingCampaign(false);
+    }
+  };
+
+  const fetchAdCampaignsForAccount = async (adAccId: string, plat?: string, token?: string, cId?: string) => {
+    if (!adAccId) {
+      setAvailableAdCampaigns([]);
+      setAlreadyInCrmCampaigns([]);
+      setSelectedCampaignIds([]);
+      return;
+    }
+    const currentTargetId = cId || clientId || liveClient?.id;
+    try {
+      setIsLoadingAdCampaigns(true);
+      const res = await api.previewAdAccountCampaigns(adAccId, plat || connectPlatform, token || customAccessToken.trim() || undefined, currentTargetId);
+      if (res.success && Array.isArray(res.data)) {
+        setAvailableAdCampaigns(res.data);
+        if (Array.isArray(res.alreadyInCrm)) {
+          setAlreadyInCrmCampaigns(res.alreadyInCrm);
+        } else {
+          setAlreadyInCrmCampaigns([]);
+        }
+        setSelectedCampaignIds(res.data.map((c: any) => c.id));
+      } else {
+        setAvailableAdCampaigns([]);
+        setAlreadyInCrmCampaigns([]);
+        setSelectedCampaignIds([]);
+      }
+    } catch (err) {
+      console.warn('Failed to preview campaigns for ad account:', err);
+      setAvailableAdCampaigns([]);
+      setAlreadyInCrmCampaigns([]);
+      setSelectedCampaignIds([]);
+    } finally {
+      setIsLoadingAdCampaigns(false);
+    }
+  };
+
+  const handleOpenConnectAdAccountModal = async (plat?: string) => {
+    const targetPlatform = plat || connectPlatform;
+    const targetId = clientId || liveClient?.id;
+    setConnectPlatform(targetPlatform);
+    setShowConnectAdAccountModal(true);
+    setAvailableAdCampaigns([]);
+    setAlreadyInCrmCampaigns([]);
+    setSelectedCampaignIds([]);
+    setModalCampaignSearch('');
+    try {
+      setIsLoadingDiscoverAdAccounts(true);
+      const res = await api.getDiscoverableAdAccounts(targetPlatform).catch(() => null);
+      if (res?.data && Array.isArray(res.data)) {
+        setDiscoverableAdAccounts(res.data);
+        if (res.data.length > 0) {
+          setSelectedAdAccountId(res.data[0].id);
+          fetchAdCampaignsForAccount(res.data[0].id, targetPlatform, undefined, targetId);
+        }
+      }
+    } catch {
+      // ignore non-fatal
+    } finally {
+      setIsLoadingDiscoverAdAccounts(false);
+    }
+  };
+
+  const handleConnectAdAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetId = clientId || liveClient?.id;
+    if (!targetId) return;
+
+    const finalAdAccountId = (customAdAccountId.trim() || selectedAdAccountId || '').trim();
+    if (!finalAdAccountId) {
+      showToast('Please select or enter an Ad Account ID', 'info');
+      return;
+    }
+
+    if (availableAdCampaigns.length === 0 && alreadyInCrmCampaigns.length > 0) {
+      showToast('All campaigns from this Ad Account are already connected in CRM.', 'info');
+      setShowConnectAdAccountModal(false);
+      return;
+    }
+
+    if (availableAdCampaigns.length > 0 && selectedCampaignIds.length === 0) {
+      showToast('Please select at least 1 campaign to import', 'info');
+      return;
+    }
+
+    try {
+      setIsConnectingAdAccount(true);
+      const matchedAccount = discoverableAdAccounts.find((a: any) => a.id === finalAdAccountId);
+      const res = await api.connectAdAccountToClient({
+        client_id: targetId,
+        ad_account_id: finalAdAccountId,
+        ad_account_name: matchedAccount?.name || undefined,
+        platform: connectPlatform,
+        access_token: customAccessToken.trim() || undefined,
+        selected_campaign_ids: selectedCampaignIds
+      });
+
+      if (res.success) {
+        showToast(res.message || `Connected Ad Account ${finalAdAccountId} to ${activeClientName}!`, 'success');
+        setShowConnectAdAccountModal(false);
+        setCustomAdAccountId('');
+        await fetchClientData();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to connect ad account', 'error');
+    } finally {
+      setIsConnectingAdAccount(false);
     }
   };
 
@@ -813,7 +999,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     {activeClientName}
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
-                    Enterprise Retainer Client
+                    {liveClient?.billing_frequency ? `${liveClient.billing_frequency.charAt(0).toUpperCase() + liveClient.billing_frequency.slice(1)} Client` : 'Active Client Account'}
                   </span>
                 </div>
 
@@ -821,7 +1007,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 flex-wrap pt-1">
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold">
                     <Building2 className="w-3.5 h-3.5" />
-                    <span>{liveClient?.industry || 'Beauty & Wellness'}</span>
+                    <span>{liveClient?.industry || 'Technology'}</span>
                   </span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
@@ -833,7 +1019,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     <span>Verified Client Account</span>
                   </span>
                   <span>•</span>
-                  <span>Client Tier: <strong>Gold SLA</strong></span>
+                  <span>Client Tier: <strong>{liveClient?.tier || 'Gold SLA'}</strong></span>
                 </div>
               </div>
             </div>
@@ -888,8 +1074,8 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   <span>+ Generate Deliverables</span>
                 </button>
                 <button
-                  onClick={() => setShowEditModal(true)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                  onClick={openEditAccountModal}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
                 >
                   Edit Account
                 </button>
@@ -909,39 +1095,37 @@ export const Client360View: React.FC<Client360ViewProps> = ({
             </div>
           </div>
 
-          {/* 3. Telemetry Health Factor Strip (Exact match to Reference Image 1) */}
+          {/* 3. Telemetry Health Factor Strip */}
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-1.5 font-bold text-rose-600 dark:text-rose-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
-                <span>Health: 86 / 100 (Healthy)</span>
+              <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>Health: {liveClient?.health_status || 'Active'}</span>
               </div>
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <span>Relationship:</span>
-                <strong className="text-slate-800 dark:text-slate-200">Strong (91)</strong>
+                <strong className="text-slate-800 dark:text-slate-200">{liveClient?.relationship_status || 'Active'}</strong>
               </div>
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <span>Delivery:</span>
-                <strong className="text-slate-800 dark:text-slate-200">On Track (88)</strong>
+                <strong className="text-slate-800 dark:text-slate-200">{clientProjects.filter((p: any) => p.status === 'Active').length} Active Projects</strong>
               </div>
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <span>Payments:</span>
-                <strong className="text-slate-800 dark:text-slate-200">Current (79)</strong>
-                <span className="text-rose-600 dark:text-rose-400 font-semibold">(₹75K Due)</span>
+                <strong className="text-slate-800 dark:text-slate-200">{Number(liveClient?.outstanding_balance || 0) > 0 ? `₹${Number(liveClient?.outstanding_balance).toLocaleString('en-IN')} Due` : 'Current (₹0 Due)'}</strong>
               </div>
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <span>Campaign:</span>
-                <strong className="text-slate-800 dark:text-slate-200">Above Target (92 • 4.8x ROAS)</strong>
+                <strong className="text-slate-800 dark:text-slate-200">{activeCampaigns.length > 0 ? `${activeCampaigns.length} Active` : '0 Active'}</strong>
               </div>
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <span>Renewal:</span>
-                <strong className="text-slate-800 dark:text-slate-200">124 Days Remaining</strong>
-                <span className="text-slate-500">(10 Jan 2027)</span>
+                <strong className="text-slate-800 dark:text-slate-200">{liveClient?.contract_end_date ? formatShortDayMonth(liveClient.contract_end_date) : 'Ongoing Retainer'}</strong>
               </div>
             </div>
 
@@ -955,59 +1139,67 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           </div>
         </div>
 
-        {/* 4. 7 Key Metric Cards in Single Row (Exact match to Reference Image 1) */}
+        {/* 4. 7 Key Metric Cards in Single Row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {/* Lifetime Rev */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">LIFETIME REV</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹24.8L</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹{Number(liveClient?.total_revenue || 0).toLocaleString('en-IN')}</div>
             <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-              +18.4% YoY avg
+              Live Invoices Paid
             </div>
           </div>
 
           {/* ACV Contract */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">ACV CONTRACT</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹18.5L</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">Annual MSA</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹{Number(liveClient?.contract_value || 0).toLocaleString('en-IN')}</div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">Contract SOW Value</div>
           </div>
 
           {/* Monthly MRR */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">MONTHLY MRR</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹1.54L</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">3 Active Scopes</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹{Number(liveClient?.monthly_retainer || 0).toLocaleString('en-IN')}</div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">{(liveClient?.services || []).length} Active Scopes</div>
           </div>
 
           {/* Retainers */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">RETAINERS</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">3 Scopes</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">Perf, Social, SEO</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">{(liveClient?.services || []).length} Scopes</div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={(liveClient?.services || []).map((s: any) => s.name || s).join(', ') || 'No Retainers'}>
+              {(liveClient?.services || []).length > 0 ? (liveClient.services.slice(0, 3).map((s: any) => s.name || s).join(', ')) : 'No Active Scopes'}
+            </div>
           </div>
 
           {/* Live Sprints */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">LIVE SPRINTS</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">2 Active</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">1 QA Review</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">{clientProjects.filter((p: any) => p.status === 'Active').length} Active</div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">{clientProjects.length} Projects Total</div>
           </div>
 
           {/* Outstanding */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">OUTSTANDING</div>
-            <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">₹2.5L</div>
-            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold mt-1">
-              ₹75K in 2d
+            <div className={`text-xl font-extrabold mt-1 ${Number(liveClient?.outstanding_balance || 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+              ₹{Number(liveClient?.outstanding_balance || 0).toLocaleString('en-IN')}
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">
+              {Number(liveClient?.outstanding_balance || 0) > 0 ? 'Pending Invoices' : 'All Cleared'}
             </div>
           </div>
 
           {/* Renewal */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">RENEWAL</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">124 Days</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">Auto-renew terms</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              {liveClient?.contract_end_date ? formatShortDayMonth(liveClient.contract_end_date) : '-'}
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">
+              {liveClient?.contract_end_date ? 'Contract End' : 'Ongoing Terms'}
+            </div>
           </div>
         </div>
 
@@ -1718,98 +1910,115 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                    Live Attribution Telemetry & Agency Compliance Guardrails
+                    Live Attribution Telemetry &amp; Agency Compliance Guardrails
                   </h4>
                   <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5 leading-relaxed">
-                    Ad campaigns for this client account are monitored in real time via Google Ads &amp; Meta Marketing APIs. In accordance with agency pixel safety, conversion API tracking, and master credit line constraints, direct campaign creation is strictly handled inside Google Ads Console &amp; Meta Ads Manager.
+                    Ad campaigns for <strong>{activeClientName}</strong> are monitored in real time via Google Ads &amp; Meta Marketing APIs. In accordance with agency pixel safety, conversion API tracking, and master credit line constraints, telemetry is synced dynamically.
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <button
+                  onClick={() => handleOpenConnectAdAccountModal('Meta')}
+                  className="px-3.5 py-1.5 bg-[#0A1628] hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 border border-slate-700"
+                  title="Connect client's Meta or Google ad account to auto-import campaigns and real telemetry"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>+ Connect Ad Account</span>
+                </button>
+                <button
                   onClick={() => setShowAdSpendModal(true)}
                   className="px-3.5 py-1.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
                   title="Assign and log Meta / Google ad spend, impressions, clicks, leads, and ROAS directly to this client"
                 >
-                  <Plus className="w-3.5 h-3.5 text-amber-300" />
+                  <Plus className="w-3.5 h-3.5 text-white" />
                   <span>+ Log Ad Spend &amp; KPIs</span>
                 </button>
                 <button
                   onClick={() => setShowCreateCampaignModal(true)}
                   className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
                   <span>+ New Campaign</span>
                 </button>
                 <button
-                  onClick={() => {
-                    fetchClientData();
-                    showToast('Refreshed live ad telemetry and campaign metrics');
+                  onClick={async () => {
+                    const targetId = clientId || liveClient?.id;
+                    try {
+                      setIsSyncingTelemetry(true);
+                      const res = await api.syncCampaignTelemetry(targetId);
+                      await fetchClientData();
+                      showToast(res?.message || 'Refreshed live ad telemetry and campaign metrics', 'success');
+                    } catch (err: any) {
+                      showToast(err?.message || 'Failed to sync telemetry', 'error');
+                    } finally {
+                      setIsSyncingTelemetry(false);
+                    }
                   }}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                  disabled={isSyncingTelemetry}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer disabled:opacity-50"
+                  title="Synchronize real-time campaign performance and spend telemetry from Meta & Google Ads APIs"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Sync Telemetry</span>
+                  <RefreshCw className={`w-3.5 h-3.5 text-rose-600 ${isSyncingTelemetry ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingTelemetry ? 'Syncing...' : 'Sync Telemetry'}</span>
                 </button>
               </div>
             </div>
 
             {/* Client Executive Campaign Telemetry KPIs */}
-            {(() => {
-              const totalSpend = activeCampaigns.reduce((acc, c) => acc + (c.spendMtd || 0), 0);
-              const totalBudget = activeCampaigns.reduce((acc, c) => acc + (c.monthlyBudget || 0), 0);
-              const totalAttributedRev = activeCampaigns.reduce((acc, c) => acc + (c.attributedRev || 0), 0);
-              const totalLeads = activeCampaigns.reduce((acc, c) => acc + (c.leads || 0), 0);
-              const blendedRoas = totalSpend > 0 ? (totalAttributedRev / totalSpend).toFixed(2) : '0.00';
-              const pacing = totalBudget > 0 ? ((totalSpend / totalBudget) * 100).toFixed(1) : '0.0';
-              const cpl = totalLeads > 0 ? (totalSpend / totalLeads).toFixed(2) : '0.00';
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Ad Spend MTD</div>
-                      <DollarSign className="w-4 h-4 text-[#B91C1C]" />
-                    </div>
-                    <div className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">₹{totalSpend.toLocaleString()}</div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                      <span>Budget: ₹{totalBudget.toLocaleString()}</span>
-                      <span className="font-semibold text-emerald-600">{pacing}% Pacing</span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
-                      <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: `${Math.min(Number(pacing), 100)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Attributed Revenue</div>
-                      <TrendingUp className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div className="text-2xl font-black text-emerald-600 mt-1.5">₹{totalAttributedRev.toLocaleString()}</div>
-                    <div className="text-[11px] text-slate-500 mt-2">Across {activeCampaigns.length} active campaigns</div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Blended Account ROAS</div>
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="text-2xl font-black text-blue-600 mt-1.5">{blendedRoas}x</div>
-                    <div className="text-[11px] text-slate-500 mt-2">Blended return on ad spend</div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Paid Pipeline Leads</div>
-                      <CheckCircle2 className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div className="text-2xl font-black text-purple-600 mt-1.5">{totalLeads.toLocaleString()}</div>
-                    <div className="text-[11px] text-slate-500 mt-2">Blended CPL: ₹{cpl} / lead</div>
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Ad Spend MTD</div>
+                  <DollarSign className="w-4 h-4 text-[#B91C1C]" />
                 </div>
-              );
-            })()}
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-1">₹{totalCampaignSpend.toLocaleString('en-IN')}</div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1.5">
+                  <span>Budget: ₹{totalCampaignBudget.toLocaleString('en-IN')}</span>
+                  <span className="font-semibold text-rose-600">{blendedBudgetPacing}% Pacing</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                  <div className="bg-[#B91C1C] h-full rounded-full" style={{ width: `${Math.min(Number(blendedBudgetPacing), 100)}%` }} />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Campaigns &amp; Ads</div>
+                  <Layers className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                  {activeCampaigns.length} <span className="text-xs font-normal text-slate-500">Camps</span> • {totalCampaignAdsCount} <span className="text-xs font-normal text-slate-500">Ads</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-2">Active Meta &amp; Google Ad Sets</div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Paid Pipeline Leads</div>
+                  <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                </div>
+                <div className="text-xl font-black text-purple-600 mt-1">{totalCampaignLeads.toLocaleString('en-IN')}</div>
+                <div className="text-[10px] text-slate-500 mt-2">Blended CPL: ₹{blendedCampaignCpl} / lead</div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Traffic &amp; CTR</div>
+                  <TrendingUp className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="text-xl font-black text-indigo-600 mt-1">{totalCampaignClicks.toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-500">Clicks</span></div>
+                <div className="text-[10px] text-slate-500 mt-2">CTR: {blendedCampaignCtr}% • CPC: ₹{blendedCampaignCpc}</div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Attributed Revenue</div>
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-xl font-black text-emerald-600 mt-1">₹{totalCampaignAttributedRev.toLocaleString('en-IN')}</div>
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold mt-2">{blendedCampaignRoas}x Blended ROAS</div>
+              </div>
+            </div>
 
             {/* Filter & Search Toolbar */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -1867,8 +2076,15 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </div>
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">No Active Ad Campaigns</h4>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    There are no running Google Ads or Meta Ads campaigns linked to this client account. Connect ad network integrations to track real-time telemetry.
+                    There are no running Google Ads or Meta Ads campaigns linked to this client account. Use "+ Log Ad Spend &amp; KPIs" or connect ad network integrations to track real-time telemetry.
                   </p>
+                  <button
+                    onClick={() => setShowAdSpendModal(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Log First Ad Metric</span>
+                  </button>
                 </div>
               ) : (
                 activeCampaigns
@@ -1912,6 +2128,16 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               {camp.status}
                             </span>
+                            {camp.adAccountNote && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900" title={camp.adAccountNote}>
+                                🏢 {camp.adAccountNote}
+                              </span>
+                            )}
+                            {camp.adCreatives && camp.adCreatives.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {camp.adCreatives.length} Active Ads
+                              </span>
+                            )}
                           </div>
                           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                             {camp.name}
@@ -1922,7 +2148,18 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <button
+                            onClick={() => {
+                              setSpendCampaignName(camp.name);
+                              setSpendPlatform(camp.platform.includes('Google') ? 'Google Ads' : 'Meta');
+                              setShowAdSpendModal(true);
+                            }}
+                            className="px-3 py-1.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Quick Log Response</span>
+                          </button>
                           <button
                             onClick={() => showToast(`Audited tracking tags for ${camp.id}: 100% CAPI & GA4 synced`)}
                             className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
@@ -1940,33 +2177,33 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </div>
                       </div>
 
-                      {/* 4-Metric Data Strip */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                      {/* 6-Metric Comprehensive Data Strip */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
                         <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Spend / Budget</div>
                           <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                            ₹{camp.spendMtd.toLocaleString()}
+                            ₹{camp.spendMtd.toLocaleString('en-IN')}
                           </div>
                           <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
-                            <span>Cap: ₹{camp.monthlyBudget.toLocaleString()}</span>
-                            <span className="font-bold text-rose-600">{((camp.spendMtd / camp.monthlyBudget) * 100).toFixed(0)}%</span>
+                            <span>Cap: ₹{camp.monthlyBudget.toLocaleString('en-IN')}</span>
+                            <span className="font-bold text-rose-600">{camp.monthlyBudget > 0 ? ((camp.spendMtd / camp.monthlyBudget) * 100).toFixed(0) : 0}%</span>
                           </div>
                         </div>
 
                         <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leads & CPL</div>
-                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                            {camp.leads.toLocaleString()} Leads
+                          <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Leads &amp; CPL</div>
+                          <div className="text-sm font-black text-purple-600 mt-1">
+                            {camp.leads.toLocaleString('en-IN')} Leads
                           </div>
                           <div className="text-[10px] text-slate-500 mt-1">
-                            CPL: <span className="font-bold text-slate-700 dark:text-slate-300">₹{camp.cpl}</span>
+                            CPL: <span className="font-bold text-purple-700 dark:text-purple-300">₹{camp.cpl}</span>
                           </div>
                         </div>
 
                         <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Click & CTR Volume</div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Clicks &amp; CTR</div>
                           <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                            {camp.clicks.toLocaleString()} Clicks
+                            {camp.clicks.toLocaleString('en-IN')} Clicks
                           </div>
                           <div className="text-[10px] text-slate-500 mt-1">
                             CTR: <span className="font-bold text-emerald-600">{camp.ctr}%</span> • CPC: ₹{camp.cpc}
@@ -1974,15 +2211,83 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </div>
 
                         <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Attributed Rev / ROAS</div>
-                          <div className="text-sm font-black text-emerald-600 mt-1">
-                            ₹{camp.attributedRev.toLocaleString()}
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Impressions &amp; Reach</div>
+                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                            {camp.impressions.toLocaleString('en-IN')}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-1">
-                            ROAS: <span className="font-black text-blue-600">{camp.roas.toFixed(2)}x</span>
+                            Reach: <span className="font-medium text-slate-700 dark:text-slate-300">{camp.reach.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Conversions &amp; CvR</div>
+                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                            {camp.conversions.toLocaleString('en-IN')} Conv
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            CvR: <span className="font-bold text-blue-600">{camp.cvr}%</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl">
+                          <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Attributed Rev / ROAS</div>
+                          <div className="text-sm font-black text-emerald-600 mt-1">
+                            ₹{camp.attributedRev.toLocaleString('en-IN')}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            ROAS: <span className="font-black text-emerald-700 dark:text-emerald-300">{camp.roas.toFixed(2)}x</span>
                           </div>
                         </div>
                       </div>
+
+                      {/* Itemized Active Ad Creatives & Responses for this Campaign (Only if real creatives exist) */}
+                      {camp.adCreatives && camp.adCreatives.length > 0 && (
+                        <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-xl p-3.5 border border-slate-200/60 dark:border-slate-800 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Active Ad Creatives &amp; Response Telemetry ({camp.adCreatives.length})</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">Response distribution across creative variants</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                            {camp.adCreatives.map((ad: any, idx: number) => (
+                              <div
+                                key={ad.id || idx}
+                                className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-2 shadow-2xs"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-mono font-bold text-slate-400">{ad.id}</span>
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800/40">
+                                      {ad.status}
+                                    </span>
+                                  </div>
+                                  <div className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">{ad.name}</div>
+                                  <div className="text-[10px] text-slate-500">{ad.format}</div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-1 pt-2 border-t border-slate-100 dark:border-slate-800 text-center text-[10px]">
+                                  <div className="bg-slate-50 dark:bg-slate-800/60 p-1 rounded">
+                                    <span className="text-slate-400 block text-[9px]">CTR</span>
+                                    <span className="font-bold text-emerald-600">{ad.ctr}</span>
+                                  </div>
+                                  <div className="bg-slate-50 dark:bg-slate-800/60 p-1 rounded">
+                                    <span className="text-slate-400 block text-[9px]">Leads</span>
+                                    <span className="font-bold text-purple-600">{ad.leads}</span>
+                                  </div>
+                                  <div className="bg-slate-50 dark:bg-slate-800/60 p-1 rounded">
+                                    <span className="text-slate-400 block text-[9px]">CPL</span>
+                                    <span className="font-bold text-slate-800 dark:text-white">{ad.cpl}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
               )}
@@ -2155,7 +2460,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               const totalInteractions = totalLikes + totalComments + totalShares + totalSaves;
               const avgEr = displayedSocialPosts.length > 0
                 ? (displayedSocialPosts.reduce((acc, p) => acc + (Number(p.engagement_rate) || 0), 0) / displayedSocialPosts.length).toFixed(2)
-                : '5.98';
+                : '0.00';
 
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2166,8 +2471,8 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     </div>
                     <div className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">{avgEr}%</div>
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                      <span className="font-semibold text-emerald-600">+1.8% vs Industry Benchmark</span>
-                      <span>High Impact</span>
+                      <span className="font-semibold text-emerald-600">{Number(avgEr) > 0 ? '+1.8% vs Industry Benchmark' : 'Awaiting Engagement'}</span>
+                      <span>{Number(avgEr) > 0 ? 'High Impact' : 'Standby'}</span>
                     </div>
                   </div>
 
@@ -2217,28 +2522,28 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
               const igAvgEr = igPosts.length > 0
                 ? (igPosts.reduce((acc, p) => acc + (Number(p.engagement_rate) || 0), 0) / igPosts.length).toFixed(1)
-                : '6.8';
+                : '0.0';
               const fbAvgEr = fbPosts.length > 0
                 ? (fbPosts.reduce((acc, p) => acc + (Number(p.engagement_rate) || 0), 0) / fbPosts.length).toFixed(1)
-                : '5.2';
+                : '0.0';
               const liAvgEr = liPosts.length > 0
                 ? (liPosts.reduce((acc, p) => acc + (Number(p.engagement_rate) || 0), 0) / liPosts.length).toFixed(1)
-                : '4.4';
+                : '0.0';
               const ytAvgEr = ytPosts.length > 0
                 ? (ytPosts.reduce((acc, p) => acc + (Number(p.engagement_rate) || 0), 0) / ytPosts.length).toFixed(1)
-                : '7.5';
+                : '0.0';
 
               const pm = socialIntegrationConfig?.profile_metrics || {};
-              const igFollowers = pm.instagram?.followers || (igPosts.length > 0 ? Math.max(...igPosts.map((p: any) => p.reach || 0), 1420) : (socialIntegrationConfig.instagram_username ? 1250 : 0));
-              const igFollowing = pm.instagram?.following || (igFollowers > 0 ? Math.round(igFollowers * 0.28) : (socialIntegrationConfig.instagram_username ? 342 : 0));
+              const igFollowers = pm.instagram?.followers || (igPosts.length > 0 ? Math.max(...igPosts.map((p: any) => p.reach || 0), 0) : 0);
+              const igFollowing = pm.instagram?.following || (igFollowers > 0 ? Math.round(igFollowers * 0.28) : 0);
 
-              const fbFollowers = pm.facebook?.followers || (fbPosts.length > 0 ? Math.max(...fbPosts.map((p: any) => p.reach || 0), 980) : (socialIntegrationConfig.facebook_page_id ? 980 : 0));
-              const fbFollowing = pm.facebook?.following || (fbFollowers > 0 ? Math.round(fbFollowers * 0.12) : (socialIntegrationConfig.facebook_page_id ? 118 : 0));
+              const fbFollowers = pm.facebook?.followers || (fbPosts.length > 0 ? Math.max(...fbPosts.map((p: any) => p.reach || 0), 0) : 0);
+              const fbFollowing = pm.facebook?.following || (fbFollowers > 0 ? Math.round(fbFollowers * 0.12) : 0);
 
-              const liFollowers = pm.linkedin?.followers || (liPosts.length > 0 ? 1420 : (socialIntegrationConfig.linkedin_page_id ? 850 : 0));
-              const liFollowing = pm.linkedin?.connections || (liPosts.length > 0 ? 450 : (socialIntegrationConfig.linkedin_page_id ? 320 : 0));
+              const liFollowers = pm.linkedin?.followers || 0;
+              const liFollowing = pm.linkedin?.connections || 0;
 
-              const ytSubscribers = pm.youtube?.subscribers || (ytPosts.length > 0 ? 3200 : (socialIntegrationConfig.youtube_channel_id ? 2100 : 0));
+              const ytSubscribers = pm.youtube?.subscribers || 0;
               const ytVideos = pm.youtube?.videos || ytPosts.length;
 
               return (
@@ -2636,25 +2941,41 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* LEFT COLUMN: Deep Operations & Intelligence (8 Cols) */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Widget 1: Executive Performance Snapshot */}
+            {/* Widget 1: Executive Ad Operations & Performance Snapshot */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-rose-600" />
-                    <span>Executive Performance Snapshot</span>
+                    <BarChart2 className="w-4 h-4 text-[#B91C1C]" />
+                    <span>Executive Ad Operations &amp; Response Snapshot</span>
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Blended Media & Lead Generation Attribution (Trailing 30 Days)
+                    Live Meta Ads &amp; Google Ads Attribution Telemetry for <strong>{activeClientName}</strong>
                   </p>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleOpenConnectAdAccountModal('Meta')}
+                    className="px-3 py-1.5 rounded-lg bg-[#0A1628] hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95 border border-slate-700"
+                    title="Connect client's Meta or Google ad account to auto-import campaigns and real telemetry"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>+ Connect Ad Account</span>
+                  </button>
+                  <button
+                    onClick={() => setShowAdSpendModal(true)}
+                    className="px-3 py-1.5 rounded-lg bg-[#B91C1C] hover:bg-[#991B1B] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
+                    title="Log ad spend and performance KPIs"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                    <span>+ Log Ad Spend &amp; KPIs</span>
+                  </button>
                   <button
                     onClick={() => setActiveSubTab('campaigns')}
-                    className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 text-xs font-semibold flex items-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 text-xs font-semibold flex items-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition cursor-pointer"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Live Campaigns ({activeCampaigns.length})</span>
+                    <span>Running Campaigns ({activeCampaigns.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveSubTab('performance')}
@@ -2666,55 +2987,79 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </div>
               </div>
 
-              {/* Top 4 Client KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 5 Live Ad KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">ACTIVE PROJECTS</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
-                    {clientProjects.length}
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TOTAL AD SPEND</div>
+                  <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+                    ₹{totalCampaignSpend.toLocaleString('en-IN')}
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">
-                    {clientProjects.filter((p) => p.status === 'Active').length} in active sprint
+                  <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                    <span>Budget: ₹{totalCampaignBudget.toLocaleString('en-IN')}</span>
+                    <span className="text-rose-600 font-bold">{blendedBudgetPacing}%</span>
                   </div>
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">CONTRACTED BUDGET</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
-                    ₹{clientProjects.reduce((acc, p) => acc + (Number(p.budget) || 0), 0).toLocaleString('en-IN')}
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CAMPAIGNS &amp; ADS</div>
+                  <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+                    {activeCampaigns.length} <span className="text-xs font-medium text-slate-500">Camps</span> • {totalCampaignAdsCount} <span className="text-xs font-medium text-slate-500">Ads</span>
                   </div>
-                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                    Total SOW Value
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">DELIVERABLES</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
-                    {deliverables.length}
-                  </div>
-                  <div className="text-[10px] text-blue-600 font-semibold mt-0.5">
-                    {deliverables.filter((d) => d.status === 'Client Approved').length} approved
+                  <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-1">
+                    Google Ads &amp; Meta Blended
                   </div>
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">ACCOUNT STATUS</div>
-                  <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">
-                    Active Client
+                  <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">PAID LEADS &amp; RESPONSES</div>
+                  <div className="text-xl font-extrabold text-purple-600 dark:text-purple-400 mt-1">
+                    {totalCampaignLeads.toLocaleString('en-IN')}
                   </div>
-                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                    Good Standing
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    Blended CPL: <strong className="text-purple-700 dark:text-purple-300">₹{blendedCampaignCpl}</strong>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TRAFFIC &amp; CTR</div>
+                  <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+                    {totalCampaignClicks.toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-500">Clicks</span>
+                  </div>
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                    CTR: {blendedCampaignCtr}% • CPC: ₹{blendedCampaignCpc}
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">ATTRIBUTED REVENUE</div>
+                  <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+                    ₹{totalCampaignAttributedRev.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold mt-1">
+                    {blendedCampaignRoas}x Blended ROAS
                   </div>
                 </div>
               </div>
 
-              {/* Account Overview Strip */}
+              {/* Itemized Ad Telemetry Strip */}
               <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-                <span>Account Health: <strong className="text-emerald-600 font-bold">Optimal (Good Standing)</strong></span>
-                <span>Active Projects: <strong className="text-slate-800 dark:text-slate-200">{clientProjects.length}</strong></span>
-                <span>Tracked Deliverables: <strong className="text-slate-800 dark:text-slate-200">{deliverables.length}</strong></span>
-                <span>Domain: <strong className="text-slate-800 dark:text-slate-200">{activeClientDomain}</strong></span>
+                <span>Total Impressions: <strong className="text-slate-800 dark:text-slate-200">{totalCampaignImpressions.toLocaleString('en-IN')}</strong></span>
+                <span>•</span>
+                <span>Audience Reach: <strong className="text-slate-800 dark:text-slate-200">{totalCampaignReach.toLocaleString('en-IN')}</strong></span>
+                <span>•</span>
+                <span>Closed Conversions: <strong className="text-slate-800 dark:text-slate-200">{totalCampaignConversions.toLocaleString('en-IN')}</strong></span>
+                <span>•</span>
+                <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Tracking: 100% CAPI &amp; GA4 Synced</span>
+                </span>
+                <button
+                  onClick={() => setActiveSubTab('campaigns')}
+                  className="text-xs font-bold text-[#B91C1C] dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>View All Campaigns &amp; Ads</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
@@ -3042,79 +3387,93 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           {/* RIGHT COLUMN: Account Health, Contracts & Triggers (4 Cols) */}
           <div className="lg:col-span-4 space-y-6">
             {/* 1. Account Health Telemetry */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Account Health Telemetry</h3>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">Score: 86 / 100</div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200 dark:border-emerald-800">
-                  86%
-                </div>
-              </div>
+            {(() => {
+              const campPerf = activeCampaigns.length > 0 ? 100 : 0;
+              const delivVelocity = deliverables.length > 0 ? Math.round((deliverables.filter((d: any) => d.status === 'Client Approved' || d.status === 'Ready for Client').length / deliverables.length) * 100) : 0;
+              const execEngage = liveClient?.contact_email ? 100 : 0;
+              const paymentDso = Number(liveClient?.outstanding_balance || 0) === 0 ? 100 : 0;
+              const renewalConf = liveClient?.status === 'Active' ? 100 : 0;
+              const factors = [campPerf, delivVelocity, execEngage, paymentDso, renewalConf];
+              const overallScore = Math.round(factors.reduce((a, b) => a + b, 0) / factors.length);
 
-              {/* Progress bars for factors */}
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">Campaign Performance</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">92 / 100</span>
+              return (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Account Health Telemetry</h3>
+                      <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">Score: {overallScore} / 100</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200 dark:border-emerald-800">
+                      {overallScore}%
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-rose-600 h-full rounded-full" style={{ width: '92%' }}></div>
-                  </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">Delivery Velocity</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">88 / 100</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-slate-800 dark:bg-slate-300 h-full rounded-full" style={{ width: '88%' }}></div>
-                  </div>
-                </div>
+                  {/* Progress bars for factors */}
+                  <div className="space-y-2.5 text-xs">
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-600 dark:text-slate-400">Campaign Performance</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{campPerf} / 100</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-rose-600 h-full rounded-full" style={{ width: `${campPerf}%` }}></div>
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">Executive Engagement</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">84 / 100</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-slate-700 dark:bg-slate-400 h-full rounded-full" style={{ width: '84%' }}></div>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-600 dark:text-slate-400">Delivery Velocity</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{delivVelocity} / 100</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-slate-800 dark:bg-slate-300 h-full rounded-full" style={{ width: `${delivVelocity}%` }}></div>
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">Payments & DSO</span>
-                    <span className="font-bold text-amber-600">79 / 100 (Amber)</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-amber-500 h-full rounded-full" style={{ width: '79%' }}></div>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-600 dark:text-slate-400">Executive Engagement</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{execEngage} / 100</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-slate-700 dark:bg-slate-400 h-full rounded-full" style={{ width: `${execEngage}%` }}></div>
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">Renewal Confidence</span>
-                    <span className="font-bold text-rose-600">87 / 100 (High)</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-rose-600 h-full rounded-full" style={{ width: '87%' }}></div>
-                  </div>
-                </div>
-              </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-600 dark:text-slate-400">Payments &amp; DSO</span>
+                        <span className={`font-bold ${paymentDso === 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {paymentDso} / 100 {paymentDso === 100 ? '(Cleared)' : '(Pending)'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${paymentDso === 100 ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${paymentDso}%` }}></div>
+                      </div>
+                    </div>
 
-              {/* Signals */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-[11px]">
-                <div className="text-[10px] font-bold text-slate-500 uppercase">LIVE ACCOUNT SIGNALS</div>
-                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>Account standing in good order; deliverables progressing as scheduled.</span>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-600 dark:text-slate-400">Renewal Confidence</span>
+                        <span className="font-bold text-rose-600">{renewalConf} / 100 {renewalConf === 100 ? '(Active)' : '(Inactive)'}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-rose-600 h-full rounded-full" style={{ width: `${renewalConf}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signals */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-[11px]">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">LIVE ACCOUNT SIGNALS</div>
+                    <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>{liveClient?.status === 'Active' ? 'Account standing in good order; telemetry synced with live database.' : 'Client inactive.'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* 2. Key Stakeholders */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
@@ -3697,6 +4056,435 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl text-xs font-bold transition disabled:opacity-50"
                 >
                   {isAssigningMember ? 'Assigning...' : 'Confirm Assignment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1b. Connect Ad Account to Client Modal */}
+      {showConnectAdAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 my-8 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-rose-600 text-white flex items-center justify-center shadow-md">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Connect Ad Account to Client</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Link Meta Ads or Google Ads account to import live campaigns and response telemetry for <strong>{activeClientName}</strong>.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowConnectAdAccountModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConnectAdAccount} className="overflow-y-auto flex-1 space-y-4 pr-1 text-xs">
+              {/* Step 1: Platform Selection */}
+              <div>
+                <label className="font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
+                  Select Ad Platform *
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConnectPlatform('Meta');
+                      handleOpenConnectAdAccountModal('Meta');
+                    }}
+                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition cursor-pointer ${
+                      connectPlatform === 'Meta'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <FacebookIcon className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <div className="font-bold text-xs">Meta Ads</div>
+                      <div className="text-[10px] text-slate-500">Instagram &amp; Facebook</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConnectPlatform('Google Ads');
+                      handleOpenConnectAdAccountModal('Google Ads');
+                    }}
+                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition cursor-pointer ${
+                      connectPlatform === 'Google Ads'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <div className="font-bold text-xs">Google Ads</div>
+                      <div className="text-[10px] text-slate-500">Search, PMax &amp; YouTube</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 2: Available / Discovered Ad Accounts from Agency Integrations */}
+              {discoverableAdAccounts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold block text-slate-700 dark:text-slate-300">
+                      Discovered Ad Accounts from Partner API ({discoverableAdAccounts.length})
+                    </label>
+                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Integration Verified</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {discoverableAdAccounts.map((acc) => {
+                      const isSelected = selectedAdAccountId === acc.id && !customAdAccountId;
+                      return (
+                        <div
+                          key={acc.id}
+                          onClick={() => {
+                            const targetId = clientId || liveClient?.id;
+                            setSelectedAdAccountId(acc.id);
+                            setCustomAdAccountId('');
+                            fetchAdCampaignsForAccount(acc.id, connectPlatform, undefined, targetId);
+                          }}
+                          className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20 ring-2 ring-rose-500/20'
+                              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40'
+                          }`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                              <span>{acc.name || acc.id}</span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-200 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+                                {acc.id}
+                              </span>
+                              {acc.business_name && (
+                                <span className="px-1.5 py-0.2 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 rounded text-[9px] font-medium">
+                                  🏢 {acc.business_name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Currency: <strong>{acc.currency || 'INR'}</strong> • Total Spent: <strong>₹{Number(acc.amount_spent || 0).toLocaleString('en-IN')}</strong>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800">
+                              {acc.status || 'ACTIVE'}
+                            </span>
+                            <input
+                              type="radio"
+                              name="selected_ad_account"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="text-rose-600 focus:ring-rose-500 pointer-events-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Or Enter Custom Ad Account ID */}
+              <div className="space-y-1.5">
+                <label className="font-semibold block text-slate-700 dark:text-slate-300">
+                  {discoverableAdAccounts.length > 0 ? 'Or Enter Custom / Direct Ad Account ID' : 'Enter Ad Account ID *'}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customAdAccountId}
+                    onChange={(e) => setCustomAdAccountId(e.target.value)}
+                    placeholder={connectPlatform === 'Meta' ? 'e.g. act_123456789012345' : 'e.g. 123-456-7890 (Google CID)'}
+                    className="flex-1 px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-xs"
+                  />
+                  {customAdAccountId.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetId = clientId || liveClient?.id;
+                        fetchAdCampaignsForAccount(customAdAccountId.trim(), connectPlatform, undefined, targetId);
+                      }}
+                      className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700"
+                    >
+                      Fetch Campaigns
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Meta Ad Account IDs typically start with <code>act_</code> followed by numerical digits.
+                </p>
+              </div>
+
+              {/* Step 4: Multi-Client Campaign Selective Filter */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-bold text-xs text-slate-900 dark:text-white block">
+                      Select Campaigns for {activeClientName}
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      Agency ad accounts can host ads for multiple clients. Check only the campaigns that belong to this client.
+                    </span>
+                  </div>
+                  {availableAdCampaigns.length > 0 && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCampaignIds(availableAdCampaigns.map((c: any) => c.id))}
+                        className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold hover:underline"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-slate-300 dark:text-slate-600">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCampaignIds([])}
+                        className="text-[11px] text-slate-500 font-semibold hover:underline"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info banner if campaigns are already in CRM */}
+                {alreadyInCrmCampaigns.length > 0 && (
+                  <div className="p-2.5 bg-slate-100 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span><strong>{alreadyInCrmCampaigns.length}</strong> campaign(s) already connected in CRM (filtered to prevent duplicates)</span>
+                    </span>
+                  </div>
+                )}
+
+                {/* Campaign Search filter */}
+                {availableAdCampaigns.length > 4 && (
+                  <input
+                    type="text"
+                    value={modalCampaignSearch}
+                    onChange={(e) => setModalCampaignSearch(e.target.value)}
+                    placeholder="Search campaigns in this ad account..."
+                    className="w-full px-3 py-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                )}
+
+                {/* Campaign List */}
+                {isLoadingAdCampaigns ? (
+                  <div className="p-6 text-center text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-rose-600" />
+                    <span>Discovering live campaigns inside Ad Account...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {availableAdCampaigns.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Available Campaigns to Import ({availableAdCampaigns.length})</span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                          {availableAdCampaigns
+                            .filter((c: any) => !modalCampaignSearch || c.name.toLowerCase().includes(modalCampaignSearch.toLowerCase()))
+                            .map((camp: any) => {
+                              const isChecked = selectedCampaignIds.includes(camp.id);
+                              return (
+                                <div
+                                  key={camp.id}
+                                  onClick={() => {
+                                    if (isChecked) {
+                                      setSelectedCampaignIds(selectedCampaignIds.filter(id => id !== camp.id));
+                                    } else {
+                                      setSelectedCampaignIds([...selectedCampaignIds, camp.id]);
+                                    }
+                                  }}
+                                  className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                                    isChecked
+                                      ? 'border-rose-500 bg-rose-50/30 dark:bg-rose-950/20'
+                                      : 'border-slate-200 dark:border-slate-800 opacity-60 bg-white dark:bg-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="rounded text-rose-600 focus:ring-rose-500 pointer-events-none"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                        {camp.name}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                        <span>Spend: <strong>₹{Number(camp.spend || 0).toLocaleString('en-IN')}</strong></span>
+                                        <span>•</span>
+                                        <span>Impressions: <strong>{Number(camp.impressions || 0).toLocaleString('en-IN')}</strong></span>
+                                        <span>•</span>
+                                        <span>Clicks: <strong>{Number(camp.clicks || 0).toLocaleString('en-IN')}</strong></span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
+                                    camp.status === 'ACTIVE'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                  }`}>
+                                    {camp.status || 'ACTIVE'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                        <div className="font-semibold text-slate-700 dark:text-slate-300">
+                          {alreadyInCrmCampaigns.length > 0
+                            ? 'All campaigns from this Ad Account are already connected in CRM.'
+                            : 'No campaigns discovered in this Ad Account.'}
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          {alreadyInCrmCampaigns.length > 0
+                            ? 'To guarantee no duplicates and protect client attribution, already-linked campaigns cannot be added again.'
+                            : 'Any campaigns created in Meta or Google Ads will appear here automatically.'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Already Connected Campaigns in CRM List */}
+                    {alreadyInCrmCampaigns.length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                          <span className="flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Already In CRM ({alreadyInCrmCampaigns.length}) • Deduplication &amp; Exclusivity Active</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">1 Client Exclusive</span>
+                        </div>
+
+                        <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                          {alreadyInCrmCampaigns.map((camp: any) => (
+                            <div
+                              key={camp.id}
+                              className="p-2 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between gap-2.5 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-700 dark:text-slate-300 truncate text-[11px]">
+                                  {camp.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                  <span>Spend: <strong>₹{Number(camp.spend || 0).toLocaleString('en-IN')}</strong></span>
+                                  <span>•</span>
+                                  <span>Imp: <strong>{Number(camp.impressions || 0).toLocaleString('en-IN')}</strong></span>
+                                  <span>•</span>
+                                  <span>Clicks: <strong>{Number(camp.clicks || 0).toLocaleString('en-IN')}</strong></span>
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 flex items-center gap-1.5">
+                                {camp.is_current_client ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                    <span>Active for {activeClientName}</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-200 dark:border-amber-800 flex items-center gap-1" title="Same ad cannot be added to multiple clients">
+                                    <Lock className="w-2.5 h-2.5" />
+                                    <span>Assigned to {camp.connected_client_name || 'Other Client'}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Step 5: Custom Access Token (Optional) */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <label className="font-semibold block text-slate-700 dark:text-slate-300">
+                  Custom System User Access Token <span className="font-normal text-slate-400">(Optional)</span>
+                </label>
+                <input
+                  type="password"
+                  value={customAccessToken}
+                  onChange={(e) => setCustomAccessToken(e.target.value)}
+                  placeholder="Leave blank to use agency connected integration token"
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 font-mono text-xs"
+                />
+                <p className="text-[11px] text-slate-400">
+                  If left blank, the CRM will securely use your global agency Meta Business Manager integration credentials.
+                </p>
+              </div>
+
+              {/* Information Banner */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-xl flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-300 leading-relaxed">
+                <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <strong>Live Telemetry Ingestion:</strong> Ingests selected campaigns, ad metrics, click volume, leads, and conversion value directly into <strong>{activeClientName}</strong>&apos;s workspace.
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowConnectAdAccountModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    isConnectingAdAccount ||
+                    (!customAdAccountId.trim() && !selectedAdAccountId) ||
+                    (availableAdCampaigns.length === 0 && alreadyInCrmCampaigns.length > 0) ||
+                    (availableAdCampaigns.length > 0 && selectedCampaignIds.length === 0)
+                  }
+                  className="px-5 py-2.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer active:scale-95 disabled:cursor-not-allowed"
+                >
+                  {isConnectingAdAccount ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Connecting &amp; Ingesting Ads...</span>
+                    </>
+                  ) : availableAdCampaigns.length === 0 && alreadyInCrmCampaigns.length > 0 ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>All Campaigns Already in CRM</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>
+                        {selectedCampaignIds.length > 0
+                          ? `Connect & Import (${selectedCampaignIds.length} Campaigns)`
+                          : 'Select Campaigns to Import'}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -4311,6 +5099,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       )}
                     </button>
                   </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    💡 <strong>Token Lifespan:</strong> Meta Graph API Explorer tokens expire after 1–2 hours. If generated yesterday, generate a fresh token or use a permanent System User Token. Required permissions: <code className="text-[9px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">pages_show_list</code>, <code className="text-[9px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">pages_read_engagement</code>, <code className="text-[9px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">instagram_basic</code>.
+                  </p>
 
                   {/* Diagnostic Banner if Meta returns missing permissions or no Instagram */}
                   {metaInspectDiagnostics?.message && (
@@ -4782,6 +5573,282 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Edit Account & Commercial Profile Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 my-8 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#B91C1C] text-white flex items-center justify-center shadow-md">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Edit Client Account &amp; Profile</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Update company identity, industry vertical, primary stakeholder, and commercial contract terms.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const targetId = (liveClient?.id && liveClient.id.length > 10)
+                  ? liveClient.id
+                  : (clientId || liveClient?.id);
+                if (!targetId) return;
+
+                try {
+                  setIsSavingAccount(true);
+                  const parsedVal = parseFloat(String(editContractValue).replace(/[^0-9.]/g, '')) || 0;
+                  const res = await api.updateClient(targetId, {
+                    company_name: editCompanyName.trim(),
+                    industry: editIndustry,
+                    website: editWebsite.trim() || null,
+                    city: editCity.trim() || null,
+                    contact_first: editContactFirst.trim() || null,
+                    contact_last: editContactLast.trim() || null,
+                    contact_email: editContactEmail.trim() || null,
+                    contact_phone: editContactPhone.trim() || null,
+                    contact_role: editContactRole.trim() || 'Lead Stakeholder',
+                    contract_value: parsedVal,
+                    billing_frequency: editBillingFrequency,
+                    health_status: editHealthStatus
+                  });
+
+                  if (res.success) {
+                    showToast('Client account details updated successfully!', 'success');
+                    setShowEditModal(false);
+                    await fetchClientData();
+                  }
+                } catch (err: any) {
+                  showToast(err?.message || 'Failed to update account details', 'error');
+                } finally {
+                  setIsSavingAccount(false);
+                }
+              }}
+              className="overflow-y-auto flex-1 space-y-4 pr-1 text-xs"
+            >
+              {/* Section 1: Company Identity */}
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">
+                  Company Identity &amp; Industry
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Company Name *</label>
+                    <input
+                      type="text"
+                      value={editCompanyName}
+                      onChange={(e) => setEditCompanyName(e.target.value)}
+                      placeholder="e.g. ZenVrae"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Industry Vertical *</label>
+                    <select
+                      value={editIndustry}
+                      onChange={(e) => setEditIndustry(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                      required
+                    >
+                      <option value="Technology">Technology</option>
+                      <option value="Beauty & Wellness">Beauty &amp; Wellness</option>
+                      <option value="E-Commerce / D2C">E-Commerce / D2C</option>
+                      <option value="FinTech / BFSI">FinTech / BFSI</option>
+                      <option value="HealthTech">HealthTech</option>
+                      <option value="SaaS / Enterprise">SaaS / Enterprise</option>
+                      <option value="Fashion & Luxury">Fashion &amp; Luxury</option>
+                      <option value="CleanTech / Automotive">CleanTech / Automotive</option>
+                      <option value="Real Estate">Real Estate</option>
+                      <option value="Hospitality & F&B">Hospitality &amp; F&amp;B</option>
+                      <option value="Other">Other Vertical</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Official Website Domain</label>
+                    <input
+                      type="text"
+                      value={editWebsite}
+                      onChange={(e) => setEditWebsite(e.target.value)}
+                      placeholder="https://zenvrae.com"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-mono text-[11px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Headquarters / City Location</label>
+                    <input
+                      type="text"
+                      value={editCity}
+                      onChange={(e) => setEditCity(e.target.value)}
+                      placeholder="e.g. Mumbai, Bengaluru, Dubai"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Primary Stakeholder */}
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-blue-600 dark:text-blue-400">
+                  Primary Client Contact Stakeholder
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Contact First Name</label>
+                    <input
+                      type="text"
+                      value={editContactFirst}
+                      onChange={(e) => setEditContactFirst(e.target.value)}
+                      placeholder="e.g. Abhinav"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Contact Last Name</label>
+                    <input
+                      type="text"
+                      value={editContactLast}
+                      onChange={(e) => setEditContactLast(e.target.value)}
+                      placeholder="e.g. Lead"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Email ID</label>
+                    <input
+                      type="email"
+                      value={editContactEmail}
+                      onChange={(e) => setEditContactEmail(e.target.value)}
+                      placeholder="contact@client.com"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Phone / WhatsApp</label>
+                    <input
+                      type="tel"
+                      value={editContactPhone}
+                      onChange={(e) => setEditContactPhone(e.target.value)}
+                      placeholder="+91..."
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Designation / Role</label>
+                    <input
+                      type="text"
+                      value={editContactRole}
+                      onChange={(e) => setEditContactRole(e.target.value)}
+                      placeholder="e.g. Founder, Marketing Head"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Commercial Terms & Health */}
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
+                  Commercial Terms &amp; Health Status
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Contract Value (TCV ₹)</label>
+                    <input
+                      type="number"
+                      value={editContractValue}
+                      onChange={(e) => setEditContractValue(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Billing Frequency</label>
+                    <select
+                      value={editBillingFrequency}
+                      onChange={(e) => setEditBillingFrequency(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                    >
+                      <option value="monthly">Monthly Retainer</option>
+                      <option value="annual">Annual Retainer</option>
+                      <option value="quarterly">Quarterly Retainer</option>
+                      <option value="on_demand">On-Demand Ads</option>
+                      <option value="pay_as_you_go">Pay-As-You-Go</option>
+                      <option value="one_time">One-Time Project</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Account Health</label>
+                    <select
+                      value={editHealthStatus}
+                      onChange={(e) => setEditHealthStatus(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                    >
+                      <option value="Healthy">Healthy (Good Standing)</option>
+                      <option value="Attention Needed">Attention Needed</option>
+                      <option value="At-Risk">At-Risk</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAccount || !editCompanyName.trim()}
+                  className="px-5 py-2.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  {isSavingAccount ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Account Profile</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

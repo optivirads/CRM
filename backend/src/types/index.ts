@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   organizationId: string;
   role: string;
   isOwner: boolean;
+  rememberMe?: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {
