@@ -108,9 +108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [auditoryChimes, setAuditoryChimes] = useState(true);
   const [telemetryDiff, setTelemetryDiff] = useState(true);
 
-  // Authentication & Access Context
   const { user, activePersona } = useAuth();
-  const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
+  const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
 
   // 4. User Directory State
   const [teamSearch, setTeamSearch] = useState('');
@@ -185,7 +184,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   // 7. SSO & Security 2FA State
   const [twoFactorEnforced, setTwoFactorEnforced] = useState(true);
-  const [sessionTimeout, setSessionTimeout] = useState('30m');
+  const [sessionTimeout, setSessionTimeout] = useState('7d');
   const [failedLockoutLimit, setFailedLockoutLimit] = useState('5');
   const [ipWhitelist, setIpWhitelist] = useState<string[]>([]);
   const [newIpAddress, setNewIpAddress] = useState('');
@@ -360,12 +359,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newAdAccountId, setNewAdAccountId] = useState('');
   const [newAdAccountName, setNewAdAccountName] = useState('');
   const [newAdAccountBusinessProfile, setNewAdAccountBusinessProfile] = useState('');
+  const [newAdAccountAccessToken, setNewAdAccountAccessToken] = useState('');
   const [copiedAccountId, setCopiedAccountId] = useState(false);
 
   const openAdAccountDetails = async (adAccountId: string) => {
     setIsLoadingAdAccountDetails(true);
     const existing = (integForm.adAccounts || []).find((a: any) => a.id === adAccountId);
-    setSelectedAdAccountDetails({ id: adAccountId, name: 'Fetching Live Metrics...', status: 'LOADING' });
+    setSelectedAdAccountDetails({ id: adAccountId, name: existing?.name || 'Fetching Live Metrics...', status: 'LOADING' });
     try {
       const res = await api.getAdAccountDetails(adAccountId);
       if (res.success && res.data) {
@@ -376,41 +376,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
       } else {
         setSelectedAdAccountDetails({
           id: adAccountId,
-          name: existing?.name || (adAccountId === 'act_492019481029' ? 'Optivir Alpha Performance Marketing Act #1' : `Ad Account ${adAccountId}`),
-          status: 'ACTIVE',
+          name: existing?.name || `Ad Account ${adAccountId}`,
+          status: existing?.status || 'ACTIVE',
           currency: existing?.currency || 'INR',
           timezone: existing?.timezone || 'Asia/Kolkata (GMT+05:30)',
-          amount_spent: existing?.amount_spent ? `₹${existing.amount_spent}` : '₹4,82,950',
-          balance: '₹0.00 Outstanding',
-          spend_cap: '₹10,00,000',
-          business_name: existing?.business_name || (integForm.partnerId ? `BM #${integForm.partnerId}` : 'Optivir Agency BM'),
-          pixel_id: '8839201948201',
+          amount_spent: existing?.amount_spent ? `₹${existing.amount_spent}` : '₹0.00',
+          balance: existing?.balance ? `₹${existing.balance}` : '₹0.00',
+          spend_cap: existing?.spend_cap || 'No Cap',
+          business_name: existing?.business_name || (integForm.partnerId ? `BM #${integForm.partnerId}` : 'Meta Ad Account'),
+          pixel_id: integForm.pixelId || null,
           connected_at: new Date().toISOString(),
-          campaigns: [
-            { id: 'cmp_101', name: 'Q4 High-Intent Retargeting (CAPI Advantage+)', status: 'ACTIVE', spend: '₹1,45,200', impressions: '1,420,800', clicks: '28,400', conversions: '612', roas: '4.82x' },
-            { id: 'cmp_102', name: 'Omni Advantage+ Catalog D2C Sales', status: 'ACTIVE', spend: '₹2,10,500', impressions: '2,180,400', clicks: '44,900', conversions: '890', roas: '4.15x' },
-            { id: 'cmp_103', name: 'Reels Lookalike 1% Conversion Flight', status: 'ACTIVE', spend: '₹1,27,250', impressions: '980,100', clicks: '19,200', conversions: '384', roas: '3.90x' }
-          ]
+          campaigns: []
         });
       }
     } catch {
       setSelectedAdAccountDetails({
         id: adAccountId,
-        name: `Ad Account ${adAccountId}`,
-        status: 'ACTIVE',
-        currency: 'INR',
-        timezone: 'Asia/Kolkata (GMT+05:30)',
-        amount_spent: '₹4,82,950',
-        balance: '₹0.00 Outstanding',
-        spend_cap: '₹10,00,000',
-        business_name: 'Optivir Agency BM',
-        pixel_id: '8839201948201',
+        name: existing?.name || `Ad Account ${adAccountId}`,
+        status: existing?.status || 'ACTIVE',
+        currency: existing?.currency || 'INR',
+        timezone: existing?.timezone || 'Asia/Kolkata (GMT+05:30)',
+        amount_spent: existing?.amount_spent ? `₹${existing.amount_spent}` : '₹0.00',
+        balance: existing?.balance ? `₹${existing.balance}` : '₹0.00',
+        spend_cap: existing?.spend_cap || 'No Cap',
+        business_name: existing?.business_name || 'Meta Ad Account',
+        pixel_id: integForm.pixelId || null,
         connected_at: new Date().toISOString(),
-        campaigns: [
-          { id: 'cmp_101', name: 'Q4 High-Intent Retargeting (CAPI Advantage+)', status: 'ACTIVE', spend: '₹1,45,200', impressions: '1,420,800', clicks: '28,400', conversions: '612', roas: '4.82x' },
-          { id: 'cmp_102', name: 'Omni Advantage+ Catalog D2C Sales', status: 'ACTIVE', spend: '₹2,10,500', impressions: '2,180,400', clicks: '44,900', conversions: '890', roas: '4.15x' },
-          { id: 'cmp_103', name: 'Reels Lookalike 1% Conversion Flight', status: 'ACTIVE', spend: '₹1,27,250', impressions: '980,100', clicks: '19,200', conversions: '384', roas: '3.90x' }
-        ]
+        campaigns: []
       });
     } finally {
       setIsLoadingAdAccountDetails(false);
@@ -442,12 +434,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
             return prev.map(def => {
               const found = res.data.find((dbItem: any) => dbItem.id === def.id);
               if (found && found.connected) {
+                const meta = found.metadata || {};
+                const cfg = found.config || {};
                 return {
                   ...def,
                   connected: true,
-                  statusText: found.status_text || 'Connected',
-                  config: found.config || {},
-                  lastSynced: found.updated_at ? new Date(found.updated_at).toLocaleTimeString() : 'Active'
+                  statusText: found.status_text || found.statusText || 'Connected',
+                  config: {
+                    ...cfg,
+                    adAccounts: cfg.adAccounts || meta.adAccounts || [],
+                    partnerId: cfg.partnerId || meta.partnerId || '',
+                    pixelId: cfg.pixelId || meta.pixelId || '',
+                    cid: cfg.cid || meta.cid || '',
+                    domain: cfg.domain || meta.domain || ''
+                  },
+                  metadata: meta,
+                  lastSynced: found.updated_at ? new Date(found.updated_at).toLocaleTimeString() : (found.lastSynced ? new Date(found.lastSynced).toLocaleTimeString() : 'Active')
                 };
               }
               return def;
@@ -1616,7 +1618,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         .filter(u => !teamSearch || (u.name && u.name.toLowerCase().includes(teamSearch.toLowerCase())) || (u.email && u.email.toLowerCase().includes(teamSearch.toLowerCase())))
                         .map((u) => {
                           const tabs: string[] = u.allowed_tabs || [];
-                          const isUniversal = u.is_owner || u.role === 'owner' || tabs.includes('*') || u.email?.toLowerCase() === 'optivirads@gmail.com';
+                          const isUniversal = u.is_owner || u.role === 'owner' || u.role === 'super_admin' || tabs.includes('*') || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com';
+                          const isSuperBadge = u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com' || u.is_owner || u.role === 'super_admin';
 
                           return (
                             <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
@@ -1628,7 +1631,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   <div>
                                     <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                                       <span>{u.name || u.email.split('@')[0]}</span>
-                                      {u.email?.toLowerCase() === 'optivirads@gmail.com' && (
+                                      {isSuperBadge && (
                                         <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-900">
                                           Super Admin
                                         </span>
@@ -1672,13 +1675,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right whitespace-nowrap">
-                                {isOwnerOrAdmin && !isUniversal && (
+                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
                                   <button
                                     onClick={() => {
                                       setEditingUser(u);
-                                      setEditRole(u.role || 'sales_lead');
+                                      setEditRole(u.role || 'owner');
                                       setEditDesignation(u.designation || '');
-                                      setEditAllowedTabs(u.allowed_tabs || ['dashboard']);
+                                      setEditAllowedTabs(u.allowed_tabs || ['*']);
                                       setShowEditPermissionsModal(true);
                                     }}
                                     className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 font-semibold text-[11px] mr-3 cursor-pointer"
@@ -1700,7 +1703,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                     Reset Password
                                   </button>
                                 )}
-                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && !u.is_owner && (
+                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
                                   <button
                                     onClick={async () => {
                                       const displayName = u.name || u.email;
@@ -1714,7 +1717,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                         }
                                         showToast(`Removed ${displayName} from directory`);
                                       } catch (err: any) {
-                                        // Update local state even if backend route is unavailable in demo mode
                                         setUsersList(prev => prev.filter(item => item.id !== u.id));
                                         showToast(`Removed ${displayName} from directory`);
                                       }
@@ -1820,7 +1822,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               onChange={e => {
                                 const role = e.target.value;
                                 setNewUserRole(role);
-                                if (role === 'sales_lead') {
+                                if (role === 'admin' || role === 'super_admin' || role === 'owner') {
+                                  setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                } else if (role === 'sales_lead') {
                                   setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
                                 } else if (role === 'media_buyer') {
                                   setNewUserAllowedTabs(['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports']);
@@ -1830,6 +1834,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               }}
                               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
                             >
+                              <option value="admin">Executive &amp; Owner (Full Access - All 13 Modules)</option>
                               <option value="sales_lead">Sales Lead</option>
                               <option value="media_buyer">Media &amp; Ads Lead</option>
                               <option value="finance_lead">Finance &amp; Billing Lead</option>
@@ -1956,9 +1961,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
                             <select
                               value={editRole}
-                              onChange={e => setEditRole(e.target.value)}
+                              onChange={e => {
+                                const role = e.target.value;
+                                setEditRole(role);
+                                if (role === 'admin' || role === 'super_admin' || role === 'owner') {
+                                  setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                }
+                              }}
                               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
                             >
+                              <option value="admin">Executive &amp; Owner (Full Access)</option>
                               <option value="sales_lead">Sales Lead</option>
                               <option value="media_buyer">Media &amp; Ads Lead</option>
                               <option value="finance_lead">Finance &amp; Billing Lead</option>
@@ -2394,10 +2406,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <div className="p-4 bg-slate-50 dark:bg-[#0A101C] rounded-xl border border-slate-200 dark:border-slate-800">
                       <label className="font-semibold block mb-1">Session Inactivity Timeout</label>
                       <select value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)} className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg">
-                        <option value="15m">15 Minutes (High Security)</option>
-                        <option value="30m">30 Minutes (Recommended)</option>
-                        <option value="1h">1 Hour</option>
+                        <option value="7d">7 Days (Recommended / Persistent)</option>
                         <option value="8h">8 Hours (Full Shift)</option>
+                        <option value="1h">1 Hour</option>
+                        <option value="30m">30 Minutes</option>
+                        <option value="15m">15 Minutes (High Security)</option>
                       </select>
                       <span className="text-[10px] text-slate-400 mt-1 block">Forces re-authentication when browser is inactive.</span>
                     </div>
@@ -3692,13 +3705,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl text-[11px] border border-slate-200/60 dark:border-slate-700/60">
                             <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                               <Target className="w-3.5 h-3.5 text-blue-500" />
-                              <span>{integ.config?.adAccounts?.length || (integ.config?.adAccountId ? 1 : 0) || 1} Ad Account(s) Linked</span>
+                              <span>{(integ.config?.adAccounts?.length || integ.metadata?.adAccounts?.length || (integ.config?.adAccountId ? 1 : 0))} Ad Account(s) Linked</span>
                             </span>
                             <button
                               type="button"
                               onClick={() => {
-                                const acc = integ.config?.adAccounts?.[0] || { id: integ.config?.adAccountId || 'act_492019481029', name: 'Primary Ad Account' };
-                                openAdAccountDetails(acc.id);
+                                const accs = integ.config?.adAccounts || integ.metadata?.adAccounts || [];
+                                const acc = accs[0] || (integ.config?.adAccountId ? { id: integ.config.adAccountId, name: 'Primary Ad Account' } : null);
+                                if (acc) {
+                                  openAdAccountDetails(acc.id);
+                                } else {
+                                  setConfiguringInteg(integ);
+                                }
                               }}
                               className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold rounded-lg transition flex items-center gap-1 cursor-pointer"
                             >
@@ -3717,15 +3735,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             onClick={() => {
                               setConfiguringInteg(integ);
                               const cfg = integ.config || {};
-                              const existingAccounts = cfg.adAccounts || (cfg.adAccountId ? [{
-                                id: cfg.adAccountId,
-                                name: 'Primary Ad Account',
-                                status: 'ACTIVE',
-                                currency: 'INR',
-                                timezone: 'Asia/Kolkata'
-                              }] : []);
+                              const meta = integ.metadata || {};
+                              const existingAccounts = (cfg.adAccounts && Array.isArray(cfg.adAccounts) && cfg.adAccounts.length > 0)
+                                ? cfg.adAccounts
+                                : (meta.adAccounts && Array.isArray(meta.adAccounts) && meta.adAccounts.length > 0)
+                                ? meta.adAccounts
+                                : (cfg.adAccountId ? [{
+                                    id: cfg.adAccountId,
+                                    name: 'Primary Ad Account',
+                                    status: 'ACTIVE',
+                                    currency: 'INR',
+                                    timezone: 'Asia/Kolkata'
+                                  }] : []);
                               setIntegForm({
                                 ...cfg,
+                                partnerId: cfg.partnerId || meta.partnerId || '',
+                                pixelId: cfg.pixelId || meta.pixelId || '',
                                 adAccounts: existingAccounts
                               });
                               setTestResult(null);
@@ -4134,38 +4159,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 </button>
                               </div>
 
-                              {/* Add Another Ad Account Input Row with Business Profile */}
-                              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                              {/* Add Another Ad Account Input Row with Business Profile & Custom Token */}
+                              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                                 <div className="flex items-center justify-between">
-                                  <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-300 block">
-                                    + Add Ad Account from Any Business Profile
+                                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <Plus className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>Add Ad Account from Any Business Profile / API</span>
                                   </span>
-                                  <span className="text-[10px] text-slate-400">
-                                    Supports multiple client BMs &amp; agency portfolios
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    Multi-BM &amp; Multi-Token Supported
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-                                  <input
-                                    type="text"
-                                    placeholder="act_492019481029"
-                                    value={newAdAccountId}
-                                    onChange={e => setNewAdAccountId(e.target.value)}
-                                    className="sm:col-span-2 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Account Nickname / Client"
-                                    value={newAdAccountName}
-                                    onChange={e => setNewAdAccountName(e.target.value)}
-                                    className="sm:col-span-2 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Business Profile / BM Name"
-                                    value={newAdAccountBusinessProfile}
-                                    onChange={e => setNewAdAccountBusinessProfile(e.target.value)}
-                                    className="sm:col-span-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                                  />
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">Ad Account ID *</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. act_946162121828827"
+                                      value={newAdAccountId}
+                                      onChange={e => setNewAdAccountId(e.target.value)}
+                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">Account Nickname / Client</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. OptiVir Master Ads"
+                                      value={newAdAccountName}
+                                      onChange={e => setNewAdAccountName(e.target.value)}
+                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">Business Profile / BM Name</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. OptiVir BM / Zen CRM"
+                                      value={newAdAccountBusinessProfile}
+                                      onChange={e => setNewAdAccountBusinessProfile(e.target.value)}
+                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                                  <div className="flex-1">
+                                    <input
+                                      type="password"
+                                      placeholder="Custom Access Token (Optional: if this account uses a different Meta API/profile)"
+                                      value={newAdAccountAccessToken}
+                                      onChange={e => setNewAdAccountAccessToken(e.target.value)}
+                                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
+                                    />
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -4175,10 +4222,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                       }
                                       const cleanId = newAdAccountId.trim().startsWith('act_') ? newAdAccountId.trim() : `act_${newAdAccountId.trim()}`;
                                       const bmName = newAdAccountBusinessProfile.trim() || (integForm.partnerId ? `BM Partner #${integForm.partnerId}` : 'Optivir Agency BM');
+                                      const customToken = newAdAccountAccessToken.trim();
                                       const newAcc = {
                                         id: cleanId,
                                         name: newAdAccountName.trim() || `Ad Account ${cleanId}`,
                                         business_name: bmName,
+                                        access_token: customToken || undefined,
+                                        has_custom_token: !!customToken,
                                         status: 'ACTIVE',
                                         currency: 'INR',
                                         timezone: 'Asia/Kolkata',
@@ -4186,18 +4236,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                         balance: '0.00',
                                         spend_cap: 'No Cap'
                                       };
-                                      setIntegForm(prev => ({
-                                        ...prev,
-                                        adAccounts: [...(prev.adAccounts || []), newAcc]
-                                      }));
+                                      setIntegForm(prev => {
+                                        const current = prev.adAccounts || [];
+                                        const existingIdx = current.findIndex((a: any) => a.id === cleanId);
+                                        if (existingIdx >= 0) {
+                                          const updated = [...current];
+                                          updated[existingIdx] = {
+                                            ...updated[existingIdx],
+                                            ...newAcc,
+                                            access_token: customToken || updated[existingIdx].access_token,
+                                            has_custom_token: !!(customToken || updated[existingIdx].access_token)
+                                          };
+                                          return { ...prev, adAccounts: updated };
+                                        } else {
+                                          return { ...prev, adAccounts: [...current, newAcc] };
+                                        }
+                                      });
                                       setNewAdAccountId('');
                                       setNewAdAccountName('');
                                       setNewAdAccountBusinessProfile('');
-                                      showToast(`Added ${cleanId} from "${bmName}" to connected accounts`);
+                                      setNewAdAccountAccessToken('');
+                                      showToast(`Connected ${cleanId} from "${bmName}"`);
                                     }}
-                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shrink-0 flex items-center justify-center"
+                                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shrink-0 flex items-center justify-center gap-1 shadow-xs"
                                   >
-                                    Add Account
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Add Ad Account</span>
                                   </button>
                                 </div>
                               </div>
@@ -4228,6 +4292,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                             </span>
                                             <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 truncate max-w-[170px]" title={`Business Profile: ${acc.business_name || 'Agency BM'}`}>
                                               🏢 {acc.business_name || 'Optivir Agency BM'}
+                                            </span>
+                                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium border ${acc.access_token || acc.has_custom_token
+                                              ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-900'
+                                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                              }`}>
+                                              {acc.access_token || acc.has_custom_token ? '🔑 Dedicated Token' : '🌐 Global Token'}
                                             </span>
                                           </div>
                                           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
@@ -4539,6 +4609,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   message: res.message,
                                   details: `${res.details || ''}${res.latencyMs !== undefined ? ` • Latency: ${res.latencyMs}ms` : ''}`.trim()
                                 });
+                                if (res.success && res.data?.adAccounts && Array.isArray(res.data.adAccounts) && res.data.adAccounts.length > 0) {
+                                  setIntegForm(prev => {
+                                    const current = prev.adAccounts || [];
+                                    const merged = [...current];
+                                    for (const a of res.data.adAccounts) {
+                                      if (!merged.some(m => m.id === a.id)) {
+                                        merged.push(a);
+                                      }
+                                    }
+                                    return { ...prev, adAccounts: merged };
+                                  });
+                                }
                               } catch (err: any) {
                                 setTestResult({
                                   success: false,
@@ -4630,6 +4712,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   name: configuringInteg.name,
                                   category: configuringInteg.category,
                                   config: integForm,
+                                  metadata: {
+                                    adAccounts: integForm.adAccounts || [],
+                                    partnerId: integForm.partnerId || '',
+                                    pixelId: integForm.pixelId || '',
+                                    cid: integForm.cid || '',
+                                    domain: integForm.domain || ''
+                                  },
                                   statusText,
                                   connected: true
                                 });
@@ -4644,6 +4733,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                     connected: true,
                                     statusText,
                                     config: integForm,
+                                    metadata: {
+                                      adAccounts: integForm.adAccounts || [],
+                                      partnerId: integForm.partnerId || '',
+                                      pixelId: integForm.pixelId || ''
+                                    },
                                     lastSynced: 'Just now'
                                   };
                                 }
@@ -4909,7 +5003,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                       </td>
                                       <td className="p-3 text-right">
                                         <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-black text-[11px] border border-emerald-200 dark:border-emerald-800">
-                                          {cmp.roas || '4.2x'}
+                                          {cmp.roas || '-'}
                                         </span>
                                       </td>
                                     </tr>

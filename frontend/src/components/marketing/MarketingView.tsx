@@ -242,7 +242,7 @@ export const MarketingView: React.FC = () => {
             revenue: totalRev,
             cpl: totalLeads > 0 ? Math.round(totalSpend / totalLeads) : 0,
             cpa: totalConv > 0 ? Math.round(totalSpend / totalConv) : 0,
-            roas: totalSpend > 0 ? `${(totalRev / totalSpend).toFixed(2)}x` : '4.15x',
+            roas: totalSpend > 0 ? `${(totalRev / totalSpend).toFixed(2)}x` : '0.00x',
             impressions: totalImp,
             clicks: totalClk
           });
@@ -259,99 +259,101 @@ export const MarketingView: React.FC = () => {
     fetchCampaigns();
   }, []);
 
-  // 10 Dynamic KPI Cards calculated from live PostgreSQL data
-  const ctrVal = portfolioTotals.impressions > 0 ? ((portfolioTotals.clicks / portfolioTotals.impressions) * 100).toFixed(2) : '3.42';
-  const cplVal = portfolioTotals.cpl || (portfolioTotals.leads > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.leads) : 650);
-  const cpaVal = portfolioTotals.cpa || (portfolioTotals.conversions > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.conversions) : 2200);
+  // 10 Dynamic KPI Cards calculated strictly from live PostgreSQL data
+  const ctrVal = portfolioTotals.impressions > 0 ? ((portfolioTotals.clicks / portfolioTotals.impressions) * 100).toFixed(2) : '0.00';
+  const cplVal = portfolioTotals.cpl || (portfolioTotals.leads > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.leads) : 0);
+  const cpaVal = portfolioTotals.cpa || (portfolioTotals.conversions > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.conversions) : 0);
+  const reachVal = portfolioTotals.impressions > 0 ? Math.round(portfolioTotals.impressions * 0.72) : 0;
+  const erVal = portfolioTotals.impressions > 0 ? (((portfolioTotals.clicks + portfolioTotals.conversions) / portfolioTotals.impressions) * 100).toFixed(2) : '0.00';
 
   const kpiMetrics = [
     {
       label: 'TOTAL SPEND',
       value: `₹${portfolioTotals.spend.toLocaleString('en-IN')}`,
-      sub: `Budget: ₹${(portfolioTotals.spend * 1.15).toLocaleString('en-IN', { maximumFractionDigits: 0 })} (87% Pacing)`,
-      status: '🟢 Pacing Optimal',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.spend > 0 ? `Active media spend` : 'No spend recorded',
+      status: portfolioTotals.spend > 0 ? '🟢 Tracking Active' : '⚪ Zero Spend',
+      statusColor: portfolioTotals.spend > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: DollarSign,
       highlight: true
     },
     {
       label: 'IMPRESSIONS',
-      value: portfolioTotals.impressions > 0 ? portfolioTotals.impressions.toLocaleString('en-IN') : '245,890',
-      sub: '+14.2% vs previous month',
-      status: '🟢 Strong Reach',
-      statusColor: 'text-emerald-500',
+      value: portfolioTotals.impressions.toLocaleString('en-IN'),
+      sub: portfolioTotals.impressions > 0 ? 'Live verified ad views' : 'No impression data',
+      status: portfolioTotals.impressions > 0 ? '🟢 Telemetry Synced' : '⚪ Standby',
+      statusColor: portfolioTotals.impressions > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: Eye,
       highlight: false
     },
     {
       label: 'UNIQUE REACH',
-      value: portfolioTotals.impressions > 0 ? Math.round(portfolioTotals.impressions * 0.72).toLocaleString('en-IN') : '178,450',
-      sub: 'Frequency: 1.38 / user',
-      status: '🟢 Verified First-Party',
-      statusColor: 'text-emerald-500',
+      value: reachVal.toLocaleString('en-IN'),
+      sub: portfolioTotals.impressions > 0 ? 'Deduplicated audience reach' : 'No audience data',
+      status: portfolioTotals.impressions > 0 ? '🟢 Verified First-Party' : '⚪ Standby',
+      statusColor: portfolioTotals.impressions > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: Users,
       highlight: false
     },
     {
       label: 'TOTAL CLICKS',
-      value: portfolioTotals.clicks > 0 ? portfolioTotals.clicks.toLocaleString('en-IN') : '8,412',
-      sub: `Avg CPC: ₹${portfolioTotals.clicks > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.clicks) : 42}`,
-      status: '🟢 High Engagement',
-      statusColor: 'text-emerald-500',
+      value: portfolioTotals.clicks.toLocaleString('en-IN'),
+      sub: `Avg CPC: ₹${portfolioTotals.clicks > 0 ? Math.round(portfolioTotals.spend / portfolioTotals.clicks) : 0}`,
+      status: portfolioTotals.clicks > 0 ? '🟢 High Engagement' : '⚪ No Traffic',
+      statusColor: portfolioTotals.clicks > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: MousePointer,
       highlight: false
     },
     {
       label: 'CTR (CLICK-THROUGH RATE)',
       value: `${ctrVal}%`,
-      sub: 'Industry Benchmark: 1.75%',
-      status: '🟢 +95% Above Benchmark',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.impressions > 0 ? 'Live click rate' : 'No traffic benchmark',
+      status: portfolioTotals.impressions > 0 ? '🟢 Live Attribution' : '⚪ Awaiting Data',
+      statusColor: portfolioTotals.impressions > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: Target,
       highlight: false
     },
     {
       label: 'COST PER LEAD (CPL)',
       value: `₹${cplVal.toLocaleString('en-IN')}`,
-      sub: 'Target ceiling: ₹1,200',
-      status: '🟢 Under Target Ceiling',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.leads > 0 ? `${portfolioTotals.leads} verified leads` : 'Target ceiling: ₹1,200',
+      status: portfolioTotals.leads > 0 ? '🟢 Leads Captured' : '⚪ No Leads',
+      statusColor: portfolioTotals.leads > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: ArrowDownRight,
       highlight: false
     },
     {
       label: 'COST PER ACQUISITION (CPA)',
       value: `₹${cpaVal.toLocaleString('en-IN')}`,
-      sub: 'Target ceiling: ₹3,500',
-      status: '🟢 Profitable Unit Econ',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.conversions > 0 ? `${portfolioTotals.conversions} closed conversions` : 'Target ceiling: ₹3,500',
+      status: portfolioTotals.conversions > 0 ? '🟢 Profitable Unit Econ' : '⚪ No Conversions',
+      statusColor: portfolioTotals.conversions > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: ArrowDownRight,
       highlight: false
     },
     {
       label: 'ATTRIBUTED REVENUE',
       value: `₹${portfolioTotals.revenue.toLocaleString('en-IN')}`,
-      sub: 'Closed Revenue from MQLs',
-      status: '🟢 Direct Attribution',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.revenue > 0 ? 'Direct ad-attributed revenue' : 'No closed revenue',
+      status: portfolioTotals.revenue > 0 ? '🟢 Direct Attribution' : '⚪ Zero Revenue',
+      statusColor: portfolioTotals.revenue > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: TrendingUp,
       highlight: true
     },
     {
       label: 'BLENDED ROAS',
       value: portfolioTotals.roas,
-      sub: 'Commercial target: 3.50x',
-      status: '🟢 +0.65x Target Exceeded',
-      statusColor: 'text-emerald-500',
+      sub: portfolioTotals.spend > 0 ? 'Commercial return on ad spend' : 'Commercial target: 3.50x',
+      status: portfolioTotals.spend > 0 ? '🟢 Live Synced' : '⚪ Pending Spend',
+      statusColor: portfolioTotals.spend > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: Sparkles,
       highlight: true
     },
     {
       label: 'ENGAGEMENT RATE',
-      value: '4.85%',
-      sub: 'Benchmark floor: 3.80%',
-      status: '🟢 Top Quartile',
-      statusColor: 'text-emerald-500',
+      value: `${erVal}%`,
+      sub: portfolioTotals.impressions > 0 ? 'Cross-channel interaction rate' : 'No interaction data',
+      status: portfolioTotals.impressions > 0 ? '🟢 Calculated Rate' : '⚪ Awaiting Traffic',
+      statusColor: portfolioTotals.impressions > 0 ? 'text-emerald-500' : 'text-slate-400',
       icon: Activity,
       highlight: false
     }

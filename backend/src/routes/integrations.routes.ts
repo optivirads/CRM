@@ -67,15 +67,22 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     const result = DEFAULT_INTEGRATIONS.map((def) => {
       const saved = savedMap.get(def.id);
       if (saved) {
+        const meta = saved.metadata || {};
         return {
           ...def,
           connected: saved.connected,
           status_text: saved.status_text,
           statusText: saved.status_text,
-          metadata: saved.metadata || {},
+          metadata: meta,
           last_synced: saved.last_synced,
-          lastSynced: saved.last_synced
-          // config intentionally omitted
+          lastSynced: saved.last_synced,
+          config: {
+            adAccounts: meta.adAccounts || [],
+            partnerId: meta.partnerId || '',
+            pixelId: meta.pixelId || '',
+            cid: meta.cid || '',
+            domain: meta.domain || ''
+          }
         };
       }
       return { ...def, statusText: def.status_text };
@@ -347,8 +354,61 @@ router.post(
     }
 
     try {
+      // 1. Fetch existing config to merge secrets if not re-submitted
+      const existingRow = await db.query(
+        'SELECT config, metadata FROM organization_integrations WHERE organization_id = $1 AND id = $2;',
+        [orgId, integrationId]
+      );
+      const prevEncryptedConfig = existingRow.rows[0]?.config || {};
+      const prevDecryptedConfig = safeDecryptConfig(prevEncryptedConfig);
+
+      const mergedConfig: Record<string, any> = { ...prevDecryptedConfig, ...(config || {}) };
+      
+      // If a secret was not passed or is masked string (e.g. contains '••••'), preserve old decrypted secret
+      for (const [key, val] of Object.entries(config || {})) {
+        if (typeof val === 'string' && (val.trim() === '' || val.includes('••••')) && prevDecryptedConfig[key]) {
+          mergedConfig[key] = prevDecryptedConfig[key];
+        }
+      }
+
+      // If adAccounts passed in config, merge their tokens with any previously saved tokens
+      if (Array.isArray(config?.adAccounts)) {
+        const prevAccs: any[] = Array.isArray(prevDecryptedConfig.adAccounts) ? prevDecryptedConfig.adAccounts : [];
+        mergedConfig.adAccounts = config.adAccounts.map((a: any) => {
+          const old = prevAccs.find((p: any) => p.id === a.id);
+          const customToken = (a.access_token && typeof a.access_token === 'string' && a.access_token.trim() && !a.access_token.includes('••••'))
+            ? a.access_token.trim()
+            : (old?.access_token || undefined);
+          return {
+            ...a,
+            access_token: customToken
+          };
+        });
+      }
+
+      // Build non-secret metadata to allow UI rendering without exposing tokens
+      const autoMetadata: Record<string, any> = { ...(metadata || {}) };
+      if (Array.isArray(mergedConfig.adAccounts)) {
+        autoMetadata.adAccounts = mergedConfig.adAccounts.map((a: any) => ({
+          id: a.id,
+          name: a.name || a.id,
+          business_name: a.business_name || 'Business Manager',
+          status: a.status || 'ACTIVE',
+          currency: a.currency || 'INR',
+          timezone: a.timezone || 'Asia/Kolkata',
+          amount_spent: a.amount_spent || '0.00',
+          balance: a.balance || '0.00',
+          spend_cap: a.spend_cap || 'No Cap',
+          has_custom_token: !!(a.access_token && a.access_token.trim())
+        }));
+      }
+      if (mergedConfig.partnerId) autoMetadata.partnerId = mergedConfig.partnerId;
+      if (mergedConfig.pixelId) autoMetadata.pixelId = mergedConfig.pixelId;
+      if (mergedConfig.cid) autoMetadata.cid = mergedConfig.cid;
+      if (mergedConfig.domain) autoMetadata.domain = mergedConfig.domain;
+
       // Encrypt config before persisting
-      const encryptedConfig = encryptConfigObject(config || {});
+      const encryptedConfig = encryptConfigObject(mergedConfig);
 
       const upsertRes = await db.query(`
         INSERT INTO organization_integrations (
@@ -372,7 +432,7 @@ router.post(
         connected !== undefined ? connected : true,
         statusText || 'Connected',
         JSON.stringify(encryptedConfig),
-        JSON.stringify(metadata || {})
+        JSON.stringify(autoMetadata)
       ]);
 
       await recordAuditLog(orgId, userId, 'CONNECT_INTEGRATION', 'organization_integrations', integrationId, null, { integrationId, connected: true, statusText }, req);
@@ -449,7 +509,7 @@ router.post(
 
     try {
       const statusMap: Record<number, string> = { 1: 'ACTIVE', 2: 'DISABLED', 3: 'UNSETTLED', 7: 'PENDING_RISK_REVIEW' };
-      const actsUrl = `https://graph.facebook.com/v20.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name,amount_spent,balance,spend_cap&access_token=${encodeURIComponent(token.trim())}`;
+      const actsUrl = `https://graph.facebook.com/v20.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name,amount_spent,balance,spend_cap,business_name&access_token=${encodeURIComponent(token.trim())}`;
       const actsRes = await fetch(actsUrl);
       const actsData: any = await actsRes.json().catch(() => ({}));
 
@@ -458,6 +518,7 @@ router.post(
         accounts = actsData.data.map((a: any) => ({
           id: a.id,
           name: a.name || a.id,
+          business_name: a.business_name || (partnerId ? `BM Partner #${partnerId}` : 'Meta Business Manager'),
           status: statusMap[a.account_status] || 'ACTIVE',
           currency: a.currency || 'INR',
           timezone: a.timezone_name || 'Asia/Kolkata',
@@ -493,7 +554,15 @@ router.get(
 
       const encryptedConfig = saved.rows[0]?.config || {};
       const config = safeDecryptConfig(encryptedConfig);
-      const token = config.accessToken;
+      let token = config.accessToken;
+
+      // Check if this specific ad account has its own custom token
+      if (Array.isArray(config.adAccounts)) {
+        const specific = config.adAccounts.find((a: any) => a.id === cleanId || a.id === adAccountId);
+        if (specific && specific.access_token && specific.access_token !== '[DECRYPTION_FAILED]') {
+          token = specific.access_token;
+        }
+      }
 
       let accountDetails: any = null;
       if (token) {
@@ -520,29 +589,40 @@ router.get(
         } catch { /* fall through */ }
       }
 
-      if (!accountDetails) {
-        const matching = (config.adAccounts || []).find((a: any) => a.id === adAccountId || a.id === cleanId);
-        accountDetails = {
-          id: cleanId,
-          name: matching?.name || `Ad Account ${cleanId}`,
-          status: matching?.status || 'ACTIVE',
-          currency: matching?.currency || 'INR',
-          timezone: matching?.timezone || 'Asia/Kolkata (GMT+05:30)',
-          amount_spent: matching?.amount_spent || '₹0',
-          balance: matching?.balance || '₹0',
-          spend_cap: matching?.spend_cap || 'No Cap',
-          pixel_id: config.pixelId || null,
-          connected_at: matching?.connected_at || new Date().toISOString()
-        };
+      let campaigns: any[] = [];
+      if (token) {
+        try {
+          const campUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}/campaigns?fields=id,name,status,objective,effective_status,insights{spend,impressions,clicks,actions,purchase_roas}&limit=25&access_token=${encodeURIComponent(token.trim())}`;
+          const campRes = await fetch(campUrl);
+          if (campRes.ok) {
+            const campData: any = await campRes.json();
+            if (campData.data && Array.isArray(campData.data)) {
+              campaigns = campData.data.map((cmp: any) => {
+                const ins = cmp.insights?.data?.[0] || {};
+                const spendNum = ins.spend ? Number(ins.spend) : 0;
+                const spendFormatted = `₹${spendNum.toLocaleString('en-IN')}`;
+                const imp = ins.impressions ? Number(ins.impressions).toLocaleString('en-IN') : '0';
+                const clk = ins.clicks ? Number(ins.clicks).toLocaleString('en-IN') : '0';
+                const convActions = (ins.actions || []).find((a: any) => a.action_type === 'purchase' || a.action_type === 'lead' || a.action_type === 'offsite_conversion.fb_pixel_purchase');
+                const conv = convActions?.value ? String(convActions.value) : '0';
+                const roasVal = ins.purchase_roas?.[0]?.value ? `${Number(ins.purchase_roas[0].value).toFixed(2)}x` : '-';
+                return {
+                  id: cmp.id,
+                  name: cmp.name || cmp.id,
+                  status: cmp.effective_status || cmp.status || 'ACTIVE',
+                  spend: spendFormatted,
+                  impressions: imp,
+                  clicks: clk,
+                  conversions: conv,
+                  roas: roasVal
+                };
+              });
+            }
+          }
+        } catch { /* ignore non-fatal */ }
       }
 
-      const sampleCampaigns = [
-        { id: 'cmp_101', name: 'Q4 High-Intent Retargeting (CAPI Advantage+)', status: 'ACTIVE', spend: '₹1,45,200', impressions: '1,420,800', clicks: '28,400', conversions: '612', roas: '4.82x' },
-        { id: 'cmp_102', name: 'Omni Advantage+ Catalog D2C Sales', status: 'ACTIVE', spend: '₹2,10,500', impressions: '2,180,400', clicks: '44,900', conversions: '890', roas: '4.15x' },
-        { id: 'cmp_103', name: 'Reels Lookalike 1% Conversion Flight', status: 'ACTIVE', spend: '₹1,27,250', impressions: '980,100', clicks: '19,200', conversions: '384', roas: '3.90x' }
-      ];
-
-      res.json({ success: true, data: { ...accountDetails, campaigns: sampleCampaigns } });
+      res.json({ success: true, data: { ...accountDetails, campaigns } });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
     }
