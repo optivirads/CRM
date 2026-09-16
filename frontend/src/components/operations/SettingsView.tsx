@@ -110,6 +110,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   const { user, activePersona } = useAuth();
   const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
+  const isMasterOwner = user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com';
 
   // 4. User Directory State
   const [teamSearch, setTeamSearch] = useState('');
@@ -123,6 +124,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newUserAllowedTabs, setNewUserAllowedTabs] = useState<string[]>([
     'dashboard', 'leads', 'pipeline', 'proposals', 'clients'
   ]);
+  const [newUserIsClientOnly, setNewUserIsClientOnly] = useState(false);
+  const [newUserSelectedClientId, setNewUserSelectedClientId] = useState('');
+
+  // Clients database list for assignment
+  const [clientsList, setClientsList] = useState<any[]>([]);
 
   // Edit Permissions Modal State
   const [showEditPermissionsModal, setShowEditPermissionsModal] = useState(false);
@@ -130,6 +136,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [editAllowedTabs, setEditAllowedTabs] = useState<string[]>([]);
   const [editRole, setEditRole] = useState('sales_lead');
   const [editDesignation, setEditDesignation] = useState('');
+  const [editIsClientOnly, setEditIsClientOnly] = useState(false);
+  const [editSelectedClientId, setEditSelectedClientId] = useState('');
 
   // Admin Reset Password Modal State
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
@@ -541,9 +549,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const loadUsers = async () => {
     setIsLoadingSection(true);
     try {
-      const res = await api.getSettingsUsers();
-      if (res.success && Array.isArray(res.data)) {
-        setUsersList(res.data);
+      const [res, clientsRes] = await Promise.allSettled([
+        api.getSettingsUsers(),
+        api.getClients({ all: 'true' })
+      ]);
+      if (res.status === 'fulfilled' && res.value.success && Array.isArray(res.value.data)) {
+        setUsersList(res.value.data);
+      }
+      if (clientsRes.status === 'fulfilled' && clientsRes.value.success && Array.isArray(clientsRes.value.data)) {
+        setClientsList(clientsRes.value.data);
       }
     } catch (err: any) {
       console.warn('Failed to load users:', err);
@@ -1552,7 +1566,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       Create users via Email ID, assign granular module permissions, and manage credentials.
                     </p>
                   </div>
-                  {isOwnerOrAdmin && (
+                  {isMasterOwner ? (
                     <button
                       onClick={() => {
                         setNewUserEmail('');
@@ -1561,6 +1575,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         setNewUserDesignation('Growth Specialist');
                         setNewUserPassword('Optivir@2026');
                         setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                        setNewUserIsClientOnly(false);
+                        setNewUserSelectedClientId(clientsList[0]?.id || '');
                         setShowInviteModal(true);
                       }}
                       className="px-3.5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -1568,6 +1584,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       <Plus className="w-3.5 h-3.5" />
                       <span>Create User &amp; Assign Permissions</span>
                     </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed" title="Only the primary Executive Owner (optivirads@gmail.com) can create new accounts">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Owner-Gated (optivirads@gmail.com)</span>
+                    </div>
                   )}
                 </div>
 
@@ -1592,9 +1613,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     >
                       <option value="all">All Roles</option>
                       <option value="owner">Executive &amp; Owner</option>
+                      <option value="coo">Chief Operating Officer (COO)</option>
                       <option value="sales_lead">Sales Lead</option>
-                      <option value="media_buyer">Media Buyer</option>
-                      <option value="finance_lead">Finance Lead</option>
+                      <option value="marketing_lead">Marketing Lead</option>
+                      <option value="social_media_lead">Social Media Lead</option>
+                      <option value="media_buyer">Media &amp; Ads Lead</option>
+                      <option value="account_manager">Client Account Manager</option>
+                      <option value="finance_lead">Finance &amp; Billing Lead</option>
+                      <option value="operations_lead">Operations &amp; Delivery Lead</option>
+                      <option value="client_portal">Client-Specific Accounts</option>
                     </select>
                   </div>
                 </div>
@@ -1620,12 +1647,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           const tabs: string[] = u.allowed_tabs || [];
                           const isUniversal = u.is_owner || u.role === 'owner' || u.role === 'super_admin' || tabs.includes('*') || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com';
                           const isSuperBadge = u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com' || u.is_owner || u.role === 'super_admin';
+                          const isClientAccount = !!u.clientId || u.role === 'client_portal';
 
                           return (
                             <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-2.5">
-                                  <div className={`w-8 h-8 rounded-lg ${u.avatarBg || 'bg-slate-700'} text-white font-bold flex items-center justify-center text-xs shrink-0`}>
+                                  <div className={`w-8 h-8 rounded-lg ${u.avatarBg || (isClientAccount ? 'bg-amber-600' : 'bg-slate-700')} text-white font-bold flex items-center justify-center text-xs shrink-0`}>
                                     {u.initials || (u.email ? u.email[0].toUpperCase() : 'U')}
                                   </div>
                                   <div>
@@ -1636,19 +1664,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                           Super Admin
                                         </span>
                                       )}
+                                      {isClientAccount && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-900 flex items-center gap-1">
+                                          <Building2 className="w-2.5 h-2.5" /> Client User
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{u.email}</div>
                                   </div>
                                 </div>
                               </td>
                               <td className="py-3 px-4">
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{u.roleLabel || u.role}</span>
+                                {isClientAccount ? (
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-amber-600 dark:text-amber-400 text-xs flex items-center gap-1">
+                                      <Building2 className="w-3 h-3" /> Client Account
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                                      {u.clientName || 'Assigned Client'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-medium text-slate-800 dark:text-slate-200">{u.roleLabel || u.role}</span>
+                                    {u.role === 'coo' && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-900">
+                                        COO
+                                      </span>
+                                    )}
+                                    {u.role === 'marketing_lead' && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-900">
+                                        Marketing
+                                      </span>
+                                    )}
+                                    {u.role === 'social_media_lead' && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 font-bold border border-pink-200 dark:border-pink-900">
+                                        Social Media
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
-                              <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.designation || 'Specialist'}</td>
+                              <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.designation || (isClientAccount ? 'Client Representative' : 'Specialist')}</td>
                               <td className="py-3 px-4 max-w-xs">
-                                {isUniversal ? (
+                                {isClientAccount ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                                    <Building2 className="w-3 h-3" /> Client-Scoped ({u.clientName || 'Single Account'})
+                                  </span>
+                                ) : isUniversal ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800">
                                     <ShieldCheck className="w-3 h-3" /> Full Access (All 13 Modules)
+                                  </span>
+                                ) : u.role === 'coo' ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                                    <Shield className="w-3 h-3" /> All Modules (Excl. Master Billing/Security)
                                   </span>
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
@@ -1675,13 +1744,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right whitespace-nowrap">
-                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                {isMasterOwner && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
                                   <button
                                     onClick={() => {
                                       setEditingUser(u);
-                                      setEditRole(u.role || 'owner');
+                                      setEditRole(u.role || 'sales_lead');
                                       setEditDesignation(u.designation || '');
                                       setEditAllowedTabs(u.allowed_tabs || ['*']);
+                                      setEditIsClientOnly(!!u.clientId || u.role === 'client_portal');
+                                      setEditSelectedClientId(u.clientId || (clientsList[0]?.id || ''));
                                       setShowEditPermissionsModal(true);
                                     }}
                                     className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 font-semibold text-[11px] mr-3 cursor-pointer"
@@ -1690,7 +1761,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                     Permissions
                                   </button>
                                 )}
-                                {isOwnerOrAdmin && (
+                                {isMasterOwner && (
                                   <button
                                     onClick={() => {
                                       setResettingUser(u);
@@ -1703,7 +1774,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                     Reset Password
                                   </button>
                                 )}
-                                {isOwnerOrAdmin && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                {isMasterOwner && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
                                   <button
                                     onClick={async () => {
                                       const displayName = u.name || u.email;
@@ -1725,6 +1796,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   >
                                     Remove
                                   </button>
+                                )}
+                                {!isMasterOwner && (
+                                  <span className="text-[10px] text-slate-400 italic">Owner Protected</span>
                                 )}
                               </td>
                             </tr>
@@ -1756,10 +1830,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           const res = await api.createSettingsUser({
                             name: newUserName.trim() || undefined,
                             email: newUserEmail.trim(),
-                            role: newUserRole,
-                            designation: newUserDesignation.trim() || 'Specialist',
+                            role: newUserIsClientOnly ? 'client_portal' : newUserRole,
+                            designation: newUserIsClientOnly ? (newUserDesignation.trim() || 'Client Representative') : (newUserDesignation.trim() || 'Specialist'),
                             password: newUserPassword.trim() || 'Optivir@2026',
-                            allowed_tabs: newUserAllowedTabs
+                            allowed_tabs: newUserIsClientOnly ? ['dashboard', 'projects', 'tasks', 'marketing', 'reports', 'finance'] : newUserAllowedTabs,
+                            client_id: newUserIsClientOnly ? newUserSelectedClientId : null
                           });
                           setShowInviteModal(false);
                           setNewUserName('');
@@ -1813,33 +1888,118 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           </div>
                         </div>
 
+                        {/* Single-Client Assignment Toggle */}
+                        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white text-xs block">Assign to a specific client only</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400">Confines user access strictly to that client's deliverables, tasks, campaigns &amp; invoices</span>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={newUserIsClientOnly}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setNewUserIsClientOnly(checked);
+                                if (checked) {
+                                  setNewUserRole('client_portal');
+                                  setNewUserDesignation('Client Representative');
+                                  setNewUserAllowedTabs(['dashboard', 'projects', 'tasks', 'marketing', 'reports', 'finance']);
+                                  if (!newUserSelectedClientId && clientsList.length > 0) {
+                                    setNewUserSelectedClientId(clientsList[0].id);
+                                  }
+                                } else {
+                                  setNewUserRole('sales_lead');
+                                  setNewUserDesignation('Growth Specialist');
+                                  setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-amber-600 focus:ring-0 cursor-pointer"
+                            />
+                          </label>
+                          {newUserIsClientOnly && (
+                            <div className="pt-2 border-t border-amber-500/20">
+                              <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200 text-xs">Select Client Account</label>
+                              {clientsList.length === 0 ? (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400">No active clients found in CRM. Create a client in Clients module first.</p>
+                              ) : (
+                                <select
+                                  value={newUserSelectedClientId}
+                                  onChange={(e) => setNewUserSelectedClientId(e.target.value)}
+                                  className="w-full p-2.5 bg-white dark:bg-slate-800 border border-amber-500/40 rounded-xl text-xs font-semibold text-slate-900 dark:text-white"
+                                >
+                                  {clientsList.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.company_name || c.name || c.id} {c.account_manager_name ? `(AM: ${c.account_manager_name})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         {/* Role & Designation */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
-                            <select
-                              value={newUserRole}
-                              onChange={e => {
-                                const role = e.target.value;
-                                setNewUserRole(role);
-                                if (role === 'admin' || role === 'super_admin' || role === 'owner') {
-                                  setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
-                                } else if (role === 'sales_lead') {
-                                  setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
-                                } else if (role === 'media_buyer') {
-                                  setNewUserAllowedTabs(['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports']);
-                                } else if (role === 'finance_lead') {
-                                  setNewUserAllowedTabs(['dashboard', 'finance', 'proposals', 'reports']);
-                                }
-                              }}
-                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
-                            >
-                              <option value="admin">Executive &amp; Owner (Full Access - All 13 Modules)</option>
-                              <option value="sales_lead">Sales Lead</option>
-                              <option value="media_buyer">Media &amp; Ads Lead</option>
-                              <option value="finance_lead">Finance &amp; Billing Lead</option>
-                              <option value="account_manager">Client Account Manager</option>
-                            </select>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">
+                              {newUserIsClientOnly ? 'Assigned Portal Mode' : 'Role Classification'}
+                            </label>
+                            {newUserIsClientOnly ? (
+                              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl font-bold text-amber-700 dark:text-amber-300 text-xs flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5" /> Client Portal User
+                              </div>
+                            ) : (
+                              <select
+                                value={newUserRole}
+                                onChange={e => {
+                                  const role = e.target.value;
+                                  setNewUserRole(role);
+                                  if (role === 'admin' || role === 'super_admin' || role === 'owner') {
+                                    setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                    setNewUserDesignation('Executive Director');
+                                  } else if (role === 'coo') {
+                                    setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                    setNewUserDesignation('Chief Operating Officer');
+                                  } else if (role === 'marketing_lead') {
+                                    setNewUserAllowedTabs(['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks']);
+                                    setNewUserDesignation('Head of Marketing');
+                                  } else if (role === 'social_media_lead') {
+                                    setNewUserAllowedTabs(['dashboard', 'marketing', 'projects', 'tasks', 'reports']);
+                                    setNewUserDesignation('Social Media Lead');
+                                  } else if (role === 'sales_lead') {
+                                    setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                                    setNewUserDesignation('Head of Sales & Growth');
+                                  } else if (role === 'media_buyer') {
+                                    setNewUserAllowedTabs(['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports']);
+                                    setNewUserDesignation('Performance Media & Ads Lead');
+                                  } else if (role === 'operations_lead') {
+                                    setNewUserAllowedTabs(['dashboard', 'projects', 'tasks', 'clients', 'reports', 'operations']);
+                                    setNewUserDesignation('Operations & Delivery Lead');
+                                  } else if (role === 'finance_lead') {
+                                    setNewUserAllowedTabs(['dashboard', 'finance', 'proposals', 'reports']);
+                                    setNewUserDesignation('Finance & Billing Lead');
+                                  } else if (role === 'account_manager') {
+                                    setNewUserAllowedTabs(['dashboard', 'clients', 'projects', 'proposals', 'reports']);
+                                    setNewUserDesignation('Client Account Manager');
+                                  }
+                                }}
+                                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                              >
+                                <option value="admin">Executive &amp; Owner (Full Access - All 13 Modules)</option>
+                                <option value="coo">Chief Operating Officer (COO - All Agency Operations)</option>
+                                <option value="marketing_lead">Marketing Lead (Campaigns, Content &amp; Analytics)</option>
+                                <option value="social_media_lead">Social Media Lead (Content, Sprints &amp; Campaigns)</option>
+                                <option value="sales_lead">Sales Lead (Leads, Pipeline, Proposals)</option>
+                                <option value="media_buyer">Media &amp; Ads Lead (Campaigns, ROAS, Ad Ops)</option>
+                                <option value="operations_lead">Operations &amp; Delivery Lead (Projects &amp; Tasks)</option>
+                                <option value="account_manager">Client Account Manager (Clients, Projects, Reports)</option>
+                                <option value="finance_lead">Finance &amp; Billing Lead (Invoices, Tax Ledgers)</option>
+                              </select>
+                            )}
                           </div>
                           <div>
                             <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Designation</label>
@@ -1859,23 +2019,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               <Shield className="w-3.5 h-3.5 text-blue-500" />
                               <span>Assign Module Permissions ({newUserAllowedTabs.length} Selected)</span>
                             </label>
-                            <div className="flex items-center gap-1 text-[10px]">
-                              <button
-                                type="button"
-                                onClick={() => setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id))}
-                                className="text-blue-600 hover:underline cursor-pointer"
-                              >
-                                All
-                              </button>
-                              <span className="text-slate-300 dark:text-slate-700">•</span>
-                              <button
-                                type="button"
-                                onClick={() => setNewUserAllowedTabs(['dashboard'])}
-                                className="text-slate-500 hover:underline cursor-pointer"
-                              >
-                                Clear
-                              </button>
-                            </div>
+                            {!newUserIsClientOnly && (
+                              <div className="flex items-center gap-1 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id))}
+                                  className="text-blue-600 hover:underline cursor-pointer"
+                                >
+                                  All
+                                </button>
+                                <span className="text-slate-300 dark:text-slate-700">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserAllowedTabs(['dashboard'])}
+                                  className="text-slate-500 hover:underline cursor-pointer"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-48 overflow-y-auto">
@@ -1944,9 +2106,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         e.preventDefault();
                         try {
                           await api.updateSettingsUser(editingUser.id, {
-                            role: editRole,
+                            role: editIsClientOnly ? 'client_portal' : editRole,
                             designation: editDesignation,
-                            allowed_tabs: editAllowedTabs
+                            allowed_tabs: editAllowedTabs,
+                            client_id: editIsClientOnly ? editSelectedClientId : null
                           });
                           setShowEditPermissionsModal(false);
                           await loadUsers();
@@ -1956,26 +2119,108 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         }
                       }} className="space-y-4 text-xs">
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Role Classification</label>
-                            <select
-                              value={editRole}
-                              onChange={e => {
-                                const role = e.target.value;
-                                setEditRole(role);
-                                if (role === 'admin' || role === 'super_admin' || role === 'owner') {
-                                  setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                        {/* Single-Client Assignment Toggle in Edit Modal */}
+                        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white text-xs block">Assign to a specific client only</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400">Confines user access strictly to that client's deliverables, tasks, campaigns &amp; invoices</span>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={editIsClientOnly}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setEditIsClientOnly(checked);
+                                if (checked) {
+                                  setEditRole('client_portal');
+                                  setEditDesignation('Client Representative');
+                                  setEditAllowedTabs(['dashboard', 'projects', 'tasks', 'marketing', 'reports', 'finance']);
+                                  if (!editSelectedClientId && clientsList.length > 0) {
+                                    setEditSelectedClientId(clientsList[0].id);
+                                  }
+                                } else {
+                                  setEditRole('sales_lead');
+                                  setEditDesignation('Growth Specialist');
+                                  setEditAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
                                 }
                               }}
-                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
-                            >
-                              <option value="admin">Executive &amp; Owner (Full Access)</option>
-                              <option value="sales_lead">Sales Lead</option>
-                              <option value="media_buyer">Media &amp; Ads Lead</option>
-                              <option value="finance_lead">Finance &amp; Billing Lead</option>
-                              <option value="account_manager">Client Account Manager</option>
-                            </select>
+                              className="w-4 h-4 rounded text-amber-600 focus:ring-0 cursor-pointer"
+                            />
+                          </label>
+                          {editIsClientOnly && (
+                            <div className="pt-2 border-t border-amber-500/20">
+                              <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200 text-xs">Select Client Account</label>
+                              {clientsList.length === 0 ? (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400">No active clients found in CRM. Create a client in Clients module first.</p>
+                              ) : (
+                                <select
+                                  value={editSelectedClientId}
+                                  onChange={(e) => setEditSelectedClientId(e.target.value)}
+                                  className="w-full p-2.5 bg-white dark:bg-slate-800 border border-amber-500/40 rounded-xl text-xs font-semibold text-slate-900 dark:text-white"
+                                >
+                                  {clientsList.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.company_name || c.name || c.id} {c.account_manager_name ? `(AM: ${c.account_manager_name})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">
+                              {editIsClientOnly ? 'Assigned Portal Mode' : 'Role Classification'}
+                            </label>
+                            {editIsClientOnly ? (
+                              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl font-bold text-amber-700 dark:text-amber-300 text-xs flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5" /> Client Portal User
+                              </div>
+                            ) : (
+                              <select
+                                value={editRole}
+                                onChange={e => {
+                                  const role = e.target.value;
+                                  setEditRole(role);
+                                  if (role === 'admin' || role === 'super_admin' || role === 'owner') {
+                                    setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                  } else if (role === 'coo') {
+                                    setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
+                                  } else if (role === 'marketing_lead') {
+                                    setEditAllowedTabs(['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks']);
+                                  } else if (role === 'social_media_lead') {
+                                    setEditAllowedTabs(['dashboard', 'marketing', 'projects', 'tasks', 'reports']);
+                                  } else if (role === 'sales_lead') {
+                                    setEditAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
+                                  } else if (role === 'media_buyer') {
+                                    setEditAllowedTabs(['dashboard', 'clients', 'projects', 'tasks', 'marketing', 'reports']);
+                                  } else if (role === 'operations_lead') {
+                                    setEditAllowedTabs(['dashboard', 'projects', 'tasks', 'clients', 'reports', 'operations']);
+                                  } else if (role === 'finance_lead') {
+                                    setEditAllowedTabs(['dashboard', 'finance', 'proposals', 'reports']);
+                                  } else if (role === 'account_manager') {
+                                    setEditAllowedTabs(['dashboard', 'clients', 'projects', 'proposals', 'reports']);
+                                  }
+                                }}
+                                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                              >
+                                <option value="admin">Executive &amp; Owner (Full Access)</option>
+                                <option value="coo">Chief Operating Officer (COO)</option>
+                                <option value="marketing_lead">Marketing Lead</option>
+                                <option value="social_media_lead">Social Media Lead</option>
+                                <option value="sales_lead">Sales Lead</option>
+                                <option value="media_buyer">Media &amp; Ads Lead</option>
+                                <option value="operations_lead">Operations &amp; Delivery Lead</option>
+                                <option value="account_manager">Client Account Manager</option>
+                                <option value="finance_lead">Finance &amp; Billing Lead</option>
+                              </select>
+                            )}
                           </div>
                           <div>
                             <label className="font-semibold block mb-1 text-slate-800 dark:text-slate-200">Designation</label>
@@ -2559,15 +2804,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {!isMasterOwner && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
+                    <Lock className="w-4 h-4 shrink-0 text-amber-500" />
+                    <span>Global Tenant Security Policies (2FA Enforcement, IP Whitelist &amp; Session Timeouts) are restricted to Primary Owner (optivirads@gmail.com). You can still change your personal password above.</span>
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-2">
-                  <button
-                    onClick={handleSaveSecurity}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isSaving ? 'Saving...' : 'Save Security Policies'}</span>
-                  </button>
+                  {isMasterOwner ? (
+                    <button
+                      onClick={handleSaveSecurity}
+                      disabled={isSaving}
+                      className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSaving ? 'Saving...' : 'Save Security Policies'}</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Tenant Policy (Owner Gated)</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3507,15 +3766,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {!isMasterOwner && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
+                    <Lock className="w-4 h-4 shrink-0 text-amber-500" />
+                    <span>Master Billing &amp; Currency configuration is strictly restricted to Primary Executive Owner (optivirads@gmail.com). Operational accounts have read-only visibility.</span>
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-2">
-                  <button
-                    onClick={handleSaveBilling}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isSaving ? 'Saving...' : 'Save Billing Information'}</span>
-                  </button>
+                  {isMasterOwner ? (
+                    <button
+                      onClick={handleSaveBilling}
+                      disabled={isSaving}
+                      className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSaving ? 'Saving...' : 'Save Billing Information'}</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Read-Only (Owner Gated)</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

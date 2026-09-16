@@ -30,7 +30,10 @@ router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Res
     `;
     const params: any[] = [orgId];
 
-    if (clientId) {
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      query += ` AND c.client_id = $${params.length}`;
+    } else if (clientId) {
       params.push(clientId);
       params.push(`%${clientId}%`);
       query += ` AND (c.client_id::text = $${params.length - 1} OR cl.company_id::text = $${params.length - 1} OR comp.name ILIKE $${params.length})`;

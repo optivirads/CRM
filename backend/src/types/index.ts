@@ -9,6 +9,7 @@ export interface AuthenticatedUser {
   role: string;
   isOwner: boolean;
   rememberMe?: boolean;
+  clientId?: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {

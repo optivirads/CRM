@@ -672,6 +672,7 @@ class ApiClient {
     phone?: string;
     password?: string;
     allowed_tabs?: string[];
+    client_id?: string | null;
   }) {
     return this.request<{ success: boolean; message: string; data: any }>('/settings/users', {
       method: 'POST',

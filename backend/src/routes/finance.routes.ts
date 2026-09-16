@@ -64,7 +64,10 @@ router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Resp
       params.push(status);
       whereClause += ` AND inv.status = $${params.length}`;
     }
-    if (clientId) {
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      whereClause += ` AND inv.client_id = $${params.length}`;
+    } else if (clientId) {
       params.push(clientId);
       whereClause += ` AND inv.client_id = $${params.length}`;
     }

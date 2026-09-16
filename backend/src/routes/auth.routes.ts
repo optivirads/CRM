@@ -50,13 +50,16 @@ router.post(
         SELECT 
           u.id, u.email, u.password_hash, u.first_name, u.last_name, u.status,
           u.failed_login_attempts, u.lockout_until,
-          ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs,
+          ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
+          comp.name as client_name,
           r.name as role_name, r.slug as role_slug,
           o.name as organization_name, o.slug as organization_slug, o.currency,
           o.settings as org_settings
         FROM users u
         JOIN organization_users ou ON u.id = ou.user_id
         JOIN organizations o ON ou.organization_id = o.id
+        LEFT JOIN clients c ON ou.client_id = c.id
+        LEFT JOIN companies comp ON c.company_id = comp.id
         LEFT JOIN roles r ON ou.role_id = r.id
         WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL
         LIMIT 1;
@@ -149,7 +152,8 @@ router.post(
         organizationId: row.organization_id,
         role: row.role_slug || 'admin',
         isOwner: row.is_owner,
-        rememberMe: isPersistent
+        rememberMe: isPersistent,
+        clientId: row.client_id || null
       };
 
       const token = generateToken(userPayload, isPersistent);
@@ -183,7 +187,9 @@ router.post(
             role: row.role_slug || 'admin',
             roleName: row.role_name || 'Admin',
             isOwner: row.is_owner,
-            allowed_tabs: effectiveTabs
+            allowed_tabs: effectiveTabs,
+            clientId: row.client_id || null,
+            clientName: row.client_name || null
           },
           organization: {
             id: row.organization_id,
@@ -208,12 +214,15 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
     const userRes = await db.query(`
       SELECT 
         u.id, u.email, u.first_name, u.last_name, u.avatar_url,
-        ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs,
+        ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
+        comp.name as client_name,
         r.name as role_name, r.slug as role_slug,
         o.name as organization_name, o.currency, o.timezone
       FROM users u
       JOIN organization_users ou ON u.id = ou.user_id
       JOIN organizations o ON ou.organization_id = o.id
+      LEFT JOIN clients c ON ou.client_id = c.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN roles r ON ou.role_id = r.id
       WHERE u.id = $1 AND ou.organization_id = $2;
     `, [req.user!.id, req.user!.organizationId]);
@@ -241,7 +250,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       organizationId: row.organization_id,
       role: row.role_slug || 'admin',
       isOwner: row.is_owner,
-      rememberMe: req.user?.rememberMe !== false
+      rememberMe: req.user?.rememberMe !== false,
+      clientId: row.client_id || null
     }, req.user?.rememberMe !== false);
 
     res.json({
@@ -249,6 +259,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       data: {
         ...row,
         allowed_tabs: effectiveTabs,
+        client_id: row.client_id || null,
+        client_name: row.client_name || null,
         token: freshToken
       }
     });

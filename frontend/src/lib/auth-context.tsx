@@ -9,10 +9,12 @@ export interface User {
   firstName: string;
   lastName: string;
   designation?: string;
-  role: 'owner' | 'sales_lead' | 'media_buyer' | 'finance_lead' | 'client_portal' | string;
+  role: 'owner' | 'coo' | 'sales_lead' | 'marketing_lead' | 'social_media_lead' | 'media_buyer' | 'finance_lead' | 'account_manager' | 'operations_lead' | 'client_portal' | string;
   roleName?: string;
   isOwner?: boolean;
   allowed_tabs?: string[];
+  clientId?: string | null;
+  clientName?: string | null;
 }
 
 export interface Organization {
@@ -26,7 +28,7 @@ export interface Persona {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'sales_lead' | 'media_buyer' | 'finance_lead' | 'client_portal';
+  role: 'owner' | 'coo' | 'sales_lead' | 'marketing_lead' | 'social_media_lead' | 'media_buyer' | 'finance_lead' | 'account_manager' | 'operations_lead' | 'client_portal';
   roleLabel: string;
   designation: string;
   avatarText: string;
@@ -49,6 +51,18 @@ export const AGENCY_PERSONAS: Persona[] = [
     description: 'Full agency command across all 18 CRM, Revenue, Operations & Billing modules'
   },
   {
+    id: 'persona-coo',
+    name: 'Operations Lead (COO)',
+    email: 'coo@optivirads.com',
+    role: 'coo',
+    roleLabel: 'Chief Operating Officer',
+    designation: 'Chief Operating Officer • OptiVir',
+    avatarText: 'CO',
+    avatarBg: 'bg-purple-700',
+    allowedTabs: ['dashboard', 'leads', 'pipeline', 'proposals', 'clients', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'operations', 'settings'],
+    description: 'Executive operational command across all agency deliverables, pipelines, and modules'
+  },
+  {
     id: 'persona-sales',
     name: 'Growth Lead',
     email: 'sales@optivirads.com',
@@ -61,14 +75,38 @@ export const AGENCY_PERSONAS: Persona[] = [
     description: 'CRM qualification, deal velocity, commercial quotations & pipeline forecasting'
   },
   {
+    id: 'persona-marketing',
+    name: 'Marketing Lead',
+    email: 'marketing@optivirads.com',
+    role: 'marketing_lead',
+    roleLabel: 'Marketing Lead',
+    designation: 'Head of Marketing & Growth',
+    avatarText: 'ML',
+    avatarBg: 'bg-indigo-600',
+    allowedTabs: ['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks', 'proposals'],
+    description: 'Omnichannel performance marketing, brand campaigns, and conversion attribution'
+  },
+  {
+    id: 'persona-social',
+    name: 'Social Media Lead',
+    email: 'social@optivirads.com',
+    role: 'social_media_lead',
+    roleLabel: 'Social Media Lead',
+    designation: 'Social Media & Content Lead',
+    avatarText: 'SL',
+    avatarBg: 'bg-pink-600',
+    allowedTabs: ['dashboard', 'marketing', 'projects', 'tasks', 'clients', 'reports'],
+    description: 'Social post insights, creative deliverables, engagement KPIs, and brand community'
+  },
+  {
     id: 'persona-media',
     name: 'Media Lead',
     email: 'media@optivirads.com',
     role: 'media_buyer',
     roleLabel: 'Performance & Media Lead',
     designation: 'Head of Media & Ad Buying',
-    avatarText: 'ML',
-    avatarBg: 'bg-purple-600',
+    avatarText: 'AD',
+    avatarBg: 'bg-cyan-600',
     allowedTabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'reports', 'notifications'],
     description: 'Google & Meta Ads telemetry, ROAS attribution, creative deliverables & project sprints'
   },
@@ -93,8 +131,8 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Client Review Portal',
     avatarText: 'CP',
     avatarBg: 'bg-amber-600',
-    allowedTabs: ['client-360', 'documents', 'notifications'],
-    description: 'Client review portal: track sprint deliverables, inspect ROAS reports & view invoices'
+    allowedTabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'finance', 'reports'],
+    description: 'Single-client review portal: track sprint deliverables, inspect ROAS reports & view invoices'
   }
 ];
 
@@ -214,7 +252,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: d.role_slug || 'admin',
                 roleName: d.role_name || 'Admin',
                 isOwner: Boolean(d.is_owner),
-                allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard'])
+                allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard']),
+                clientId: d.client_id || null,
+                clientName: d.client_name || null
               };
               const freshOrg: Organization = {
                 id: d.organization_id || 'org-1',
@@ -253,7 +293,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch (apiErr: any) {
             // ONLY log out if the backend definitively returns 401/403 HTTP status.
-            // Do NOT log out on network disconnects, server restarts, or 500 errors.
             if (apiErr?.status === 401 || apiErr?.status === 403) {
               console.warn('Session token expired or rejected by server:', apiErr?.message);
               localStorage.removeItem('optivir_token');
@@ -293,22 +332,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin') {
       return true;
     }
-    // 2. User specific allowed_tabs from database
+    // 2. COO has full operational access across modules
+    if (user?.role === 'coo' || activePersona?.role === 'coo') {
+      return true;
+    }
+    // 3. Client-restricted user: strictly limit to client-facing modules
+    if (user?.clientId) {
+      const clientAllowed = ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'documents', 'notifications'];
+      if (!clientAllowed.includes(tabId)) return false;
+    }
+    // 4. User specific allowed_tabs from database
     if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
       if (user.allowed_tabs.includes('*')) return true;
       return user.allowed_tabs.includes(tabId);
     }
-    // 3. Fallback persona check
+    // 5. Fallback persona check
     if (!activePersona) return true;
     if (activePersona.role === 'owner' || activePersona.allowedTabs.includes('*')) return true;
     return activePersona.allowedTabs.includes(tabId);
   };
 
   const can = (resource: string, action: string): boolean => {
-    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
+    const isMasterOwner = Boolean(user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner);
+
+    // Strict Rule: Only primary owner optivirads@gmail.com can create users or assign permissions
+    if (resource === 'user_management' || resource === 'users_admin') {
+      return isMasterOwner;
+    }
+
+    // Critical master actions reserved exclusively for executive owner
+    if ((resource === 'billing' || resource === 'security') && action === 'edit') {
+      return isMasterOwner;
+    }
+
+    if (isMasterOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
+
+    // COO operational permissions (all modules except critical master billing/security edit)
+    if (user?.role === 'coo' || activePersona?.role === 'coo') {
+      if ((resource === 'billing' || resource === 'security') && action === 'edit') return false;
+      return true;
+    }
+
+    // Client-scoped user: block internal agency resources
+    if (user?.clientId) {
+      if (['leads', 'pipeline', 'settings', 'operations', 'teams'].includes(resource)) return false;
+    }
+
     if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
       if (user.allowed_tabs.includes('*') || user.allowed_tabs.includes(resource)) return true;
     }
+
     if (resource === 'finance' && activePersona.role !== 'finance_lead') return false;
     if (resource === 'settings') return false;
     if (resource === 'pipeline' && activePersona.role !== 'sales_lead') return false;

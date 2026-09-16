@@ -22,8 +22,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     let whereClause = `WHERE c.organization_id = $1 AND c.deleted_at IS NULL`;
     const params: any[] = [orgId];
 
-    // Scoping for non-privileged team members (or when myOnly is requested)
-    if ((!isPrivileged && req.query.all !== 'true') || myOnly === 'true') {
+    // Scoping for client-specific users or non-privileged team members
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      whereClause += ` AND c.id = $${params.length}`;
+    } else if ((!isPrivileged && req.query.all !== 'true') || myOnly === 'true') {
       params.push(userId);
       whereClause += ` AND (c.account_manager_id = $${params.length} OR $${params.length} = ANY(c.assigned_team_ids) OR c.created_by = $${params.length})`;
     } else if (accountManagerId) {
@@ -90,6 +93,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
 router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const clientId = req.params.id;
+
+  if (req.user?.clientId && req.user.clientId !== clientId) {
+    res.status(403).json({ success: false, message: 'Access denied: You only have access to your assigned client profile.' });
+    return;
+  }
 
   try {
     // Basic Client + Company Info
