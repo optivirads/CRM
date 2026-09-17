@@ -448,18 +448,10 @@ router.patch('/profile', requireAuth, validateBody(updateProfileSchema), async (
 });
 
 // ============================================================================
-// 4. USER DIRECTORY (Executive Owner Only)
+// 4. USER DIRECTORY
 // ============================================================================
 
 router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!isExecutiveOwner(req.user)) {
-    res.status(403).json({
-      success: false,
-      message: 'Access Denied: Only the Executive Owner is authorized to view the User Directory.'
-    });
-    return;
-  }
-
   const orgId = req.user!.organizationId;
 
   try {

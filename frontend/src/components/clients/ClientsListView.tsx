@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { useAuth } from '@/lib/auth-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
 import {
@@ -85,8 +86,12 @@ export interface ClientAccount {
   avatarTextColor?: string;
   industry: string;
   primaryContact: string;
+  contactEmail?: string;
+  contactPhone?: string;
   contactRole: string;
   accountManager: string;
+  accountManagerId?: string;
+  assignedTeamIds?: string[];
   amInitials: string;
   amBg: string;
   servicesCount: string;
@@ -104,6 +109,7 @@ export interface ClientAccount {
 export const DEFAULT_CLIENT_ACCOUNTS: ClientAccount[] = [];
 
 export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient360, onNavigate }) => {
+  const { user } = useAuth();
   // View mode toggle
   const [viewMode, setViewMode] = useState<'clients' | 'campaigns'>('clients');
 
@@ -233,9 +239,13 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           avatarText: (c.company_name || 'CL').substring(0, 2).toUpperCase(),
           industry: c.industry || 'General',
           primaryContact: c.contact_first ? `${c.contact_first} ${c.contact_last || ''}`.trim() : (c.contact_email || '—'),
+          contactEmail: c.contact_email || '',
+          contactPhone: c.contact_phone || '',
           contactRole: c.contact_role || 'Primary Contact',
-          accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : 'OptiVir Admin',
-          amInitials: c.am_first ? `${c.am_first[0]}${c.am_last?.[0] || ''}`.toUpperCase() : 'OP',
+          accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : (c.account_manager_name || 'Unassigned'),
+          accountManagerId: c.account_manager_id || '',
+          assignedTeamIds: Array.isArray(c.assigned_team_ids) ? c.assigned_team_ids : [],
+          amInitials: c.am_first ? `${c.am_first[0]}${c.am_last?.[0] || ''}`.toUpperCase() : 'UA',
           amBg: 'bg-[#0A1628]',
           servicesCount: c.services_count ? `${c.services_count} Services` : (c.project_count ? `${c.project_count} SOWs` : 'Retainer'),
           activeProjects: `${c.project_count || 0} Active`,
@@ -244,7 +254,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           renewal: c.renewal_date ? new Date(c.renewal_date).toLocaleDateString() : 'Ongoing Retainer',
           lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Active',
           billingStatus: c.status === 'Active' ? 'Paid' : (c.status || 'Active'),
-          isAtRisk: c.health_status === 'At-Risk'
+          isAtRisk: c.health_status === 'At-Risk' || c.health_status === 'At Risk'
         })));
       }
 
@@ -303,9 +313,10 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setCustomEditIndustryText('');
     setEditDomain(client.domain || '');
     setEditPrimaryContact(client.primaryContact !== '—' ? client.primaryContact : '');
-    setEditContactEmail('');
-    setEditContactPhone('');
+    setEditContactEmail(client.contactEmail || '');
+    setEditContactPhone(client.contactPhone || '');
     setEditContactRole(client.contactRole || 'Lead Stakeholder');
+    setEditAccountManagerId(client.accountManagerId || '');
     const rawVal = client.contractValue ? client.contractValue.replace(/[^0-9]/g, '') : '0';
     setEditContractVal(rawVal || '0');
     setEditBillingModel(client.contractValue?.includes('Demand') ? 'on_demand' : client.contractValue?.includes('Pay-As-You-Go') ? 'pay_as_you_go' : 'monthly_retainer');
@@ -466,6 +477,15 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     }
   };
 
+  // My clients helper
+  const isMyClient = (c: ClientAccount) => {
+    if (!user) return false;
+    if (c.accountManagerId && c.accountManagerId === user.id) return true;
+    if (user.firstName && c.accountManager.toLowerCase().includes(user.firstName.toLowerCase())) return true;
+    if (c.assignedTeamIds && c.assignedTeamIds.includes(user.id)) return true;
+    return false;
+  };
+
   // Filtered clients
   const filteredClients = clients.filter((c) => {
     const matchesSearch =
@@ -474,14 +494,17 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
       c.primaryContact.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.accountManager.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesManager = selectedManager === 'All' || c.accountManager.includes(selectedManager);
+    const matchesManager =
+      selectedManager === 'All' ||
+      c.accountManagerId === selectedManager ||
+      c.accountManager.toLowerCase().includes(selectedManager.toLowerCase());
     const matchesIndustry = selectedIndustry === 'All' || c.industry === selectedIndustry;
     const matchesHealth = selectedHealth === 'All' || c.healthStatus === selectedHealth;
 
-    if (activeFilterTab === 'my') return matchesSearch && c.accountManager.includes('Alex');
+    if (activeFilterTab === 'my') return matchesSearch && isMyClient(c);
     if (activeFilterTab === 'healthy') return matchesSearch && c.healthStatus === 'Healthy';
     if (activeFilterTab === 'attention') return matchesSearch && c.healthStatus === 'Attention Needed';
-    if (activeFilterTab === 'at_risk') return matchesSearch && c.healthStatus === 'At Risk';
+    if (activeFilterTab === 'at_risk') return matchesSearch && (c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk');
     if (activeFilterTab === 'renewals') return matchesSearch && c.renewal.includes('2026');
     if (activeFilterTab === 'high_val') return matchesSearch && (c.contractValue.includes('₹24') || c.contractValue.includes('₹32') || c.contractValue.includes('₹18'));
     if (activeFilterTab === 'new') return matchesSearch && c.id.startsWith('c-');
@@ -950,10 +973,10 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
             { id: 'all', label: `All Clients (${clients.length})` },
-            { id: 'my', label: `My Clients (${clients.filter(c => c.accountManager.includes('Alex')).length})` },
+            { id: 'my', label: `My Clients (${clients.filter(isMyClient).length})` },
             { id: 'healthy', label: `Healthy (${clients.filter(c => c.healthStatus === 'Healthy').length})` },
             { id: 'attention', label: `Attention Needed (${clients.filter(c => c.healthStatus === 'Attention Needed').length})` },
-            { id: 'at_risk', label: `● At Risk (${clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk').length})`, isAlert: true },
+            { id: 'at_risk', label: `● At Risk (${clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk').length})`, isAlert: true },
             { id: 'renewals', label: `Renewals Upcoming (${clients.filter(c => c.renewalUrgent).length})` },
           ].map((tab) => (
             <button
@@ -1001,8 +1024,14 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
               className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 font-medium"
             >
               <option value="All">Manager: All</option>
-              <option value="Alex">Manager: Alex Morgan</option>
-              <option value="Maya">Manager: Maya Joseph</option>
+              {teamMembers.map((m: any) => {
+                const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
+                return (
+                  <option key={m.id} value={m.id}>
+                    Manager: {fullName}
+                  </option>
+                );
+              })}
             </select>
 
             {/* Industry filter */}

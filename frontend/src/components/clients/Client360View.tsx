@@ -402,6 +402,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [editContactEmail, setEditContactEmail] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
+  const [editAccountManagerId, setEditAccountManagerId] = useState('');
   const [editContractValue, setEditContractValue] = useState('0');
   const [editBillingFrequency, setEditBillingFrequency] = useState('monthly');
   const [editHealthStatus, setEditHealthStatus] = useState('Healthy');
@@ -417,6 +418,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     setEditContactEmail(liveClient?.contact_email || '');
     setEditContactPhone(liveClient?.contact_phone || '');
     setEditContactRole(liveClient?.contact_role || 'Lead Stakeholder');
+    setEditAccountManagerId(liveClient?.account_manager_id || '');
     setEditContractValue(liveClient?.contract_value ? String(liveClient.contract_value) : '0');
     setEditBillingFrequency(liveClient?.billing_frequency || 'monthly');
     setEditHealthStatus(liveClient?.health_status || 'Healthy');
@@ -5622,6 +5624,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     contact_email: editContactEmail.trim() || null,
                     contact_phone: editContactPhone.trim() || null,
                     contact_role: editContactRole.trim() || 'Lead Stakeholder',
+                    account_manager_id: editAccountManagerId || null,
                     contract_value: parsedVal,
                     billing_frequency: editBillingFrequency,
                     health_status: editHealthStatus
@@ -5773,7 +5776,34 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Commercial Terms & Health */}
+              {/* Section 3: Dedicated Account Lead Assignment */}
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">
+                  Dedicated Account Lead Assignment
+                </h4>
+
+                <div>
+                  <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Dedicated Account Manager / Lead</label>
+                  <select
+                    value={editAccountManagerId}
+                    onChange={(e) => setEditAccountManagerId(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="">Unassigned (Team Pool)</option>
+                    {teamMembers.map((m: any) => {
+                      const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
+                      const roleStr = m.role_name || m.role || 'Member';
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {fullName} ({roleStr})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* Section 4: Commercial Terms & Health */}
               <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
                   Commercial Terms &amp; Health Status
@@ -5844,6 +5874,82 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     <>
                       <Check className="w-3.5 h-3.5" />
                       <span>Save Account Profile</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Assign Account Lead Modal */}
+      {showAssignMemberModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Assign Account Lead</h3>
+                  <p className="text-[11px] text-slate-500">Select dedicated team member for {activeClientName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAssignMemberModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignTeamMember} className="space-y-4 pt-2">
+              <div>
+                <label className="text-xs font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
+                  Dedicated Account Manager / Lead
+                </label>
+                <select
+                  value={selectedAmId}
+                  onChange={(e) => setSelectedAmId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium"
+                >
+                  <option value="">Unassigned (Team Pool)</option>
+                  {teamMembers.map((m: any) => {
+                    const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
+                    const roleStr = m.role_name || m.role || 'Member';
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {fullName} ({roleStr})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignMemberModal(false)}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAssigningMember}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isAssigningMember ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Assigning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Confirm Assignment</span>
                     </>
                   )}
                 </button>
