@@ -11,7 +11,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const userRole = (req.user!.role || '').toLowerCase();
-  const isPrivileged = req.user!.isOwner || ['super_admin', 'admin', 'executive_owner'].includes(userRole);
+  // Privileged agency users include Owner, COO, Administrators, and all internal agency staff.
+  // Only external single-client portal accounts are constrained to their specific client_id.
+  const isPrivileged = Boolean(req.user!.isOwner) || !req.user?.clientId;
 
   const { status, health, search, accountManagerId, myOnly } = req.query;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -22,11 +24,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     let whereClause = `WHERE c.organization_id = $1 AND c.deleted_at IS NULL`;
     const params: any[] = [orgId];
 
-    // Scoping for client-specific users or non-privileged team members
+    // Scoping for client-specific portal users or when user explicitly filters "My Clients"
     if (req.user?.clientId) {
       params.push(req.user.clientId);
       whereClause += ` AND c.id = $${params.length}`;
-    } else if ((!isPrivileged && req.query.all !== 'true') || myOnly === 'true') {
+    } else if (myOnly === 'true') {
       params.push(userId);
       whereClause += ` AND (c.account_manager_id = $${params.length} OR $${params.length} = ANY(c.assigned_team_ids) OR c.created_by = $${params.length})`;
     } else if (accountManagerId) {
@@ -50,7 +52,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     const countRes = await db.query(`
       SELECT COUNT(*) 
       FROM clients c 
-      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       ${whereClause};
     `, params);
     const total = parseInt(countRes.rows[0]?.count, 10) || 0;
@@ -65,7 +67,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
         (SELECT COUNT(*) FROM tasks WHERE client_id = c.id AND status != 'Completed' AND deleted_at IS NULL) as open_tasks_count,
         (SELECT COALESCE(SUM(balance_amount), 0) FROM invoices WHERE client_id = c.id AND deleted_at IS NULL) as outstanding_balance
       FROM clients c
-      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
       ${whereClause}

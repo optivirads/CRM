@@ -85,8 +85,8 @@ app.use(cors({
 // ---------------------------------------------------------------------------
 // Body Parsing — limit prevents JSON body DoS attacks
 // ---------------------------------------------------------------------------
-app.use(express.json({ limit: '500kb' }));
-app.use(express.urlencoded({ extended: false, limit: '500kb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ---------------------------------------------------------------------------
 // Root & Health Check
@@ -183,10 +183,16 @@ app.use((req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('[Error caught by global handler]:', err);
-  // Don't leak internal error details in production
-  const message = process.env.NODE_ENV === 'production'
+  if (err.type === 'entity.too.large') {
+    res.status(413).json({
+      success: false,
+      message: 'The uploaded file or payload is too large (maximum allowed size is 10MB).'
+    });
+    return;
+  }
+  const message = err.message || (process.env.NODE_ENV === 'production'
     ? 'An internal server error occurred'
-    : (err.message || 'Internal Server Error');
+    : 'Internal Server Error');
   res.status(err.status || 500).json({
     success: false,
     message

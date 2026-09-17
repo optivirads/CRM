@@ -1300,19 +1300,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       DISPLAY PICTURE / AVATAR
                     </span>
                     <div className="flex flex-col items-center justify-center p-3">
-                      <div className="relative group">
-                        {profileAvatarUrl ? (
-                          <img
-                            src={profileAvatarUrl}
-                            alt="Profile Avatar"
-                            className="w-28 h-28 rounded-full object-cover border-2 border-rose-500 shadow-md"
-                          />
-                        ) : (
-                          <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-rose-600 to-indigo-600 flex items-center justify-center text-white text-3xl font-extrabold shadow-md border-2 border-slate-700">
-                            {profileFirstName?.[0]?.toUpperCase() || user?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-                            {profileLastName?.[0]?.toUpperCase() || user?.lastName?.[0]?.toUpperCase() || ''}
-                          </div>
-                        )}
+                      <div className="relative group shrink-0">
+                        <div className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center border-2 border-rose-500 shadow-md bg-slate-100 dark:bg-slate-800">
+                          {profileAvatarUrl ? (
+                            <img
+                              src={profileAvatarUrl}
+                              alt="Profile Avatar"
+                              className="w-full h-full object-cover object-center aspect-square block rounded-full"
+                              style={{ width: '112px', height: '112px', minWidth: '112px', minHeight: '112px', objectFit: 'cover', objectPosition: 'center' }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-tr from-rose-600 to-indigo-600 flex items-center justify-center text-white text-3xl font-extrabold">
+                              {profileFirstName?.[0]?.toUpperCase() || user?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                              {profileLastName?.[0]?.toUpperCase() || user?.lastName?.[0]?.toUpperCase() || ''}
+                            </div>
+                          )}
+                        </div>
                         <label className="absolute bottom-0 right-0 p-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-full shadow-lg cursor-pointer transition">
                           <Camera className="w-4 h-4" />
                           <input
@@ -1322,15 +1325,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
-                              if (file.size > 2 * 1024 * 1024) {
-                                showToast('Image size exceeds 2MB limit. Please choose a smaller photo.', 'error');
+                              if (file.size > 10 * 1024 * 1024) {
+                                showToast('Image size exceeds 10MB limit. Please choose a smaller photo.', 'error');
                                 return;
                               }
                               const reader = new FileReader();
                               reader.onload = (event) => {
-                                const dataUrl = event.target?.result as string;
-                                setProfileAvatarUrl(dataUrl);
-                                showToast('Display picture chosen. Click "Save Profile Details" to apply.');
+                                const img = new Image();
+                                img.onload = () => {
+                                  const canvas = document.createElement('canvas');
+                                  const TARGET_SIZE = 256;
+                                  canvas.width = TARGET_SIZE;
+                                  canvas.height = TARGET_SIZE;
+                                  const ctx = canvas.getContext('2d');
+                                  if (ctx) {
+                                    // 1:1 center-crop to eliminate any distortion or squishing
+                                    const minDim = Math.min(img.width, img.height);
+                                    const sx = (img.width - minDim) / 2;
+                                    const sy = (img.height - minDim) / 2;
+                                    ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, TARGET_SIZE, TARGET_SIZE);
+                                    const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+                                    setProfileAvatarUrl(optimizedDataUrl);
+                                  } else {
+                                    setProfileAvatarUrl(event.target?.result as string);
+                                  }
+                                  showToast('Display picture updated. Click "Save Profile Details" to apply.');
+                                };
+                                img.src = event.target?.result as string;
                               };
                               reader.readAsDataURL(file);
                             }}
