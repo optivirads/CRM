@@ -320,9 +320,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-xl border border-slate-200 dark:border-[#1C2C45] bg-slate-50 dark:bg-[#0D1829] hover:bg-slate-100 dark:hover:bg-[#13233B] transition text-xs shadow-sm cursor-pointer z-50 relative"
-            title="User Profile & RBAC Role Switcher"
+            title="User Profile & Account Menu"
           >
-            <div className={`w-7 h-7 rounded-lg ${user?.avatarUrl ? 'bg-transparent' : activePersona.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-sm overflow-hidden shrink-0`}>
+            <div className={`w-7 h-7 rounded-lg ${user?.avatarUrl ? 'bg-transparent' : (user?.role === 'coo' ? 'bg-purple-700' : (user?.isOwner ? 'bg-[#B91C1C]' : activePersona.avatarBg))} text-white flex items-center justify-center font-bold text-xs shadow-sm overflow-hidden shrink-0`}>
               {user?.avatarUrl ? (
                 <img
                   src={user.avatarUrl}
@@ -331,15 +331,15 @@ export const Header: React.FC<HeaderProps> = ({
                   style={{ width: '28px', height: '28px', objectFit: 'cover', objectPosition: 'center' }}
                 />
               ) : (
-                <span>{activePersona.avatarText}</span>
+                <span>{user ? ((user.firstName?.[0] || '') + (user.lastName?.[0] || user.email?.[0] || 'U')).toUpperCase() : activePersona.avatarText}</span>
               )}
             </div>
             <div className="hidden sm:flex flex-col text-left min-w-0">
-              <span className="text-xs font-bold text-[#0B1727] dark:text-[#F8FAFC] leading-none truncate max-w-[80px]">
-                {activePersona.name}
+              <span className="text-xs font-bold text-[#0B1727] dark:text-[#F8FAFC] leading-none truncate max-w-[90px]">
+                {user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : activePersona.name}
               </span>
-              <span className="text-[10px] text-[#DC2626] dark:text-rose-400 font-semibold leading-tight mt-0.5 truncate max-w-[80px]">
-                {activePersona.roleLabel}
+              <span className="text-[10px] text-[#DC2626] dark:text-rose-400 font-semibold leading-tight mt-0.5 truncate max-w-[90px]">
+                {user?.roleName || (user?.role === 'coo' ? 'Chief Operating Officer' : (user?.isOwner ? 'Executive & Owner' : activePersona.roleLabel))}
               </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 hidden sm:block" />
@@ -350,46 +350,57 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Active User Details */}
               <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800/80">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white text-xs truncate">{activePersona.name}</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                    {user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : activePersona.name}
+                  </span>
                   <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 font-bold text-[9px] border border-emerald-200 dark:border-emerald-800/40 shrink-0 ml-2">
                     Active
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 truncate">{activePersona.email}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{activePersona.designation}</p>
+                <p className="text-[11px] text-slate-500 truncate">{user?.email || activePersona.email}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  {user?.designation || (user?.role === 'coo' ? 'Chief Operating Officer • OptiVir' : (user?.isOwner ? 'Managing Director • OptiVir' : activePersona.designation))}
+                </p>
               </div>
 
-              {/* Role Switcher */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
-                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">Switch Persona (RBAC)</span>
-                  <span className="text-[9px] text-rose-500 font-semibold">1-Click Test</span>
-                </div>
-                <div className="space-y-0.5 max-h-52 overflow-y-auto custom-scrollbar">
-                  {AGENCY_PERSONAS.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => { switchPersona(p.id); setShowProfileMenu(false); }}
-                      className={`w-full p-2 rounded-xl text-left flex items-center gap-2.5 transition cursor-pointer ${
-                        activePersona.id === p.id
-                          ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60'
-                          : 'hover:bg-slate-50 dark:hover:bg-[#111E34] border border-transparent'
-                      }`}
-                    >
-                      <div className={`w-6 h-6 rounded-md ${p.avatarBg} text-white flex items-center justify-center font-bold text-[10px] shrink-0 shadow-sm`}>
-                        {p.avatarText}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 dark:text-white text-[11px] truncate">{p.name}</span>
-                          {activePersona.id === p.id && <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+              {/* Role Switcher (Visible to Executive Owner) */}
+              {(user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner') ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
+                    <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">Switch Persona (RBAC)</span>
+                    <span className="text-[9px] text-rose-500 font-semibold">1-Click Test</span>
+                  </div>
+                  <div className="space-y-0.5 max-h-52 overflow-y-auto custom-scrollbar">
+                    {AGENCY_PERSONAS.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => { switchPersona(p.id); setShowProfileMenu(false); }}
+                        className={`w-full p-2 rounded-xl text-left flex items-center gap-2.5 transition cursor-pointer ${
+                          activePersona.id === p.id
+                            ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60'
+                            : 'hover:bg-slate-50 dark:hover:bg-[#111E34] border border-transparent'
+                        }`}
+                      >
+                        <div className={`w-6 h-6 rounded-md ${p.avatarBg} text-white flex items-center justify-center font-bold text-[10px] shrink-0 shadow-sm`}>
+                          {p.avatarText}
                         </div>
-                        <div className="text-[9px] font-semibold text-rose-600 dark:text-rose-400 truncate">{p.roleLabel}</div>
-                      </div>
-                    </button>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 dark:text-white text-[11px] truncate">{p.name}</span>
+                            {activePersona.id === p.id && <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                          </div>
+                          <div className="text-[9px] font-semibold text-rose-600 dark:text-rose-400 truncate">{p.roleLabel}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="px-2.5 py-1.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Assigned Role:</span>
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">{user?.roleName || user?.role?.toUpperCase()}</span>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
@@ -408,7 +419,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>Change Password</span>
                 </button>
                 <button
-                  onClick={() => { setShowProfileMenu(false); if (onNavigate) onNavigate('settings'); showToast(`Opened settings for ${activePersona.name}`, 'info'); }}
+                  onClick={() => { setShowProfileMenu(false); if (onNavigate) onNavigate('settings'); showToast('Opened settings', 'info'); }}
                   className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-[#111E34] text-left flex items-center gap-2 text-slate-700 dark:text-slate-200 cursor-pointer transition"
                 >
                   <User className="w-3.5 h-3.5 text-slate-400" />

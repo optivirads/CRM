@@ -263,26 +263,26 @@ export default function Home() {
                   Module Access Restricted
                 </h2>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Your active role (<strong>{activePersona.roleLabel}</strong>) does not have permission to view the <strong>{title}</strong> workspace.
+                  Your active role (<strong>{user?.roleName || activePersona.roleLabel}</strong>) does not have permission to view the <strong>{title}</strong> workspace.
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-left text-xs border border-slate-200 dark:border-slate-700 space-y-1 max-w-md mx-auto">
                 <div className="font-bold text-slate-700 dark:text-slate-300">RBAC Identity Details:</div>
                 <div className="text-[11px] text-slate-500">
-                  User: <strong>{activePersona.name}</strong> ({activePersona.email})
+                  User: <strong>{user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : activePersona.name}</strong> ({user?.email || activePersona.email})
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Role: <strong className="text-rose-600 dark:text-rose-400">{activePersona.roleLabel}</strong>
+                  Role: <strong className="text-rose-600 dark:text-rose-400">{user?.roleName || activePersona.roleLabel}</strong>
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Allowed Modules: {activePersona.allowedTabs.join(', ')}
+                  Allowed Modules: {(user?.allowed_tabs || activePersona.allowedTabs).join(', ')}
                 </div>
               </div>
 
               <div className="pt-2">
                 <button
-                  onClick={() => navigateTo(activePersona.allowedTabs[0] === '*' ? 'dashboard' : activePersona.allowedTabs[0] as any)}
+                  onClick={() => navigateTo((user?.allowed_tabs?.[0] === '*' || activePersona.allowedTabs[0] === '*') ? 'dashboard' : ((user?.allowed_tabs?.[0] || activePersona.allowedTabs[0]) as any))}
                   className="px-5 py-2.5 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl text-xs font-bold transition shadow-xs"
                 >
                   Return to My Workspace
