@@ -110,7 +110,7 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email
       FROM clients c
-      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
       WHERE c.id = $1 AND c.organization_id = $2 AND c.deleted_at IS NULL;
