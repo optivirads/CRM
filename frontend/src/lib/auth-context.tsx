@@ -8,6 +8,8 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
   designation?: string;
   role: 'owner' | 'coo' | 'sales_lead' | 'marketing_lead' | 'social_media_lead' | 'media_buyer' | 'finance_lead' | 'account_manager' | 'operations_lead' | 'client_portal' | string;
   roleName?: string;
@@ -143,6 +145,7 @@ interface AuthContextType {
   isLoading: boolean;
   activePersona: Persona;
   switchPersona: (personaId: string) => void;
+  updateCurrentUser: (updates: Partial<User>) => void;
   canAccessTab: (tabId: string) => boolean;
   can: (resource: string, action: string) => boolean;
   login: (email: string, pass: string, rememberMe?: boolean) => Promise<void>;
@@ -156,6 +159,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   activePersona: AGENCY_PERSONAS[0],
   switchPersona: () => {},
+  updateCurrentUser: () => {},
   canAccessTab: () => true,
   can: () => true,
   login: async () => {},
@@ -168,6 +172,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const updateCurrentUser = React.useCallback((updates: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
+      try {
+        localStorage.setItem('optivir_cached_user', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, []);
 
   const applyPersona = React.useCallback((persona: Persona) => {
     setActivePersona(persona);
@@ -188,11 +203,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.setItem('optivir_persona_id', persona.id);
       localStorage.setItem('optivir_cached_user', JSON.stringify(updatedUser));
-      if (!localStorage.getItem('optivir_token') && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-        const dummyToken = `ov_jwt_demo_${persona.role}_${Date.now()}`;
-        localStorage.setItem('optivir_token', dummyToken);
-        setToken(dummyToken);
-      }
       const defaultOrg: Organization = {
         id: 'org-1',
         name: 'OptiVir CRM Global',
@@ -210,11 +220,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       try {
         let storedToken = localStorage.getItem('optivir_token');
-        const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-        // If a dummy demo token is stored in production/live mode, purge it immediately
-        if (storedToken && storedToken.startsWith('ov_jwt_demo_') && !isDemo) {
-          console.warn('Purged invalid demo token in live mode');
+        // Unconditionally purge dummy demo tokens so requests strictly use genuine backend credentials
+        if (storedToken && storedToken.startsWith('ov_jwt_demo_')) {
+          console.warn('Purged invalid demo token');
           localStorage.removeItem('optivir_token');
           localStorage.removeItem('optivir_cached_user');
           localStorage.removeItem('optivir_cached_org');
@@ -259,6 +268,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 email: d.email,
                 firstName: d.first_name,
                 lastName: d.last_name,
+                phone: d.phone || null,
+                avatarUrl: d.avatar_url || d.avatarUrl || null,
                 designation: d.designation,
                 role: d.role_slug || 'admin',
                 roleName: d.role_name || 'Admin',
@@ -508,6 +519,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       activePersona,
       switchPersona,
+      updateCurrentUser,
       canAccessTab,
       can,
       login,

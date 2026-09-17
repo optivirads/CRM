@@ -48,7 +48,7 @@ router.post(
     try {
       const userRes = await db.query(`
         SELECT 
-          u.id, u.email, u.password_hash, u.first_name, u.last_name, u.status,
+          u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone, u.avatar_url, u.status,
           u.failed_login_attempts, u.lockout_until,
           ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
           comp.name as client_name,
@@ -183,6 +183,8 @@ router.post(
             email: row.email,
             firstName: row.first_name,
             lastName: row.last_name,
+            phone: row.phone || null,
+            avatarUrl: row.avatar_url || null,
             designation: row.designation,
             role: row.role_slug || 'admin',
             roleName: row.role_name || 'Admin',
@@ -216,7 +218,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
   try {
     const userRes = await db.query(`
       SELECT 
-        u.id, u.email, u.first_name, u.last_name, u.avatar_url,
+        u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar_url,
         ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
         comp.name as client_name,
         r.name as role_name, r.slug as role_slug,
@@ -261,6 +263,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       success: true,
       data: {
         ...row,
+        avatarUrl: row.avatar_url || null,
+        phone: row.phone || null,
         allowed_tabs: effectiveTabs,
         client_id: row.client_id || null,
         client_name: row.client_name || null,
