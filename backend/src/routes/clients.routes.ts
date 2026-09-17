@@ -427,6 +427,27 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     ]);
 
     await recordAuditLog(orgId, userId, 'CREATE', 'clients', result.rows[0].id, null, result.rows[0], req);
+
+    try {
+      await db.query(`
+        INSERT INTO activities (
+          organization_id, type, subject, description, client_id, performer_id, status, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+      `, [
+        orgId,
+        'client_created',
+        `New Client Created: ${company_name || 'Client Account'}`,
+        `${req.user?.firstName || 'Team Member'} created client account ${company_name || ''}.`,
+        result.rows[0].id,
+        userId,
+        'completed',
+        JSON.stringify({
+          created_by_email: req.user?.email,
+          created_by_name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim()
+        })
+      ]);
+    } catch {}
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -555,14 +576,46 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email
       FROM clients c
-      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
       WHERE c.id = $1;
     `, [clientId]);
 
-    await recordAuditLog(orgId, userId, 'UPDATE', 'clients', clientId, current.rows[0], fullRes.rows[0] || updated.rows[0], req);
-    res.json({ success: true, data: fullRes.rows[0] || updated.rows[0] });
+    const finalClient = fullRes.rows[0] || updated.rows[0];
+
+    await recordAuditLog(orgId, userId, 'UPDATE', 'clients', clientId, current.rows[0], finalClient, req);
+
+    try {
+      const cName = finalClient.company_name || 'Client';
+      const amName = finalClient.am_first ? `${finalClient.am_first} ${finalClient.am_last || ''}`.trim() : null;
+      const performerName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'Team Member';
+      const desc = account_manager_id !== undefined
+        ? `${performerName} updated team assignment to ${amName || 'Unassigned'} for ${cName}.`
+        : `${performerName} updated client profile & contract details for ${cName}.`;
+
+      await db.query(`
+        INSERT INTO activities (
+          organization_id, type, subject, description, client_id, performer_id, status, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+      `, [
+        orgId,
+        'client_updated',
+        `Client Updated: ${cName}`,
+        desc,
+        clientId,
+        userId,
+        'completed',
+        JSON.stringify({
+          updated_by_email: req.user?.email,
+          updated_by_name: performerName,
+          account_manager: amName,
+          changes: req.body
+        })
+      ]);
+    } catch {}
+
+    res.json({ success: true, data: finalClient });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
