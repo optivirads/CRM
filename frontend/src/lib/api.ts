@@ -13,8 +13,8 @@ class ApiClient {
   private getToken(): string | null {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('optivir_token');
-      // If token is a dummy demo token and we are NOT explicitly running in demo mode, purge it
-      if (token && token.startsWith('ov_jwt_demo_') && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+      // Dummy demo tokens are strictly invalid against the live enterprise backend - purge immediately
+      if (token && token.startsWith('ov_jwt_demo_')) {
         localStorage.removeItem('optivir_token');
         return null;
       }
@@ -668,6 +668,18 @@ class ApiClient {
   }) {
     return this.request<{ success: boolean; message: string; data: any }>('/settings/preferences', {
       method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // 3.1. Personal Profile
+  async getProfile() {
+    return this.request<{ success: boolean; data: any }>('/settings/profile');
+  }
+
+  async updateProfile(payload: { firstName?: string; lastName?: string; phone?: string; avatarUrl?: string }) {
+    return this.request<{ success: boolean; message: string; data: any }>('/settings/profile', {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
   }

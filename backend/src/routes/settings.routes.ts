@@ -27,6 +27,19 @@ const securitySchema = z.object({
   ip_whitelist: z.array(z.string()).optional()
 });
 
+const updateProfileSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  avatarUrl: z.string().optional().nullable()
+});
+
+export function isExecutiveOwner(user: any): boolean {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase().trim();
+  return email === 'optivirads@gmail.com' || Boolean(user.isOwner) || user.role === 'owner';
+}
+
 // ============================================================================
 // 1. ORGANIZATION IDENTITY
 // ============================================================================
@@ -327,10 +340,126 @@ router.put('/preferences', requireAuth, async (req: AuthenticatedRequest, res: R
 });
 
 // ============================================================================
-// 4. USER DIRECTORY
+// 3.1. USER PERSONAL PROFILE (Self-Service)
+// ============================================================================
+
+router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const orgId = req.user!.organizationId;
+
+  try {
+    const { rows } = await db.query(`
+      SELECT 
+        u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar_url,
+        ou.designation, ou.is_owner, ou.allowed_tabs,
+        r.name as role_name, r.slug as role_slug,
+        o.name as organization_name
+      FROM users u
+      LEFT JOIN organization_users ou ON u.id = ou.user_id AND ou.organization_id = $2
+      LEFT JOIN roles r ON ou.role_id = r.id
+      LEFT JOIN organizations o ON ou.organization_id = o.id
+      WHERE u.id = $1
+      LIMIT 1;
+    `, [userId, orgId]);
+
+    if (rows.length === 0) {
+      res.status(404).json({ success: false, message: 'User profile not found' });
+      return;
+    }
+
+    const u = rows[0];
+    res.json({
+      success: true,
+      data: {
+        id: u.id,
+        email: u.email,
+        firstName: u.first_name || '',
+        lastName: u.last_name || '',
+        phone: u.phone || '',
+        avatarUrl: u.avatar_url || null,
+        designation: u.designation || 'Specialist',
+        role: u.role_slug || 'team_member',
+        roleName: u.is_owner ? 'Executive & Owner' : (u.role_name || 'Team Member'),
+        isOwner: Boolean(u.is_owner),
+        organizationName: u.organization_name || 'OptiVir CRM',
+        allowed_tabs: u.allowed_tabs || ['dashboard']
+      }
+    });
+  } catch (err: any) {
+    console.error('Fetch profile error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.patch('/profile', requireAuth, validateBody(updateProfileSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const { firstName, lastName, phone, avatarUrl } = req.body;
+
+  try {
+    const updates: string[] = ['updated_at = NOW()'];
+    const params: any[] = [userId];
+
+    if (firstName !== undefined) {
+      params.push(firstName ? firstName.trim() : null);
+      updates.push(`first_name = $${params.length}`);
+    }
+    if (lastName !== undefined) {
+      params.push(lastName ? lastName.trim() : null);
+      updates.push(`last_name = $${params.length}`);
+    }
+    if (phone !== undefined) {
+      params.push(phone ? phone.trim() : null);
+      updates.push(`phone = $${params.length}`);
+    }
+    if (avatarUrl !== undefined) {
+      params.push(avatarUrl ? avatarUrl.trim() : null);
+      updates.push(`avatar_url = $${params.length}`);
+    }
+
+    const { rows } = await db.query(`
+      UPDATE users
+      SET ${updates.join(', ')}
+      WHERE id = $1
+      RETURNING id, email, first_name, last_name, phone, avatar_url;
+    `, params);
+
+    if (rows.length === 0) {
+      res.status(404).json({ success: false, message: 'User record not found' });
+      return;
+    }
+
+    const updated = rows[0];
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: updated.id,
+        email: updated.email,
+        firstName: updated.first_name,
+        lastName: updated.last_name,
+        phone: updated.phone,
+        avatarUrl: updated.avatar_url
+      }
+    });
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ============================================================================
+// 4. USER DIRECTORY (Executive Owner Only)
 // ============================================================================
 
 router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!isExecutiveOwner(req.user)) {
+    res.status(403).json({
+      success: false,
+      message: 'Access Denied: Only the Executive Owner is authorized to view the User Directory.'
+    });
+    return;
+  }
+
   const orgId = req.user!.organizationId;
 
   try {
@@ -380,7 +509,7 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         else lastLoginText = `${Math.floor(mins / 1440)} days ago`;
       }
 
-      const isSuper = u.is_owner || u.role_slug === 'super_admin' || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.email?.toLowerCase() === 'abhinandc97@gmail.com';
+      const isSuper = u.is_owner || u.role_slug === 'super_admin' || u.email?.toLowerCase() === 'optivirads@gmail.com';
       const effectiveTabs: string[] = isSuper 
         ? ['*'] 
         : (u.allowed_tabs && u.allowed_tabs.length > 0 ? u.allowed_tabs : ['dashboard']);
@@ -393,9 +522,10 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         lastName: u.last_name,
         email: u.email,
         phone: u.phone,
+        avatarUrl: u.avatar_url || null,
         role: u.role_slug || 'sales_lead',
         roleLabel: u.is_owner ? 'Executive & Owner' : (u.client_id ? `Client (${u.client_name || 'Assigned'})` : (u.role_name || 'Specialist')),
-        designation: u.designation || (u.is_owner ? 'Managing Director & Founder' : 'Growth Specialist'),
+        designation: u.designation || (u.is_owner ? 'Managing Director & Founder' : 'Specialist'),
         status: u.member_status === 'active' ? 'Active' : 'Pending Invite',
         twoFactor: true,
         lastLogin: lastLoginText,
@@ -416,19 +546,16 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const orgId = req.user!.organizationId;
-  const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
-
-  if (!isAuthorized) {
+router.post('/users', requireAuth, validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!isExecutiveOwner(req.user)) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to create users and assign permissions.'
+      message: 'Access Denied: Only the Executive Owner is authorized to create users and assign permissions. Administrators and COOs are not permitted.'
     });
     return;
   }
 
+  const orgId = req.user!.organizationId;
   const { name, email, role, designation, team_id, client_id, phone, password, allowed_tabs } = req.body;
 
   if (!email || !email.trim()) {
@@ -449,10 +576,26 @@ router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), v
 
     if (existingUser.rows.length > 0) {
       userId = existingUser.rows[0].id;
+      const updates: string[] = ['updated_at = NOW()'];
+      const params: any[] = [userId];
+
       if (password && password.trim().length >= 6) {
-        const newHash = hashPassword(password.trim());
-        await db.query('UPDATE users SET password_hash = $1 WHERE id = $2;', [newHash, userId]);
+        params.push(hashPassword(password.trim()));
+        updates.push(`password_hash = $${params.length}`);
       }
+      if (firstName) {
+        params.push(firstName);
+        updates.push(`first_name = $${params.length}`);
+      }
+      if (lastName !== undefined) {
+        params.push(lastName);
+        updates.push(`last_name = $${params.length}`);
+      }
+      if (phone !== undefined) {
+        params.push(phone || null);
+        updates.push(`phone = $${params.length}`);
+      }
+      await db.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $1;`, params);
     } else {
       const initialPassword = (password && password.trim().length >= 6) ? password.trim() : 'Optivir@2026';
       const defaultHash = hashPassword(initialPassword);
@@ -516,20 +659,17 @@ router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), v
   }
 });
 
-router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const orgId = req.user!.organizationId;
-  const targetUserId = req.params.id;
-  const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
-
-  if (!isAuthorized) {
+router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!isExecutiveOwner(req.user)) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to modify user roles and permissions.'
+      message: 'Access Denied: Only the Executive Owner is authorized to modify user roles and permissions.'
     });
     return;
   }
 
+  const orgId = req.user!.organizationId;
+  const targetUserId = req.params.id;
   const { role, designation, status, team_id, client_id, allowed_tabs } = req.body;
 
   try {
@@ -593,21 +733,18 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
   }
 });
 
-// Reset a user's password (by Administrator / Owner)
-router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const orgId = req.user!.organizationId;
-  const targetUserId = req.params.id;
-  const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
-
-  if (!isAuthorized) {
+// Reset a user's password (by Executive Owner)
+router.post('/users/:id/reset-password', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!isExecutiveOwner(req.user)) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to reset credentials.'
+      message: 'Access Denied: Only the Executive Owner is authorized to reset credentials.'
     });
     return;
   }
 
+  const orgId = req.user!.organizationId;
+  const targetUserId = req.params.id;
   const { password } = req.body;
 
   if (!password || typeof password !== 'string' || password.length < 6) {
@@ -643,19 +780,17 @@ router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin'
   }
 });
 
-router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const orgId = req.user!.organizationId;
-  const targetUserId = req.params.id;
-  const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
-
-  if (!isAuthorized) {
+router.delete('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!isExecutiveOwner(req.user)) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to remove team members.'
+      message: 'Access Denied: Only the Executive Owner is authorized to remove team members.'
     });
     return;
   }
+
+  const orgId = req.user!.organizationId;
+  const targetUserId = req.params.id;
 
   try {
     // If targetUserId is not a standard UUID (e.g. demo/mock user), safely return success

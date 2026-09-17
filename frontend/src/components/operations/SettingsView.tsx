@@ -28,6 +28,8 @@ import {
   Globe2,
   User,
   Users,
+  UserCircle,
+  Camera,
   KeyRound,
   ShieldCheck,
   Workflow,
@@ -84,8 +86,36 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
+  const { user, activePersona, updateCurrentUser } = useAuth();
+  // Strictly enforce Executive Owner role: Only optivirads@gmail.com, isOwner === true, or role === 'owner'
+  const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
+  const isOwnerOrAdmin = isMasterOwner;
+
   // Active Sub-Navigation Tab
-  const [activeSection, setActiveSection] = useState('Organization Identity');
+  const [activeSection, setActiveSection] = useState(isMasterOwner ? 'Organization Identity' : 'My Profile');
+
+  // Personal Profile States
+  const [profileFirstName, setProfileFirstName] = useState(user?.firstName || '');
+  const [profileLastName, setProfileLastName] = useState(user?.lastName || '');
+  const [profilePhone, setProfilePhone] = useState(user?.phone || '');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(user?.avatarUrl || null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setProfileFirstName(user.firstName || '');
+      setProfileLastName(user.lastName || '');
+      setProfilePhone(user.phone || '');
+      setProfileAvatarUrl(user.avatarUrl || null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!isMasterOwner && activeSection !== 'My Profile') {
+      setActiveSection('My Profile');
+    }
+  }, [isMasterOwner, activeSection]);
 
   // Form Field States (OptiVir CRM Owner Company Details)
   const [orgLegalName, setOrgLegalName] = useState('OptiVir Technologies Pvt. Ltd.');
@@ -107,10 +137,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [densityProfile, setDensityProfile] = useState<'Dense' | 'Comfortable'>('Dense');
   const [auditoryChimes, setAuditoryChimes] = useState(true);
   const [telemetryDiff, setTelemetryDiff] = useState(true);
-
-  const { user, activePersona } = useAuth();
-  const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
-  const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.role === 'super_admin' || activePersona?.role === 'owner';
 
   // 4. User Directory State
   const [teamSearch, setTeamSearch] = useState('');
@@ -481,6 +507,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const handleCopyUUID = () => {
     navigator.clipboard.writeText('opt-tenant-optivirads');
     showToast('Tenant UUID copied to clipboard: opt-tenant-optivirads');
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingProfile(true);
+    try {
+      const res = await api.updateProfile({
+        firstName: profileFirstName.trim(),
+        lastName: profileLastName.trim(),
+        phone: profilePhone.trim() || undefined,
+        avatarUrl: profileAvatarUrl || undefined
+      });
+      if (res.success) {
+        updateCurrentUser({
+          firstName: profileFirstName.trim(),
+          lastName: profileLastName.trim(),
+          phone: profilePhone.trim() || null,
+          avatarUrl: profileAvatarUrl || null
+        });
+        showToast(res.message || 'Profile details updated successfully!');
+      }
+    } catch (err: any) {
+      console.error('Failed to update profile:', err);
+      showToast(err.message || 'Failed to update profile', 'error');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSelfChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selfCurrentPassword) {
+      showToast('Please enter your current password', 'error');
+      return;
+    }
+    if (selfNewPassword.length < 6) {
+      showToast('New password must be at least 6 characters', 'error');
+      return;
+    }
+    if (selfNewPassword !== selfConfirmPassword) {
+      showToast('New passwords do not match', 'error');
+      return;
+    }
+
+    setIsSelfChangingPassword(true);
+    try {
+      const res = await api.changePassword(selfCurrentPassword, selfNewPassword);
+      if (res.success) {
+        showToast('Password changed successfully!', 'success');
+        setSelfCurrentPassword('');
+        setSelfNewPassword('');
+        setSelfConfirmPassword('');
+      } else {
+        showToast(res.message || 'Failed to change password', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to change password. Verify current password.', 'error');
+    } finally {
+      setIsSelfChangingPassword(false);
+    }
   };
 
   // ==========================================
@@ -918,54 +1004,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     greenDot?: boolean;
   }
 
-  // Sub-Navigation Hubs (5 Cohesive Sections)
-  const navGroups: { title: string; count: number; items: NavItemConfig[] }[] = [
-    {
-      title: 'ORGANIZATION & BILLING',
-      count: 4,
-      items: [
-        { id: 'Organization Identity', icon: Building2 },
-        { id: 'General Regional', icon: Globe2 },
-        { id: 'Billing & Currency', icon: CreditCard },
-        { id: 'Document Templates', icon: FileText }
+  // Sub-Navigation Hubs
+  const navGroups: { title: string; count: number; items: NavItemConfig[] }[] = isMasterOwner
+    ? [
+        {
+          title: 'MY ACCOUNT',
+          count: 1,
+          items: [
+            { id: 'My Profile', icon: UserCircle }
+          ]
+        },
+        {
+          title: 'ORGANIZATION & BILLING',
+          count: 4,
+          items: [
+            { id: 'Organization Identity', icon: Building2 },
+            { id: 'General Regional', icon: Globe2 },
+            { id: 'Billing & Currency', icon: CreditCard },
+            { id: 'Document Templates', icon: FileText }
+          ]
+        },
+        {
+          title: 'TEAM & SECURITY',
+          count: 4,
+          items: [
+            { id: 'User Directory', icon: Users, badge: `${usersList.length}` },
+            { id: 'Roles & Permissions', icon: KeyRound, redDot: true },
+            { id: 'Teams & Pods', icon: Users },
+            { id: 'SSO & Security 2FA', icon: ShieldCheck }
+          ]
+        },
+        {
+          title: 'PIPELINE & SERVICES',
+          count: 5,
+          items: [
+            { id: 'Pipelines & Stages', icon: Workflow },
+            { id: 'Services Catalog', icon: Briefcase },
+            { id: 'Lead Sources', icon: Layers },
+            { id: 'System Tags', icon: Tag },
+            { id: 'Custom Fields', icon: FileCode }
+          ]
+        },
+        {
+          title: 'INTEGRATIONS HUB',
+          count: 1,
+          items: [
+            { id: 'Integrations Hub', icon: Network, greenDot: true }
+          ]
+        },
+        {
+          title: 'AUDIT TELEMETRY',
+          count: 1,
+          items: [
+            { id: 'Audit Telemetry', icon: Activity, badge: 'Live', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' }
+          ]
+        }
       ]
-    },
-    {
-      title: 'TEAM & SECURITY',
-      count: 4,
-      items: [
-        { id: 'User Directory', icon: Users, badge: `${usersList.length}` },
-        { id: 'Roles & Permissions', icon: KeyRound, redDot: true },
-        { id: 'Teams & Pods', icon: Users },
-        { id: 'SSO & Security 2FA', icon: ShieldCheck }
-      ]
-    },
-    {
-      title: 'PIPELINE & SERVICES',
-      count: 5,
-      items: [
-        { id: 'Pipelines & Stages', icon: Workflow },
-        { id: 'Services Catalog', icon: Briefcase },
-        { id: 'Lead Sources', icon: Layers },
-        { id: 'System Tags', icon: Tag },
-        { id: 'Custom Fields', icon: FileCode }
-      ]
-    },
-    {
-      title: 'INTEGRATIONS HUB',
-      count: 1,
-      items: [
-        { id: 'Integrations Hub', icon: Network, greenDot: true }
-      ]
-    },
-    {
-      title: 'AUDIT TELEMETRY',
-      count: 1,
-      items: [
-        { id: 'Audit Telemetry', icon: Activity, badge: 'Live', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' }
-      ]
-    }
-  ];
+    : [
+        {
+          title: 'MY ACCOUNT',
+          count: 1,
+          items: [
+            { id: 'My Profile', icon: UserCircle }
+          ]
+        }
+      ];
 
   return (
     <div className="pb-16 transition-colors duration-200 font-sans">
@@ -1124,43 +1227,311 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
               ))}
             </div>
 
-            {/* TENANT QUOTA CARD (Bottom of Sidebar) */}
-            <div className="bg-[#0A1628] text-white rounded-2xl p-4 shadow-xs space-y-3 border border-[#14233D]">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-[10px] tracking-wider uppercase text-slate-300">
-                  TENANT QUOTA
-                </span>
-                <Cloud className="w-4 h-4 text-blue-400" />
-              </div>
+            {/* TENANT QUOTA CARD (Bottom of Sidebar) - Owner Only */}
+            {isMasterOwner && (
+              <div className="bg-[#0A1628] text-white rounded-2xl p-4 shadow-xs space-y-3 border border-[#14233D]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[10px] tracking-wider uppercase text-slate-300">
+                    TENANT QUOTA
+                  </span>
+                  <Cloud className="w-4 h-4 text-blue-400" />
+                </div>
 
-              <div className="flex items-baseline justify-between text-xs">
-                <span className="text-slate-400">Active Seats</span>
-                <span className="font-bold text-white text-sm">{usersList.length} / 50</span>
-              </div>
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-slate-400">Active Seats</span>
+                  <span className="font-bold text-white text-sm">{usersList.length} / 50</span>
+                </div>
 
-              <div className="space-y-1 text-xs">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-slate-400">Actual Storage Space</span>
-                  <span className="font-semibold text-slate-200 text-[11px]">{storageData.formattedUsage} / {storageData.formattedQuota}</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.max(storageData.percent, 0.5)}%` }}></div>
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
-                  <span>Actual Usage: {storageData.percent}%</span>
-                  <span>Browser &amp; OS Storage Quota</span>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-slate-400">Actual Storage Space</span>
+                    <span className="font-semibold text-slate-200 text-[11px]">{storageData.formattedUsage} / {storageData.formattedQuota}</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.max(storageData.percent, 0.5)}%` }}></div>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
+                    <span>Actual Usage: {storageData.percent}%</span>
+                    <span>Browser &amp; OS Storage Quota</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* RIGHT MAIN CONFIGURATION PANEL (9 cols) */}
           <div className="lg:col-span-9 space-y-6">
 
             {/* ========================================================================= */}
+            {/* 0. TAB: MY PROFILE (Self-Service Profile & Display Picture)              */}
+            {/* ========================================================================= */}
+            {activeSection === 'My Profile' && (
+              <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-6 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-[#0B1727] dark:text-white">
+                        My Personal Profile
+                      </h2>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        Self-Service Account
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+                      Manage your personal credentials, contact details, display picture, and access password.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Profile Photo & Personal Info Form */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                  {/* Profile Photo Box */}
+                  <div className="md:col-span-4 bg-slate-50 dark:bg-[#0A101C] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block">
+                      DISPLAY PICTURE / AVATAR
+                    </span>
+                    <div className="flex flex-col items-center justify-center p-3">
+                      <div className="relative group">
+                        {profileAvatarUrl ? (
+                          <img
+                            src={profileAvatarUrl}
+                            alt="Profile Avatar"
+                            className="w-28 h-28 rounded-full object-cover border-2 border-rose-500 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-rose-600 to-indigo-600 flex items-center justify-center text-white text-3xl font-extrabold shadow-md border-2 border-slate-700">
+                            {profileFirstName?.[0]?.toUpperCase() || user?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                            {profileLastName?.[0]?.toUpperCase() || user?.lastName?.[0]?.toUpperCase() || ''}
+                          </div>
+                        )}
+                        <label className="absolute bottom-0 right-0 p-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-full shadow-lg cursor-pointer transition">
+                          <Camera className="w-4 h-4" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 2 * 1024 * 1024) {
+                                showToast('Image size exceeds 2MB limit. Please choose a smaller photo.', 'error');
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const dataUrl = event.target?.result as string;
+                                setProfileAvatarUrl(dataUrl);
+                                showToast('Display picture chosen. Click "Save Profile Details" to apply.');
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white mt-3 text-center">
+                        {profileFirstName || user?.firstName} {profileLastName || user?.lastName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 text-center">
+                        {user?.roleName || user?.role || 'Team Member'}
+                      </span>
+                    </div>
+                    {profileAvatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileAvatarUrl(null);
+                          showToast('Avatar removed. Click "Save Profile Details" to apply.');
+                        }}
+                        className="w-full py-1.5 text-center text-rose-500 hover:text-rose-700 text-xs font-semibold cursor-pointer border border-rose-200 dark:border-rose-900/40 rounded-xl"
+                      >
+                        Remove Picture
+                      </button>
+                    )}
+                    <p className="text-[10px] text-slate-500 leading-relaxed text-center">
+                      Accepted formats: JPG, PNG, WEBP (Max 2MB). Used across team directory, project deliverables &amp; header.
+                    </p>
+                  </div>
+
+                  {/* Profile Form Fields */}
+                  <div className="md:col-span-8 space-y-4 text-xs">
+                    <form onSubmit={handleSaveProfile} className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            First Name
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={profileFirstName}
+                            onChange={(e) => setProfileFirstName(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500 font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Last Name
+                          </label>
+                          <input
+                            type="text"
+                            value={profileLastName}
+                            onChange={(e) => setProfileLastName(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500 font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Contact Phone Number
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="+91 99950 00000"
+                            value={profilePhone}
+                            onChange={(e) => setProfilePhone(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500 font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Email Address (Primary Login ID)
+                          </label>
+                          <div className="flex items-center justify-between p-2.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 select-none">
+                            <span className="font-mono text-[11px]">{user?.email || 'user@optivirads.com'}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              Verified
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Role &amp; Privilege
+                          </label>
+                          <div className="p-2.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 font-semibold select-none">
+                            {user?.roleName || user?.role || 'Team Member'} {isMasterOwner ? '(Executive Owner)' : ''}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Designation
+                          </label>
+                          <div className="p-2.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 font-semibold select-none">
+                            {user?.designation || 'Specialist'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSavingProfile}
+                          className="px-5 py-2.5 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isSavingProfile ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Saving Profile...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-3.5 h-3.5" />
+                              <span>Save Profile Details</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Change Password Card */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Change Account Password</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Update your secret login password. Must be at least 6 characters.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleSelfChangePassword} className="space-y-3 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">
+                              Current Password
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              placeholder="••••••••"
+                              value={selfCurrentPassword}
+                              onChange={(e) => setSelfCurrentPassword(e.target.value)}
+                              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">
+                              New Password
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              placeholder="Min 6 chars"
+                              value={selfNewPassword}
+                              onChange={(e) => setSelfNewPassword(e.target.value)}
+                              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 text-[11px]">
+                              Confirm New Password
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              placeholder="Repeat new password"
+                              value={selfConfirmPassword}
+                              onChange={(e) => setSelfConfirmPassword(e.target.value)}
+                              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isSelfChangingPassword}
+                            className="px-4 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white font-semibold rounded-xl text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {isSelfChangingPassword ? (
+                              <>
+                                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Updating Password...</span>
+                              </>
+                            ) : (
+                              <>
+                                <KeyRound className="w-3.5 h-3.5" />
+                                <span>Update Password</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
             {/* 1. TAB: ORGANIZATION IDENTITY                                            */}
             {/* ========================================================================= */}
-            {activeSection === 'Organization Identity' && (
+            {isMasterOwner && activeSection === 'Organization Identity' && (
               <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl p-6 shadow-xs space-y-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div>
@@ -1788,8 +2159,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                         }
                                         showToast(`Removed ${displayName} from directory`);
                                       } catch (err: any) {
-                                        setUsersList(prev => prev.filter(item => item.id !== u.id));
-                                        showToast(`Removed ${displayName} from directory`);
+                                        showToast(`Failed to remove ${displayName}: ${err.message}`, 'error');
                                       }
                                     }}
                                     className="text-rose-500 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
@@ -1827,6 +2197,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           return;
                         }
                         try {
+                          setIsSubmittingUser(true);
                           const res = await api.createSettingsUser({
                             name: newUserName.trim() || undefined,
                             email: newUserEmail.trim(),
@@ -1843,7 +2214,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           await loadUsers();
                           showToast(res.message || `User ${newUserEmail} created with permissions assigned!`);
                         } catch (err: any) {
-                          showToast(`Error creating user: ${err.message}`);
+                          showToast(`Error creating user: ${err.message}`, 'error');
+                        } finally {
+                          setIsSubmittingUser(false);
                         }
                       }} className="space-y-4 text-xs">
 
@@ -2080,9 +2453,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           </button>
                           <button
                             type="submit"
-                            className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl shadow-xs cursor-pointer"
+                            disabled={isSubmittingUser}
+                            className="px-5 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold rounded-xl shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
                           >
-                            Create User
+                            {isSubmittingUser ? (
+                              <>
+                                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Provisioning Account...</span>
+                              </>
+                            ) : (
+                              <span>Create User</span>
+                            )}
                           </button>
                         </div>
                       </form>
