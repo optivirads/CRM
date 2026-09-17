@@ -110,7 +110,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   const { user, activePersona } = useAuth();
   const isOwnerOrAdmin = user?.isOwner || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || activePersona?.role === 'owner' || user?.role === 'super_admin';
-  const isMasterOwner = user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com';
+  const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.role === 'super_admin' || activePersona?.role === 'owner';
 
   // 4. User Directory State
   const [teamSearch, setTeamSearch] = useState('');

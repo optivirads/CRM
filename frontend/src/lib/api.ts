@@ -1,10 +1,24 @@
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
-const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '');
+function getApiBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || '/api').trim().replace(/\/+$/, '');
+  // If a full remote URL is given without /api suffix, automatically append /api
+  if (/^https?:\/\//i.test(raw) && !raw.endsWith('/api')) {
+    return `${raw}/api`;
+  }
+  return raw;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
   private getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('optivir_token');
+      const token = localStorage.getItem('optivir_token');
+      // If token is a dummy demo token and we are NOT explicitly running in demo mode, purge it
+      if (token && token.startsWith('ov_jwt_demo_') && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+        localStorage.removeItem('optivir_token');
+        return null;
+      }
+      return token;
     }
     return null;
   }

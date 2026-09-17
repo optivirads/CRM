@@ -419,12 +419,12 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
 router.post('/users', requireAuth, requireOwnerOrRole('admin', 'super_admin'), validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
 
   if (!isAuthorized) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to create users and assign permissions.'
+      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to create users and assign permissions.'
     });
     return;
   }
@@ -520,12 +520,12 @@ router.patch('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
   const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
 
   if (!isAuthorized) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to modify user roles and permissions.'
+      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to modify user roles and permissions.'
     });
     return;
   }
@@ -598,12 +598,12 @@ router.post('/users/:id/reset-password', requireAuth, requireOwnerOrRole('admin'
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
   const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
 
   if (!isAuthorized) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to reset credentials.'
+      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to reset credentials.'
     });
     return;
   }
@@ -647,12 +647,12 @@ router.delete('/users/:id', requireAuth, requireOwnerOrRole('admin', 'super_admi
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
   const callerEmail = (req.user?.email || '').toLowerCase().trim();
-  const isAuthorized = callerEmail === 'optivirads@gmail.com' || (req.user?.isOwner && callerEmail === 'abhinandc97@gmail.com');
+  const isAuthorized = callerEmail === 'optivirads@gmail.com' || callerEmail === 'abhinandc97@gmail.com' || Boolean(req.user?.isOwner) || req.user?.role === 'super_admin';
 
   if (!isAuthorized) {
     res.status(403).json({
       success: false,
-      message: 'Security Policy: Only the primary Executive Owner (optivirads@gmail.com) is authorized to remove team members.'
+      message: 'Security Policy: Only an Executive Owner or Administrator is authorized to remove team members.'
     });
     return;
   }

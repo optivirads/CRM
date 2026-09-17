@@ -209,7 +209,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const storedToken = localStorage.getItem('optivir_token');
+        let storedToken = localStorage.getItem('optivir_token');
+        const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
+        // If a dummy demo token is stored in production/live mode, purge it immediately
+        if (storedToken && storedToken.startsWith('ov_jwt_demo_') && !isDemo) {
+          console.warn('Purged invalid demo token in live mode');
+          localStorage.removeItem('optivir_token');
+          localStorage.removeItem('optivir_cached_user');
+          localStorage.removeItem('optivir_cached_org');
+          storedToken = null;
+        }
+
         const storedPersonaId = localStorage.getItem('optivir_persona_id');
         const cachedUserRaw = localStorage.getItem('optivir_cached_user');
         const cachedOrgRaw = localStorage.getItem('optivir_cached_org');
@@ -390,7 +401,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, pass: string, rememberMe: boolean = true) => {
-    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
     try {
       const res = await api.login(email, pass, rememberMe);
