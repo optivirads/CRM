@@ -55,7 +55,16 @@ class ApiClient {
       const err: any = new Error(errorMsg);
       err.details = data?.details || text;
       err.data = data;
+      err.code = data?.code;
       err.status = response.status;
+
+      // Broadcast concurrent session termination if detected
+      if (data?.code === 'CONCURRENT_SESSION_TERMINATED' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('optivir:concurrent-session-terminated', { 
+          detail: { message: errorMsg } 
+        }));
+      }
+
       throw err;
     }
 
@@ -68,6 +77,12 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email, password, rememberMe }),
     });
+  }
+
+  async logout() {
+    return this.request<{ success: boolean; message: string }>('/auth/logout', {
+      method: 'POST',
+    }).catch(() => ({ success: true, message: 'Signed out' }));
   }
 
   async getMe() {
@@ -713,6 +728,12 @@ class ApiClient {
     return this.request<{ success: boolean; message: string }>(`/settings/users/${userId}/reset-password`, {
       method: 'POST',
       body: JSON.stringify({ password }),
+    });
+  }
+
+  async revokeUserSession(userId: string) {
+    return this.request<{ success: boolean; message: string }>(`/settings/users/${userId}/revoke-session`, {
+      method: 'POST',
     });
   }
 

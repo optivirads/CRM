@@ -78,7 +78,10 @@ import {
   Target,
   TrendingUp,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Laptop,
+  Tablet,
+  Monitor
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -1380,6 +1383,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     <p className="text-[10px] text-slate-500 leading-relaxed text-center">
                       Accepted formats: JPG, PNG, WEBP (Max 2MB). Used across team directory, project deliverables &amp; header.
                     </p>
+
+                    {/* Active System Telemetry Card */}
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Laptop className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>Logged-In System</span>
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
+                          1 Active
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {user?.currentDevice?.formatted || 'Current Computer'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        IP: {user?.currentDevice?.ip || '127.0.0.1'}
+                      </div>
+                      <p className="text-[9px] text-slate-400 leading-tight">
+                        Single-system policy is active. Logging in from another browser or computer will sign this system out.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Profile Form Fields */}
@@ -2036,6 +2061,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <th className="py-3 px-4">Role</th>
                         <th className="py-3 px-4">Designation</th>
                         <th className="py-3 px-4">Authorized Modules</th>
+                        <th className="py-3 px-4">Logged-In System</th>
                         <th className="py-3 px-4">Status</th>
                         <th className="py-3 px-4 text-right">Actions</th>
                       </tr>
@@ -2139,12 +2165,62 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   </div>
                                 )}
                               </td>
+                              {/* Logged-In System / Device */}
+                              <td className="py-3 px-4 min-w-[190px]">
+                                {u.currentDevice ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                                      {u.currentDevice.deviceType === 'mobile' ? (
+                                        <Smartphone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                      ) : u.currentDevice.deviceType === 'tablet' ? (
+                                        <Tablet className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                      ) : (
+                                        <Laptop className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                      )}
+                                      <span className="font-bold text-[11px] text-slate-900 dark:text-white truncate">
+                                        {u.currentDevice.formatted || `${u.currentDevice.os} • ${u.currentDevice.browser}`}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                      <span>IP: {u.currentDevice.ip || '127.0.0.1'}</span>
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-sans font-bold flex items-center gap-1 text-[9px]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                        1 System Active
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 text-[11px]">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 shrink-0" />
+                                    <span>No active system</span>
+                                  </div>
+                                )}
+                              </td>
                               <td className="py-3 px-4">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
                                   {u.status}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right whitespace-nowrap">
+                                {isMasterOwner && (u.activeSessionId || u.currentDevice) && (
+                                  <button
+                                    onClick={async () => {
+                                      const displayName = u.name || u.email;
+                                      if (!confirm(`Are you sure you want to sign out and revoke the active system session for ${displayName}? They will be logged out immediately.`)) return;
+                                      try {
+                                        await api.revokeUserSession(u.id);
+                                        showToast(`Revoked active device session for ${displayName}`);
+                                        await loadUsers();
+                                      } catch (err: any) {
+                                        showToast(`Failed to revoke session: ${err.message}`, 'error');
+                                      }
+                                    }}
+                                    className="text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 font-semibold text-[11px] mr-3 cursor-pointer"
+                                    title="Revoke active device session and sign out user"
+                                  >
+                                    Sign Out Device
+                                  </button>
+                                )}
                                 {isMasterOwner && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
                                   <button
                                     onClick={() => {
@@ -3039,6 +3115,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                 </div>
 
                 <div className="space-y-4 text-xs">
+                  {/* Single System & Active Session Card */}
+                  <div className="p-4 bg-slate-50 dark:bg-[#0A101C] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Laptop className="w-4 h-4 text-emerald-500" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 dark:text-white">Single-System Active Session Policy</span>
+                            <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              Active &amp; Enforced
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Strict 1-system-per-user restriction. One user cannot be logged in to two different systems at the same time. Logging in from another browser or computer immediately invalidates any previous session.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Your Active System</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Laptop className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span className="font-bold text-slate-800 dark:text-white text-xs truncate">
+                            {user?.currentDevice?.formatted || 'Current Workstation'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Client IP Address</span>
+                        <div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold truncate">
+                          {user?.currentDevice?.ip || '127.0.0.1'}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Session State</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-1 mt-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> 1 Active System
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to sign out this device?')) {
+                              api.logout().finally(() => window.location.reload());
+                            }
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg cursor-pointer"
+                        >
+                          Sign Out Device
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* 2FA Toggle */}
                   <div className="p-4 bg-slate-50 dark:bg-[#0A101C] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div>

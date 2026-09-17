@@ -465,6 +465,8 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         u.phone,
         u.status as user_status,
         u.last_login_at,
+        u.active_session_id,
+        u.current_device_info,
         ou.id as membership_id,
         ou.role_id,
         ou.team_id,
@@ -527,7 +529,10 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         teamId: u.team_id,
         clientId: u.client_id || null,
         clientName: u.client_name || null,
-        allowed_tabs: effectiveTabs
+        allowed_tabs: effectiveTabs,
+        activeSessionId: u.active_session_id || null,
+        currentDevice: u.current_device_info || null,
+        isOnline: Boolean(u.active_session_id)
       };
     });
 
@@ -537,6 +542,38 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// POST /settings/users/:id/revoke-session
+// ---------------------------------------------------------------------------
+router.post(
+  '/users/:id/revoke-session',
+  requireAuth,
+  requireOwnerOrRole('super_admin'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const targetUserId = req.params.id;
+    try {
+      await db.query(
+        'UPDATE users SET active_session_id = NULL, current_device_info = NULL WHERE id = $1;',
+        [targetUserId]
+      );
+      await recordAuditLog(
+        req.user!.organizationId,
+        req.user!.id,
+        'REVOKE_USER_SESSION',
+        'users',
+        targetUserId,
+        null,
+        { targetUserId },
+        req
+      );
+      res.json({ success: true, message: 'Active system session revoked successfully' });
+    } catch (err: any) {
+      console.error('Revoke session error:', err);
+      res.status(500).json({ success: false, message: 'Failed to revoke session: ' + err.message });
+    }
+  }
+);
 
 router.post('/users', requireAuth, validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!isExecutiveOwner(req.user)) {

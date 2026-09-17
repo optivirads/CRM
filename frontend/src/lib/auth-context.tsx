@@ -17,6 +17,16 @@ export interface User {
   allowed_tabs?: string[];
   clientId?: string | null;
   clientName?: string | null;
+  currentDevice?: {
+    deviceType: 'desktop' | 'mobile' | 'tablet';
+    os: string;
+    browser: string;
+    formatted: string;
+    ip: string;
+    userAgent: string;
+    loggedInAt: string;
+    lastActiveAt?: string;
+  } | null;
 }
 
 export interface Organization {
@@ -211,6 +221,8 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   activePersona: Persona;
+  concurrentNotice: string | null;
+  clearConcurrentNotice: () => void;
   switchPersona: (personaId: string) => void;
   updateCurrentUser: (updates: Partial<User>) => void;
   canAccessTab: (tabId: string) => boolean;
@@ -225,6 +237,8 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   isLoading: true,
   activePersona: AGENCY_PERSONAS[0],
+  concurrentNotice: null,
+  clearConcurrentNotice: () => {},
   switchPersona: () => {},
   updateCurrentUser: () => {},
   canAccessTab: () => true,
@@ -277,6 +291,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [isLoading, setIsLoading] = useState(true);
+  const [concurrentNotice, setConcurrentNotice] = useState<string | null>(null);
+  const clearConcurrentNotice = () => setConcurrentNotice(null);
+
+  useEffect(() => {
+    const handleConcurrent = (e: any) => {
+      const msg = e.detail?.message || 'Your session has ended because this account was logged into from another system or device.';
+      setConcurrentNotice(msg);
+      logout();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('optivir:concurrent-session-terminated', handleConcurrent);
+      return () => window.removeEventListener('optivir:concurrent-session-terminated', handleConcurrent);
+    }
+  }, []);
 
   const updateCurrentUser = React.useCallback((updates: Partial<User>) => {
     setUser((prev) => {
@@ -353,7 +381,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 isOwner: Boolean(d.is_owner),
                 allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard']),
                 clientId: d.client_id || null,
-                clientName: d.client_name || null
+                clientName: d.client_name || null,
+                currentDevice: d.currentDevice || d.current_device_info || null
               };
               const freshOrg: Organization = {
                 id: d.organization_id || 'org-1',
@@ -498,7 +527,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.login(email, pass, rememberMe);
       if (res && res.success && res.data) {
-        const loggedInUser: User = res.data.user;
+        const loggedInUser: User = {
+          ...res.data.user,
+          currentDevice: res.data.user?.currentDevice || null
+        };
         const loggedInOrg: Organization = res.data.organization;
 
         localStorage.setItem('optivir_token', res.data.token);
@@ -567,6 +599,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    api.logout().catch(() => {});
     localStorage.removeItem('optivir_token');
     localStorage.removeItem('optivir_cached_user');
     localStorage.removeItem('optivir_cached_org');
@@ -585,6 +618,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       token,
       isLoading,
       activePersona,
+      concurrentNotice,
+      clearConcurrentNotice,
       switchPersona,
       updateCurrentUser,
       canAccessTab,

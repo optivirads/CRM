@@ -21,7 +21,8 @@ import {
   Check,
   X,
   FileCheck,
-  KeyRound
+  KeyRound,
+  Laptop
 } from 'lucide-react';
 import { useAuth, AGENCY_PERSONAS } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -361,6 +362,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                   {user?.designation || (user?.role === 'coo' ? 'Chief Operating Officer • OptiVir' : (user?.isOwner ? 'Managing Director • OptiVir' : activePersona.designation))}
                 </p>
+                {user?.currentDevice && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 min-w-0">
+                      <Laptop className="w-3 h-3 text-emerald-500 shrink-0" />
+                      <span className="truncate font-medium">{user.currentDevice.formatted || `${user.currentDevice.os} • ${user.currentDevice.browser}`}</span>
+                    </div>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-bold text-[8px] shrink-0 border border-emerald-200 dark:border-emerald-800">
+                      1 Device Active
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Role Switcher (Visible to Executive Owner) */}
