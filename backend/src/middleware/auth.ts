@@ -110,6 +110,51 @@ export async function requireAuth(
 
   req.user = decoded;
 
+  // Single Active Session Enforcement:
+  // Ensure the token's sessionId matches the user's active_session_id in database.
+  // One user cannot be logged in to two different systems at the same time.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decoded.id || '');
+  if (decoded.id && isUuid) {
+    try {
+      const userSessionRes = await db.query(
+        'SELECT active_session_id FROM users WHERE id = $1 AND deleted_at IS NULL;',
+        [decoded.id]
+      );
+      if (userSessionRes.rows.length > 0) {
+        const activeSessionId = userSessionRes.rows[0].active_session_id;
+
+        if (decoded.sessionId) {
+          if (!activeSessionId) {
+            res.status(401).json({
+              success: false,
+              code: 'SESSION_REVOKED',
+              message: 'Your session has been signed out or revoked. Please log in again.'
+            });
+            return;
+          }
+          if (decoded.sessionId !== activeSessionId) {
+            res.status(401).json({
+              success: false,
+              code: 'CONCURRENT_SESSION_TERMINATED',
+              message: 'Your session has ended because this account was logged into from another system or device.'
+            });
+            return;
+          }
+        } else if (activeSessionId) {
+          // Token has no sessionId, but an active session was already established on another system
+          res.status(401).json({
+            success: false,
+            code: 'CONCURRENT_SESSION_TERMINATED',
+            message: 'Your session has ended because this account was logged into from another system or device.'
+          });
+          return;
+        }
+      }
+    } catch (sessionErr) {
+      console.warn('Session verification DB check error:', sessionErr);
+    }
+  }
+
   // Fetch org security policy (cached)
   if (decoded.organizationId) {
     const sec = await getOrgSecurity(decoded.organizationId);

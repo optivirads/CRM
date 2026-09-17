@@ -22,11 +22,14 @@ import {
   Briefcase,
   CheckSquare,
   Clock,
-  DollarSign
+  DollarSign,
+  ShieldAlert,
+  Laptop,
+  X
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login } = useAuth();
+  const { login, concurrentNotice, clearConcurrentNotice } = useAuth();
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -253,6 +256,32 @@ export const LoginView: React.FC = () => {
               </p>
             </div>
 
+            {/* Concurrent Session Termination Alert */}
+            {concurrentNotice && (
+              <div className="p-3.5 bg-amber-950/70 border border-amber-500/60 rounded-xl flex items-start space-x-2.5 text-xs text-amber-200 backdrop-blur-md animate-fadeIn">
+                <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-bold text-amber-100 flex items-center justify-between">
+                    <span>Single Active System Policy</span>
+                    <button 
+                      type="button"
+                      onClick={clearConcurrentNotice} 
+                      className="text-amber-400 hover:text-white cursor-pointer p-0.5 rounded"
+                      title="Dismiss notice"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-200/95 leading-relaxed">
+                    {concurrentNotice}
+                  </p>
+                  <p className="mt-1 text-[10px] text-amber-400/90 font-mono">
+                    Logging in below will register this device as your sole active system.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Error Message */}
             {errorMessage && (
               <div className="p-3.5 bg-rose-950/60 border border-rose-700/60 rounded-xl flex items-start space-x-2.5 text-xs text-rose-200 backdrop-blur-md">
@@ -343,6 +372,11 @@ export const LoginView: React.FC = () => {
                   </>
                 )}
               </button>
+
+              <div className="pt-1 flex items-center justify-center gap-1.5 text-[10px] text-slate-400 select-none">
+                <Laptop className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>Single Active System Enforced • Automatically signs out older logins</span>
+              </div>
             </form>
 
             {/* Quick Demo Persona Switcher (Evaluation / Demo Mode Only) */}

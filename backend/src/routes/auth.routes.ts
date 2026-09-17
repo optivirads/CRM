@@ -5,6 +5,8 @@ import { generateToken, requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { loginRateLimiter } from '../middleware/rateLimiter';
 import { validateBody } from '../middleware/validate';
+import { parseDeviceInfo } from '../utils/device';
+import crypto from 'crypto';
 import { z } from 'zod';
 
 const router = Router();
@@ -137,6 +139,10 @@ router.post(
           ? row.allowed_tabs
           : ['dashboard'];
 
+      const sessionId = crypto.randomUUID();
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || '127.0.0.1';
+      const deviceInfo = parseDeviceInfo(req.headers['user-agent'] || '', clientIp);
+
       const userPayload = {
         id: row.id,
         email: row.email,
@@ -146,14 +152,21 @@ router.post(
         role: row.role_slug || 'admin',
         isOwner: row.is_owner,
         rememberMe: isPersistent,
-        clientId: row.client_id || null
+        clientId: row.client_id || null,
+        sessionId
       };
 
       const token = generateToken(userPayload, isPersistent);
 
       await db.query(
-        'UPDATE users SET last_login_at = NOW(), failed_login_attempts = 0, lockout_until = NULL WHERE id = $1',
-        [row.id]
+        `UPDATE users 
+         SET last_login_at = NOW(), 
+             failed_login_attempts = 0, 
+             lockout_until = NULL,
+             active_session_id = $1,
+             current_device_info = $2
+         WHERE id = $3;`,
+        [sessionId, JSON.stringify(deviceInfo), row.id]
       );
 
       await recordAuditLog(
@@ -163,7 +176,7 @@ router.post(
         'users',
         row.id,
         null,
-        { email: row.email },
+        { email: row.email, device: deviceInfo.formatted, ip: deviceInfo.ip },
         req
       );
 
@@ -184,7 +197,8 @@ router.post(
             isOwner: row.is_owner,
             allowed_tabs: effectiveTabs,
             clientId: row.client_id || null,
-            clientName: row.client_name || null
+            clientName: row.client_name || null,
+            currentDevice: deviceInfo
           },
           organization: {
             id: row.organization_id,
@@ -212,6 +226,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
     const userRes = await db.query(`
       SELECT 
         u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar_url,
+        u.active_session_id, u.current_device_info,
         ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
         comp.name as client_name,
         r.name as role_name, r.slug as role_slug,
@@ -239,6 +254,19 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
     const effectiveTabs: string[] =
       isSuper ? ['*'] : row.allowed_tabs && row.allowed_tabs.length > 0 ? row.allowed_tabs : ['dashboard'];
 
+    // If active_session_id is missing on legacy active user, initialize it seamlessly
+    let effectiveSessionId = req.user?.sessionId || row.active_session_id;
+    let effectiveDevice = row.current_device_info;
+    if (!effectiveSessionId) {
+      effectiveSessionId = crypto.randomUUID();
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || '127.0.0.1';
+      effectiveDevice = parseDeviceInfo(req.headers['user-agent'] || '', clientIp);
+      await db.query(
+        'UPDATE users SET active_session_id = $1, current_device_info = $2 WHERE id = $3;',
+        [effectiveSessionId, JSON.stringify(effectiveDevice), row.id]
+      );
+    }
+
     // Provide renewed 7-day token on verify to prevent abrupt session drops
     const freshToken = generateToken({
       id: row.id,
@@ -249,7 +277,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       role: row.role_slug || 'admin',
       isOwner: row.is_owner,
       rememberMe: req.user?.rememberMe !== false,
-      clientId: row.client_id || null
+      clientId: row.client_id || null,
+      sessionId: effectiveSessionId
     }, req.user?.rememberMe !== false);
 
     res.json({
@@ -261,9 +290,40 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
         allowed_tabs: effectiveTabs,
         client_id: row.client_id || null,
         client_name: row.client_name || null,
+        currentDevice: effectiveDevice,
         token: freshToken
       }
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /auth/logout
+// ---------------------------------------------------------------------------
+router.post('/logout', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (userId) {
+      await db.query(
+        'UPDATE users SET active_session_id = NULL, current_device_info = NULL WHERE id = $1;',
+        [userId]
+      );
+      if (req.user?.organizationId) {
+        await recordAuditLog(
+          req.user.organizationId,
+          userId,
+          'LOGOUT',
+          'users',
+          userId,
+          null,
+          null,
+          req
+        );
+      }
+    }
+    res.json({ success: true, message: 'Signed out successfully' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

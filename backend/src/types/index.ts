@@ -10,6 +10,8 @@ export interface AuthenticatedUser {
   isOwner: boolean;
   rememberMe?: boolean;
   clientId?: string | null;
+  sessionId?: string;
+  currentDevice?: any;
 }
 
 export interface AuthenticatedRequest extends Request {
