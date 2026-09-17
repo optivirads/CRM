@@ -14,9 +14,10 @@ export function validateBody(schema: ZodTypeAny) {
       next();
     } else {
       const errors = formatZodErrors(result.error);
+      const detailedMessage = errors.map(e => e.message).join('. ') || 'Validation failed';
       res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: detailedMessage,
         errors
       });
     }
