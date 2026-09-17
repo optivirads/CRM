@@ -215,7 +215,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
         ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
         comp.name as client_name,
         r.name as role_name, r.slug as role_slug,
-        o.name as organization_name, o.currency, o.timezone
+        o.name as organization_name, o.slug as organization_slug, o.currency, o.timezone
       FROM users u
       JOIN organization_users ou ON u.id = ou.user_id
       JOIN organizations o ON ou.organization_id = o.id

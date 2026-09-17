@@ -30,7 +30,7 @@ export interface Persona {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'coo' | 'sales_lead' | 'marketing_lead' | 'social_media_lead' | 'media_buyer' | 'finance_lead' | 'account_manager' | 'operations_lead' | 'client_portal';
+  role: 'owner' | 'coo' | 'sales_lead' | 'marketing_lead' | 'social_media_lead' | 'media_buyer' | 'finance_lead' | 'account_manager' | 'operations_lead' | 'client_portal' | string;
   roleLabel: string;
   designation: string;
   avatarText: string;
@@ -61,7 +61,7 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Chief Operating Officer • OptiVir',
     avatarText: 'CO',
     avatarBg: 'bg-purple-700',
-    allowedTabs: ['dashboard', 'leads', 'pipeline', 'proposals', 'clients', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'operations', 'settings'],
+    allowedTabs: ['dashboard', 'leads', 'contacts', 'clients', 'client-360', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'activities', 'documents', 'notifications', 'settings'],
     description: 'Executive operational command across all agency deliverables, pipelines, and modules'
   },
   {
@@ -138,6 +138,73 @@ export const AGENCY_PERSONAS: Persona[] = [
   }
 ];
 
+export const getPersonaForUser = (u: User | null): Persona => {
+  if (!u) {
+    return AGENCY_PERSONAS[0];
+  }
+
+  // 1. If user is owner
+  if (u.isOwner || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.role === 'owner') {
+    const p = AGENCY_PERSONAS[0];
+    return {
+      ...p,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || p.name,
+      email: u.email || p.email,
+      designation: u.designation || p.designation,
+      allowedTabs: u.allowed_tabs || ['*']
+    };
+  }
+
+  // 2. Match by email in AGENCY_PERSONAS
+  const byEmail = AGENCY_PERSONAS.find(
+    p => u.email && p.email.toLowerCase() === u.email.toLowerCase()
+  );
+  if (byEmail) {
+    return {
+      ...byEmail,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || byEmail.name,
+      email: u.email,
+      role: (u.role as any) || byEmail.role,
+      roleLabel: u.roleName || byEmail.roleLabel,
+      designation: u.designation || byEmail.designation,
+      avatarText: ((u.firstName?.[0] || '') + (u.lastName?.[0] || u.email?.[0] || 'U')).toUpperCase() || byEmail.avatarText,
+      allowedTabs: u.allowed_tabs || byEmail.allowedTabs
+    };
+  }
+
+  // 3. Match by role slug in AGENCY_PERSONAS (e.g. 'coo', 'sales_lead', etc.)
+  const byRole = AGENCY_PERSONAS.find(p => p.role === u.role);
+  if (byRole) {
+    return {
+      ...byRole,
+      id: `persona-${u.id || u.role}`,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || byRole.name,
+      email: u.email,
+      role: (u.role as any) || byRole.role,
+      roleLabel: u.roleName || byRole.roleLabel,
+      designation: u.designation || byRole.designation,
+      avatarText: ((u.firstName?.[0] || '') + (u.lastName?.[0] || u.email?.[0] || 'U')).toUpperCase() || byRole.avatarText,
+      allowedTabs: u.allowed_tabs || byRole.allowedTabs
+    };
+  }
+
+  // 4. Dynamic persona for any custom role
+  const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
+  const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || u.email?.[0] || 'U')).toUpperCase();
+  return {
+    id: `persona-${u.id || u.role}`,
+    name: fullName,
+    email: u.email,
+    role: (u.role as any) || 'coo',
+    roleLabel: u.roleName || 'Team Member',
+    designation: u.designation || 'Specialist',
+    avatarText: initials || 'U',
+    avatarBg: u.role === 'coo' ? 'bg-purple-700' : 'bg-indigo-600',
+    allowedTabs: u.allowed_tabs || ['dashboard'],
+    description: 'Authenticated agency account'
+  };
+};
+
 interface AuthContextType {
   user: User | null;
   organization: Organization | null;
@@ -167,10 +234,48 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activePersona, setActivePersona] = useState<Persona>(AGENCY_PERSONAS[0]);
-  const [user, setUser] = useState<User | null>(null);
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  // Synchronous initialization from localStorage prevents initial flash of incorrect user or Owner persona
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('optivir_cached_user');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [organization, setOrganization] = useState<Organization | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('optivir_cached_org');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('optivir_token');
+      if (t && !t.startsWith('ov_jwt_demo_')) return t;
+    }
+    return null;
+  });
+
+  const [activePersona, setActivePersona] = useState<Persona>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedUserRaw = localStorage.getItem('optivir_cached_user');
+        if (cachedUserRaw) {
+          const u = JSON.parse(cachedUserRaw);
+          return getPersonaForUser(u);
+        }
+      } catch {}
+    }
+    return AGENCY_PERSONAS[0];
+  });
+
   const [isLoading, setIsLoading] = useState(true);
 
   const updateCurrentUser = React.useCallback((updates: Partial<User>) => {
@@ -180,37 +285,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         localStorage.setItem('optivir_cached_user', JSON.stringify(updated));
       } catch {}
+      setActivePersona(getPersonaForUser(updated));
       return updated;
     });
   }, []);
 
   const applyPersona = React.useCallback((persona: Persona) => {
     setActivePersona(persona);
-    const [firstName, ...rest] = persona.name.split(' ');
-    const lastName = rest.join(' ');
-    const updatedUser: User = {
-      id: `usr-${persona.role}`,
-      email: persona.email,
-      firstName,
-      lastName,
-      designation: persona.designation,
-      role: persona.role,
-      roleName: persona.roleLabel,
-      isOwner: persona.role === 'owner',
-      allowed_tabs: persona.allowedTabs
-    };
-    setUser(updatedUser);
     try {
       localStorage.setItem('optivir_persona_id', persona.id);
-      localStorage.setItem('optivir_cached_user', JSON.stringify(updatedUser));
-      const defaultOrg: Organization = {
-        id: 'org-1',
-        name: 'OptiVir CRM Global',
-        slug: 'optivir-crm',
-        currency: 'INR'
-      };
-      setOrganization(defaultOrg);
-      localStorage.setItem('optivir_cached_org', JSON.stringify(defaultOrg));
     } catch (e) {
       console.warn('Unable to persist persona preference', e);
     }
@@ -227,34 +310,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('optivir_token');
           localStorage.removeItem('optivir_cached_user');
           localStorage.removeItem('optivir_cached_org');
+          localStorage.removeItem('optivir_persona_id');
           storedToken = null;
         }
 
-        const storedPersonaId = localStorage.getItem('optivir_persona_id');
         const cachedUserRaw = localStorage.getItem('optivir_cached_user');
         const cachedOrgRaw = localStorage.getItem('optivir_cached_org');
 
         if (storedToken) {
           setToken(storedToken);
 
-          // Restore cached user and organization immediately to eliminate UI flicker
           if (cachedUserRaw) {
             try {
-              const parsedUser = JSON.parse(cachedUserRaw);
+              const parsedUser: User = JSON.parse(cachedUserRaw);
               setUser(parsedUser);
+              setActivePersona(getPersonaForUser(parsedUser));
             } catch {}
           }
           if (cachedOrgRaw) {
             try {
-              const parsedOrg = JSON.parse(cachedOrgRaw);
+              const parsedOrg: Organization = JSON.parse(cachedOrgRaw);
               setOrganization(parsedOrg);
             } catch {}
-          }
-          if (storedPersonaId) {
-            const found = AGENCY_PERSONAS.find(p => p.id === storedPersonaId);
-            if (found) {
-              setActivePersona(found);
-            }
           }
 
           // Hydrate user and org state directly from backend /auth/me as the primary source of truth
@@ -262,7 +339,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const meRes = await api.getMe();
             if (meRes && meRes.success && meRes.data) {
               const d = meRes.data;
-              const isSuper = d.is_owner || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com' || d.email?.toLowerCase() === 'abhinandc97@gmail.com';
+              const isSuper = Boolean(d.is_owner) || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com' || d.email?.toLowerCase() === 'abhinandc97@gmail.com';
               const freshUser: User = {
                 id: d.id,
                 email: d.email,
@@ -271,8 +348,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 phone: d.phone || null,
                 avatarUrl: d.avatar_url || d.avatarUrl || null,
                 designation: d.designation,
-                role: d.role_slug || 'admin',
-                roleName: d.role_name || 'Admin',
+                role: d.role_slug || 'coo',
+                roleName: d.role_name || 'Chief Operating Officer',
                 isOwner: Boolean(d.is_owner),
                 allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard']),
                 clientId: d.client_id || null,
@@ -295,23 +372,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setToken(d.token);
               }
 
-              if (storedPersonaId) {
-                const found = AGENCY_PERSONAS.find(p => p.id === storedPersonaId);
-                if (found) {
-                  setActivePersona({
-                    ...found,
-                    allowedTabs: freshUser.allowed_tabs || found.allowedTabs
-                  });
-                }
-              }
+              // Always derive persona from the authenticated user
+              const userPersona = getPersonaForUser(freshUser);
+              setActivePersona(userPersona);
+              localStorage.setItem('optivir_persona_id', userPersona.id);
             } else if ((meRes as any)?.status === 401 || (meRes as any)?.status === 403) {
               // Token strictly rejected by server as invalid
               localStorage.removeItem('optivir_token');
               localStorage.removeItem('optivir_cached_user');
               localStorage.removeItem('optivir_cached_org');
+              localStorage.removeItem('optivir_persona_id');
               setToken(null);
               setUser(null);
               setOrganization(null);
+              setActivePersona(AGENCY_PERSONAS[0]);
             }
           } catch (apiErr: any) {
             // ONLY log out if the backend definitively returns 401/403 HTTP status.
@@ -320,9 +394,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               localStorage.removeItem('optivir_token');
               localStorage.removeItem('optivir_cached_user');
               localStorage.removeItem('optivir_cached_org');
+              localStorage.removeItem('optivir_persona_id');
               setToken(null);
               setUser(null);
               setOrganization(null);
+              setActivePersona(AGENCY_PERSONAS[0]);
             } else {
               console.warn('Server offline or network unavailable during auth sync; retaining local session.');
             }
@@ -343,6 +419,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const switchPersona = (personaId: string) => {
+    const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
+    // Only master owner or explicit demo mode can switch persona preview
+    if (!isMasterOwner && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+      return;
+    }
     const persona = AGENCY_PERSONAS.find(p => p.id === personaId);
     if (persona) {
       applyPersona(persona);
@@ -350,12 +431,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccessTab = (tabId: string): boolean => {
-    // 1. Super admin / optivirads@gmail.com / abhinandc97@gmail.com / owner
-    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin') {
+    // 1. Master Owner / Super Admin / COO
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin' || user?.role === 'coo') {
       return true;
     }
-    // 2. COO has full operational access across modules
-    if (user?.role === 'coo' || activePersona?.role === 'coo') {
+    // 2. Active persona role COO or Owner
+    if (activePersona?.role === 'coo' || activePersona?.role === 'owner') {
       return true;
     }
     // 3. Client-restricted user: strictly limit to client-facing modules
@@ -375,7 +456,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const can = (resource: string, action: string): boolean => {
-    const isMasterOwner = Boolean(user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner);
+    const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
 
     // Strict Rule: Only primary owner optivirads@gmail.com can create users or assign permissions
     if (resource === 'user_management' || resource === 'users_admin') {
@@ -387,9 +468,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return isMasterOwner;
     }
 
-    if (isMasterOwner || user?.role === 'super_admin' || activePersona.role === 'owner') return true;
+    if (isMasterOwner || user?.role === 'super_admin') return true;
 
-    // COO operational permissions (all modules except critical master billing/security edit)
+    // COO operational permissions (all modules except critical master billing/security edit or user creation)
     if (user?.role === 'coo' || activePersona?.role === 'coo') {
       if ((resource === 'billing' || resource === 'security') && action === 'edit') return false;
       return true;
@@ -417,36 +498,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.login(email, pass, rememberMe);
       if (res && res.success && res.data) {
+        const loggedInUser: User = res.data.user;
+        const loggedInOrg: Organization = res.data.organization;
+
         localStorage.setItem('optivir_token', res.data.token);
-        localStorage.setItem('optivir_cached_user', JSON.stringify(res.data.user));
-        localStorage.setItem('optivir_cached_org', JSON.stringify(res.data.organization));
+        localStorage.setItem('optivir_cached_user', JSON.stringify(loggedInUser));
+        localStorage.setItem('optivir_cached_org', JSON.stringify(loggedInOrg));
         localStorage.setItem('optivir_remember_me', rememberMe ? 'true' : 'false');
 
-        const matchedPersona = AGENCY_PERSONAS.find(p => p.email.toLowerCase() === res.data.user.email?.toLowerCase());
-        if (matchedPersona) {
-          localStorage.setItem('optivir_persona_id', matchedPersona.id);
-          setActivePersona({
-            ...matchedPersona,
-            allowedTabs: res.data.user.allowed_tabs || matchedPersona.allowedTabs
-          });
-        } else {
-          const dynamicPersona: Persona = {
-            id: `persona-${res.data.user.id}`,
-            name: `${res.data.user.firstName || ''} ${res.data.user.lastName || ''}`.trim() || res.data.user.email,
-            email: res.data.user.email,
-            role: (res.data.user.role as any) || 'sales_lead',
-            roleLabel: res.data.user.roleName || 'Team Member',
-            designation: res.data.user.designation || 'Specialist',
-            avatarText: (res.data.user.firstName?.[0] || res.data.user.email?.[0] || 'U').toUpperCase(),
-            avatarBg: 'bg-indigo-600',
-            allowedTabs: res.data.user.allowed_tabs || ['dashboard'],
-            description: 'Assigned agency account'
-          };
-          setActivePersona(dynamicPersona);
-        }
+        const userPersona = getPersonaForUser(loggedInUser);
+        localStorage.setItem('optivir_persona_id', userPersona.id);
+
+        setActivePersona(userPersona);
         setToken(res.data.token);
-        setUser(res.data.user);
-        setOrganization(res.data.organization);
+        setUser(loggedInUser);
+        setOrganization(loggedInOrg);
         return;
       }
       throw new Error((res as any)?.message || 'Authentication failed. Please verify your email and password.');
@@ -509,6 +575,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setOrganization(null);
     setToken(null);
+    setActivePersona(AGENCY_PERSONAS[0]);
   };
 
   return (
