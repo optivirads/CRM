@@ -54,19 +54,15 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     const cleanOrigin = origin.replace(/\/$/, '');
-    const isOptivirVercel =
-      cleanOrigin.endsWith('.vercel.app') &&
-      (cleanOrigin.includes('optivir') || process.env.NODE_ENV !== 'production');
+    const isVercelDomain = cleanOrigin.endsWith('.vercel.app');
+    const isLocalhost = cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1');
 
     if (
       allowedOrigins.includes(cleanOrigin) ||
-      isOptivirVercel ||
-      cleanOrigin === 'http://localhost:3000'
+      isVercelDomain ||
+      isLocalhost ||
+      process.env.NODE_ENV !== 'production'
     ) {
-      return callback(null, true);
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
 
@@ -74,7 +70,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'X-Requested-With',
+    'Range',
+    'Origin',
+    'Cache-Control',
+    'Pragma'
+  ]
 }));
 
 // ---------------------------------------------------------------------------
@@ -94,6 +99,7 @@ app.get('/', (req: Request, res: Response) => {
     message: 'OptiVir CRM Backend API is operational and healthy.',
     endpoints: {
       health: '/health',
+      healthDb: '/health/db',
       auth: '/api/auth',
       dashboard: '/api/dashboard',
       crm: '/api/crm',
@@ -119,19 +125,29 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 app.get('/health/db', async (req: Request, res: Response) => {
+  const diagnostics = db.getDiagnostics();
   try {
     const dbRes = await db.query('SELECT current_database(), current_user, count(*) as user_count FROM users;');
     const orgUsersRes = await db.query('SELECT count(*) as org_users_count FROM organization_users;');
     res.json({
       success: true,
+      status: 'connected',
+      diagnostics,
       database: dbRes.rows[0],
-      orgUsersCount: orgUsersRes.rows[0]?.org_users_count
+      orgUsersCount: orgUsersRes.rows[0]?.org_users_count,
+      timestamp: new Date().toISOString()
     });
   } catch (err: any) {
     res.status(500).json({
       success: false,
+      status: 'disconnected',
+      diagnostics,
       error: err.message,
-      detail: 'Failed connecting to database pool'
+      detail: 'Failed connecting to database pool',
+      hint: diagnostics.isSupabasePooler && !diagnostics.userHasPoolerTenant
+        ? 'Supabase Pooler requires DB_USER in format: postgres.[project-ref] (e.g. postgres.ituizznwyamrdcfvymam)'
+        : 'Verify DB_PASSWORD and DATABASE_URL in environment settings.',
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -181,8 +197,14 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Start Server
 // ---------------------------------------------------------------------------
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🚀 OptiVir CRM Backend running on http://localhost:${PORT}`);
+    try {
+      const res = await db.query('SELECT current_database(), current_user, count(*) as user_count FROM users;');
+      console.log(`✅ PostgreSQL Connected to [${res.rows[0]?.current_database}] as [${res.rows[0]?.current_user}] (${res.rows[0]?.user_count} users loaded)`);
+    } catch (err: any) {
+      console.error(`❌ CRITICAL: PostgreSQL connection failed on startup: ${err.message}`);
+    }
   });
 }
 
