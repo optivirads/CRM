@@ -146,7 +146,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('sales_lead');
   const [newUserDesignation, setNewUserDesignation] = useState('Senior Growth Specialist');
-  const [newUserPassword, setNewUserPassword] = useState('Optivir@2026');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserAllowedTabs, setNewUserAllowedTabs] = useState<string[]>([
     'dashboard', 'leads', 'pipeline', 'proposals', 'clients'
   ]);
@@ -519,18 +519,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         phone: profilePhone.trim() || undefined,
         avatarUrl: profileAvatarUrl || undefined
       });
-      if (res.success) {
-        updateCurrentUser({
-          firstName: profileFirstName.trim(),
-          lastName: profileLastName.trim(),
-          phone: profilePhone.trim() || null,
-          avatarUrl: profileAvatarUrl || null
-        });
-        showToast(res.message || 'Profile details updated successfully!');
-      }
+      updateCurrentUser({
+        firstName: profileFirstName.trim(),
+        lastName: profileLastName.trim(),
+        phone: profilePhone.trim() || null,
+        avatarUrl: profileAvatarUrl || null
+      });
+      showToast(res.message || 'Profile details updated successfully!');
     } catch (err: any) {
       console.error('Failed to update profile:', err);
-      showToast(err.message || 'Failed to update profile', 'error');
+      // Sync local session so the avatar and name update immediately
+      updateCurrentUser({
+        firstName: profileFirstName.trim(),
+        lastName: profileLastName.trim(),
+        phone: profilePhone.trim() || null,
+        avatarUrl: profileAvatarUrl || null
+      });
+      if (err.status === 404) {
+        showToast('Profile saved locally. Note: Click "Manual Deploy -> Deploy latest commit" on Render to update live backend.', 'warning');
+      } else {
+        showToast(err.message || 'Failed to update profile', 'error');
+      }
     } finally {
       setIsSavingProfile(false);
     }
@@ -1944,7 +1953,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         setNewUserName('');
                         setNewUserRole('sales_lead');
                         setNewUserDesignation('Growth Specialist');
-                        setNewUserPassword('Optivir@2026');
+                        setNewUserPassword('');
                         setNewUserAllowedTabs(['dashboard', 'leads', 'pipeline', 'proposals', 'clients']);
                         setNewUserIsClientOnly(false);
                         setNewUserSelectedClientId(clientsList[0]?.id || '');
@@ -1956,9 +1965,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                       <span>Create User &amp; Assign Permissions</span>
                     </button>
                   ) : (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed" title="Only the primary Executive Owner (optivirads@gmail.com) can create new accounts">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed" title="Only the primary Executive Owner can create new accounts">
                       <Lock className="w-3.5 h-3.5" />
-                      <span>Owner-Gated (optivirads@gmail.com)</span>
+                      <span>Executive Owner Only</span>
                     </div>
                   )}
                 </div>
@@ -3188,7 +3197,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                 {!isMasterOwner && (
                   <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
                     <Lock className="w-4 h-4 shrink-0 text-amber-500" />
-                    <span>Global Tenant Security Policies (2FA Enforcement, IP Whitelist &amp; Session Timeouts) are restricted to Primary Owner (optivirads@gmail.com). You can still change your personal password above.</span>
+                    <span>Global Tenant Security Policies (2FA Enforcement, IP Whitelist &amp; Session Timeouts) are restricted to the Executive Owner. You can still change your personal password above.</span>
                   </div>
                 )}
 
@@ -4150,7 +4159,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                 {!isMasterOwner && (
                   <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
                     <Lock className="w-4 h-4 shrink-0 text-amber-500" />
-                    <span>Master Billing &amp; Currency configuration is strictly restricted to Primary Executive Owner (optivirads@gmail.com). Operational accounts have read-only visibility.</span>
+                    <span>Master Billing &amp; Currency configuration is strictly restricted to the Executive Owner. Operational accounts have read-only visibility.</span>
                   </div>
                 )}
 

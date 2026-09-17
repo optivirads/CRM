@@ -49,7 +49,10 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      const err: any = new Error(data?.message || (response.status === 404 ? 'Resource not found' : `API error: ${response.status}`));
+      const errorMsg = (Array.isArray(data?.errors) && data.errors.length > 0)
+        ? data.errors.map((e: any) => e.message).join('. ')
+        : (data?.message || (response.status === 404 ? 'Resource not found' : `API error: ${response.status}`));
+      const err: any = new Error(errorMsg);
       err.details = data?.details || text;
       err.data = data;
       err.status = response.status;

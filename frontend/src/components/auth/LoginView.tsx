@@ -28,8 +28,8 @@ import {
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-  const [email, setEmail] = useState('optivirads@gmail.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
