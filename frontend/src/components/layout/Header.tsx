@@ -322,8 +322,17 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-xl border border-slate-200 dark:border-[#1C2C45] bg-slate-50 dark:bg-[#0D1829] hover:bg-slate-100 dark:hover:bg-[#13233B] transition text-xs shadow-sm cursor-pointer z-50 relative"
             title="User Profile & RBAC Role Switcher"
           >
-            <div className={`w-7 h-7 rounded-lg ${activePersona.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-sm overflow-hidden shrink-0`}>
-              <span>{activePersona.avatarText}</span>
+            <div className={`w-7 h-7 rounded-lg ${user?.avatarUrl ? 'bg-transparent' : activePersona.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-sm overflow-hidden shrink-0`}>
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt="User Avatar"
+                  className="w-full h-full object-cover object-center rounded-lg"
+                  style={{ width: '28px', height: '28px', objectFit: 'cover', objectPosition: 'center' }}
+                />
+              ) : (
+                <span>{activePersona.avatarText}</span>
+              )}
             </div>
             <div className="hidden sm:flex flex-col text-left min-w-0">
               <span className="text-xs font-bold text-[#0B1727] dark:text-[#F8FAFC] leading-none truncate max-w-[80px]">
