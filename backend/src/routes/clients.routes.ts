@@ -3,6 +3,7 @@ import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { SocialMediaSyncService } from '../services/socialMediaSync.service';
+import { syncCampaignTelemetryInternal } from './marketing.routes';
 
 const router = Router();
 
@@ -102,6 +103,13 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
   }
 
   try {
+    // Automatically auto-sync fresh telemetry for this client's connected campaigns if stale or missing
+    await syncCampaignTelemetryInternal({
+      orgId,
+      clientId,
+      force: false
+    });
+
     // Basic Client + Company Info
     const clientRes = await db.query(`
       SELECT 

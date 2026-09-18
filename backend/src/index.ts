@@ -12,7 +12,7 @@ import salesRoutes from './routes/sales.routes';
 import clientsRoutes from './routes/clients.routes';
 import projectsRoutes from './routes/projects.routes';
 import financeRoutes from './routes/finance.routes';
-import marketingRoutes from './routes/marketing.routes';
+import marketingRoutes, { syncCampaignTelemetryInternal } from './routes/marketing.routes';
 import activitiesRoutes from './routes/activities.routes';
 import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
@@ -208,6 +208,20 @@ if (process.env.NODE_ENV !== 'test') {
     try {
       const res = await db.query('SELECT current_database(), current_user, count(*) as user_count FROM users;');
       console.log(`✅ PostgreSQL Connected to [${res.rows[0]?.current_database}] as [${res.rows[0]?.current_user}] (${res.rows[0]?.user_count} users loaded)`);
+
+      // Start periodic background telemetry sync (every 10 minutes)
+      setInterval(async () => {
+        try {
+          const orgs = await db.query(
+            "SELECT DISTINCT organization_id FROM organization_integrations WHERE id = 'int-meta' AND is_active = true;"
+          );
+          for (const row of orgs.rows) {
+            await syncCampaignTelemetryInternal({ orgId: row.organization_id });
+          }
+        } catch (err) {
+          console.warn('[Background Telemetry Auto-Fetch] Error:', err);
+        }
+      }, 10 * 60 * 1000);
     } catch (err: any) {
       console.error(`❌ CRITICAL: PostgreSQL connection failed on startup: ${err.message}`);
     }
