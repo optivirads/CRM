@@ -2,8 +2,225 @@ import { Router, Response } from 'express';
 import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
+import { decryptConfigObject } from '../utils/encrypt';
 
 const router = Router();
+
+/**
+ * Robust extractor for Meta insights telemetry.
+ * Correctly accounts for lead forms, contact events, and messaging conversation leads (WhatsApp/Messenger).
+ */
+export function extractMetricsFromMetaInsights(ins: any) {
+  const spend = Number(ins.spend || 0);
+  const imp = Number(ins.impressions || 0);
+  const reach = Number(ins.reach || 0);
+  const clicks = Number(ins.clicks || 0);
+  const actions = ins.actions || [];
+  const actionValues = ins.action_values || [];
+
+  // Robust lead detection: standard forms, contacts, and messaging conversation starts
+  const leadAction = actions.find((a: any) => 
+    a.action_type === 'lead' || 
+    a.action_type === 'onsite_conversion.lead_grouped' ||
+    a.action_type === 'offsite_conversion.fb_pixel_lead' ||
+    a.action_type === 'contact' ||
+    a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+    a.action_type === 'messaging_conversation_started_7d' ||
+    a.action_type === 'onsite_conversion.total_messaging_connection' ||
+    a.action_type === 'onsite_conversion.messaging_first_reply'
+  );
+
+  const fallbackLeadAction = !leadAction ? actions.find((a: any) => 
+    (typeof a.action_type === 'string') && (
+      a.action_type.includes('messaging_conversation_started') || 
+      a.action_type.includes('lead')
+    )
+  ) : null;
+
+  const leads = Number((leadAction || fallbackLeadAction)?.value || 0);
+
+  const convAction = actions.find((a: any) => 
+    a.action_type === 'purchase' || 
+    a.action_type === 'omni_purchase' ||
+    a.action_type === 'onsite_conversion.purchase'
+  );
+  const conversions = Number(convAction?.value || 0);
+
+  const revAction = actionValues.find((a: any) => 
+    a.action_type === 'purchase' || 
+    a.action_type === 'omni_purchase' ||
+    a.action_type === 'onsite_conversion.purchase'
+  );
+  const revenue = Number(revAction?.value || (ins.purchase_roas?.[0]?.value ? spend * Number(ins.purchase_roas[0].value) : 0));
+  const roas = spend > 0 ? Number((revenue / spend).toFixed(2)) : 0;
+
+  return { spend, imp, reach, clicks, leads, conversions, revenue, roas };
+}
+
+/**
+ * Internal helper to automatically synchronize live telemetry for connected Meta campaigns.
+ * Replaces older cumulative snapshots with the single accurate lifetime snapshot to prevent SUM() overcounting.
+ * Also auto-discovers newly added campaigns from Meta for connected ad accounts.
+ */
+export async function syncCampaignTelemetryInternal(options: {
+  orgId: string;
+  clientId?: string;
+  campaignId?: string;
+  force?: boolean;
+}): Promise<number> {
+  const { orgId, clientId, campaignId, force = false } = options;
+
+  try {
+    const saved = await db.query(
+      'SELECT config FROM organization_integrations WHERE organization_id = $1 AND id = $2;',
+      [orgId, 'int-meta']
+    );
+    if (saved.rows.length === 0 || !saved.rows[0].config) {
+      return 0;
+    }
+
+    const decrypted = decryptConfigObject(saved.rows[0].config);
+    const metaToken: string | null = decrypted.accessToken || null;
+    const configAdAccounts: any[] = Array.isArray(decrypted.adAccounts) ? decrypted.adAccounts : [];
+
+    if (!metaToken) {
+      return 0;
+    }
+
+    // 1. Auto-discover any newly created campaigns in Meta for connected clients
+    try {
+      const connectedAccounts = await db.query(`
+        SELECT DISTINCT c.client_id, c.ad_account_id
+        FROM campaigns c
+        WHERE c.organization_id = $1 AND c.ad_account_id IS NOT NULL AND c.platform = 'Meta' AND c.deleted_at IS NULL
+        ${clientId ? 'AND c.client_id = $2' : ''}
+      `, clientId ? [orgId, clientId] : [orgId]);
+
+      for (const row of connectedAccounts.rows) {
+        const cleanAdAccountId = row.ad_account_id.startsWith('act_') ? row.ad_account_id : `act_${row.ad_account_id}`;
+        const tokenToUse = (configAdAccounts.find(a => a.id === cleanAdAccountId || a.id === row.ad_account_id)?.access_token) || metaToken;
+
+        const campUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanAdAccountId)}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(maximum){spend,impressions,reach,clicks,actions,action_values,cpc,cpm,ctr,purchase_roas}&limit=100&access_token=${encodeURIComponent(tokenToUse.trim())}`;
+        const metaRes = await fetch(campUrl);
+        if (metaRes.ok) {
+          const metaData: any = await metaRes.json();
+          if (Array.isArray(metaData.data)) {
+            for (const c of metaData.data) {
+              // Check if external_id already exists in CRM (including deleted campaigns so we don't re-import deleted ones)
+              const existingCheck = await db.query('SELECT id FROM campaigns WHERE external_id = $1 LIMIT 1;', [String(c.id)]);
+              if (existingCheck.rows.length === 0) {
+                const ins = c.insights?.data?.[0] || {};
+                const { spend, imp, reach, clicks, leads, conversions, revenue } = extractMetricsFromMetaInsights(ins);
+                const budget = Number(c.daily_budget ? Number(c.daily_budget) * 30 / 100 : (c.lifetime_budget ? Number(c.lifetime_budget) / 100 : spend * 1.5 || 50000));
+
+                const newCampRes = await db.query(`
+                  INSERT INTO campaigns (
+                    organization_id, client_id, name, platform, budget, status, objective, notes, external_id, ad_account_id
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                  RETURNING id;
+                `, [
+                  orgId, row.client_id, c.name || `Meta Campaign ${c.id}`,
+                  'Meta', budget, c.status === 'ACTIVE' ? 'Active' : 'Paused',
+                  c.objective || 'Lead Gen & Sales', `Auto-connected from Meta Ad Account ${cleanAdAccountId}`, c.id, cleanAdAccountId
+                ]);
+                const newCampId = newCampRes.rows[0]?.id;
+                if (newCampId) {
+                  const today = new Date().toISOString().split('T')[0];
+                  await db.query(`
+                    INSERT INTO campaign_metrics (
+                      campaign_id, date, spend, impressions, reach, clicks, leads, conversions, revenue, notes
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+                  `, [newCampId, today, spend, imp, reach, clicks, leads, conversions, revenue, `Auto-discovered from Meta Ad Account ${cleanAdAccountId}`]);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Auto-Discovery] Warning:', e);
+    }
+
+    // 2. Query campaigns that need sync
+    let campQuery = `
+      SELECT c.*, comp.name as client_name
+      FROM campaigns c
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies comp ON cl.company_id = comp.id
+      WHERE c.organization_id = $1 
+        AND c.deleted_at IS NULL 
+        AND c.platform = 'Meta'
+        AND c.external_id IS NOT NULL
+    `;
+    const campParams: any[] = [orgId];
+
+    if (campaignId) {
+      campParams.push(campaignId);
+      campQuery += ` AND c.id = $${campParams.length}`;
+    } else if (clientId) {
+      campParams.push(clientId);
+      campParams.push(`%${clientId}%`);
+      campQuery += ` AND (c.client_id::text = $${campParams.length - 1} OR cl.company_id::text = $${campParams.length - 1} OR comp.name ILIKE $${campParams.length})`;
+    }
+
+    // Unless forced, only sync if metrics are missing or updated > 10 minutes ago
+    if (!force && !campaignId) {
+      campQuery += ` AND (
+        NOT EXISTS (SELECT 1 FROM campaign_metrics cm WHERE cm.campaign_id = c.id)
+        OR c.updated_at < NOW() - INTERVAL '10 minutes'
+      )`;
+    }
+
+    const campsRes = await db.query(campQuery, campParams);
+    const campaignsToSync = campsRes.rows;
+
+    let updatedCount = 0;
+
+    for (const c of campaignsToSync) {
+      const tokenToUse = (c.ad_account_id && configAdAccounts.find(a => a.id === c.ad_account_id)?.access_token) || metaToken;
+
+      try {
+        const campUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(c.external_id)}?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(maximum){spend,impressions,reach,clicks,actions,action_values,cpc,cpm,ctr,purchase_roas}&access_token=${encodeURIComponent(tokenToUse.trim())}`;
+        const res = await fetch(campUrl);
+        if (res.ok) {
+          const data: any = await res.json();
+          const ins = data.insights?.data?.[0] || {};
+          const { spend, imp, reach, clicks, leads, conversions, revenue } = extractMetricsFromMetaInsights(ins);
+
+          const budget = Number(data.daily_budget ? Number(data.daily_budget) * 30 / 100 : (data.lifetime_budget ? Number(data.lifetime_budget) / 100 : spend * 1.5 || c.budget || 50000));
+
+          await db.query(`
+            UPDATE campaigns SET
+              name = $1,
+              status = $2,
+              budget = $3,
+              updated_at = NOW()
+            WHERE id = $4;
+          `, [data.name || c.name, data.status === 'ACTIVE' ? 'Active' : 'Paused', budget, c.id]);
+
+          // Clear prior snapshot rows for this campaign to prevent double-counting cumulative lifetime metrics
+          await db.query('DELETE FROM campaign_metrics WHERE campaign_id = $1;', [c.id]);
+
+          const today = new Date().toISOString().split('T')[0];
+          await db.query(`
+            INSERT INTO campaign_metrics (
+              campaign_id, date, spend, impressions, reach, clicks, leads, conversions, revenue, notes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+          `, [c.id, today, spend, imp, reach, clicks, leads, conversions, revenue, 'Live Synced via Meta Marketing API']);
+
+          updatedCount++;
+        }
+      } catch (e) {
+        console.warn(`Failed to auto-sync telemetry for campaign ${c.id}:`, e);
+      }
+    }
+
+    return updatedCount;
+  } catch (err) {
+    console.error('Error in syncCampaignTelemetryInternal:', err);
+    return 0;
+  }
+}
 
 // 1. Campaigns List with performance summary
 router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -11,6 +228,13 @@ router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Res
   const { clientId, platform, status } = req.query;
 
   try {
+    // Automatically trigger telemetry refresh for connected campaigns if missing or stale (>10 min)
+    await syncCampaignTelemetryInternal({
+      orgId,
+      clientId: clientId as string,
+      force: false
+    });
+
     let query = `
       SELECT 
         c.*,
@@ -140,7 +364,7 @@ router.get('/analytics', requireAuth, async (req: AuthenticatedRequest, res: Res
 router.post('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
-  const { name, platform, client_id, budget, status, objective, start_date, end_date } = req.body;
+  const { name, platform, client_id, budget, status, objective, start_date, end_date, external_id, ad_account_id } = req.body;
 
   if (!name || !name.trim()) {
     res.status(400).json({ success: false, message: 'Campaign name is required' });
@@ -171,14 +395,24 @@ router.post('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Re
 
     const result = await db.query(`
       INSERT INTO campaigns (
-        organization_id, client_id, name, platform, budget, status, objective, start_date, end_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        organization_id, client_id, name, platform, budget, status, objective, start_date, end_date, external_id, ad_account_id, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *;
     `, [
       orgId, resolvedClientId, name.trim(), resolvedPlatform,
       Number(budget || 0), status || 'Active', objective || 'Lead Gen',
-      start_date || new Date(), end_date || null, userId
+      start_date || new Date(), end_date || null,
+      external_id || null, ad_account_id || null, userId
     ]);
+
+    // Automatically fetch live telemetry if external_id is present
+    if (external_id) {
+      await syncCampaignTelemetryInternal({
+        orgId,
+        campaignId: result.rows[0].id,
+        force: true
+      });
+    }
 
     await recordAuditLog(orgId, userId, 'CREATE', 'campaigns', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -496,21 +730,7 @@ router.get('/ad-accounts/preview-campaigns', requireAuth, async (req: Authentica
           const matchedExisting = existingByExtId.get(String(c.id)) || existingByName.get(String(c.name || '').trim().toLowerCase());
 
           const ins = c.insights?.data?.[0] || {};
-          const spend = Number(ins.spend || 0);
-          const imp = Number(ins.impressions || 0);
-          const reach = Number(ins.reach || 0);
-          const clicks = Number(ins.clicks || 0);
-          const actions = ins.actions || [];
-          const actionValues = ins.action_values || [];
-
-          const leadsAction = actions.find((a: any) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped' || a.action_type === 'contact');
-          const convAction = actions.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-          const leads = Number(leadsAction?.value || 0);
-          const conversions = Number(convAction?.value || 0);
-
-          const revAction = actionValues.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-          const revenue = Number(revAction?.value || (ins.purchase_roas?.[0]?.value ? spend * Number(ins.purchase_roas[0].value) : 0));
-          const roas = spend > 0 ? Number((revenue / spend).toFixed(2)) : 0;
+          const { spend, imp, reach, clicks, leads, conversions, revenue, roas } = extractMetricsFromMetaInsights(ins);
           const budget = Number(c.daily_budget ? Number(c.daily_budget) * 30 / 100 : (c.lifetime_budget ? Number(c.lifetime_budget) / 100 : spend * 1.5 || 50000));
 
           const parsedCampaign = {
@@ -665,20 +885,7 @@ router.post('/campaigns/connect-ad-account', requireAuth, async (req: Authentica
             }
 
             const ins = c.insights?.data?.[0] || {};
-            const spend = Number(ins.spend || 0);
-            const imp = Number(ins.impressions || 0);
-            const reach = Number(ins.reach || 0);
-            const clicks = Number(ins.clicks || 0);
-            const actions = ins.actions || [];
-            const actionValues = ins.action_values || [];
-
-            const leadsAction = actions.find((a: any) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped' || a.action_type === 'contact');
-            const convAction = actions.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-            const leads = Number(leadsAction?.value || 0);
-            const conversions = Number(convAction?.value || 0);
-
-            const revAction = actionValues.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-            const revenue = Number(revAction?.value || (ins.purchase_roas?.[0]?.value ? spend * Number(ins.purchase_roas[0].value) : 0));
+            const { spend, imp, reach, clicks, leads, conversions, revenue } = extractMetricsFromMetaInsights(ins);
             const budget = Number(c.daily_budget ? Number(c.daily_budget) * 30 / 100 : (c.lifetime_budget ? Number(c.lifetime_budget) / 100 : spend * 1.5 || 50000));
 
             const adAccLabel = `Ad Account: ${cleanAdAccountId}${ad_account_name ? ` (${ad_account_name})` : ''}`;
@@ -726,21 +933,14 @@ router.post('/campaigns/connect-ad-account', requireAuth, async (req: Authentica
             }
 
             if (campId) {
+              // Clear prior snapshot rows for this campaign to prevent double-counting cumulative lifetime metrics
+              await db.query('DELETE FROM campaign_metrics WHERE campaign_id = $1;', [campId]);
+
               const today = new Date().toISOString().split('T')[0];
               await db.query(`
                 INSERT INTO campaign_metrics (
                   campaign_id, date, spend, impressions, reach, clicks, leads, conversions, revenue, notes
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT (campaign_id, date)
-                DO UPDATE SET
-                  spend = EXCLUDED.spend,
-                  impressions = EXCLUDED.impressions,
-                  reach = EXCLUDED.reach,
-                  clicks = EXCLUDED.clicks,
-                  leads = EXCLUDED.leads,
-                  conversions = EXCLUDED.conversions,
-                  revenue = EXCLUDED.revenue,
-                  notes = EXCLUDED.notes;
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
               `, [campId, today, spend, imp, reach, clicks, leads, conversions, revenue, `Synced from Meta Ad Account ${cleanAdAccountId}`]);
 
               importedCampaigns.push({ id: campId, name: c.name, spend, leads, conversions, revenue });
@@ -784,100 +984,15 @@ router.post('/campaigns/connect-ad-account', requireAuth, async (req: Authentica
 // 8. Live Sync Telemetry for Connected Client Campaigns
 router.post('/campaigns/sync-telemetry', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
-  const { client_id } = req.body;
+  const { client_id, campaign_id } = req.body;
 
   try {
-    let campQuery = `
-      SELECT c.*, comp.name as client_name
-      FROM campaigns c
-      JOIN clients cl ON c.client_id = cl.id
-      JOIN companies comp ON cl.company_id = comp.id
-      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
-    `;
-    const campParams: any[] = [orgId];
-    if (client_id) {
-      campParams.push(client_id);
-      campParams.push(`%${client_id}%`);
-      campQuery += ` AND (c.client_id::text = $2 OR cl.company_id::text = $2 OR comp.name ILIKE $3)`;
-    }
-    const campsRes = await db.query(campQuery, campParams);
-    const campaignsToSync = campsRes.rows;
-
-    const saved = await db.query(
-      'SELECT config FROM organization_integrations WHERE organization_id = $1 AND id = $2;',
-      [orgId, 'int-meta']
-    );
-    let metaToken: string | null = null;
-    let configAdAccounts: any[] = [];
-    if (saved.rows.length > 0 && saved.rows[0].config) {
-      const { decryptConfigObject } = require('../utils/encrypt');
-      const decrypted = decryptConfigObject(saved.rows[0].config);
-      metaToken = decrypted.accessToken || null;
-      configAdAccounts = Array.isArray(decrypted.adAccounts) ? decrypted.adAccounts : [];
-    }
-
-    let updatedCount = 0;
-
-    if (metaToken) {
-      for (const c of campaignsToSync) {
-        if (!c.external_id) continue;
-        const tokenToUse = (c.ad_account_id && configAdAccounts.find(a => a.id === c.ad_account_id)?.access_token) || metaToken;
-
-        try {
-          const campUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(c.external_id)}?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(maximum){spend,impressions,reach,clicks,actions,action_values,cpc,cpm,ctr,purchase_roas}&access_token=${encodeURIComponent(tokenToUse.trim())}`;
-          const res = await fetch(campUrl);
-          if (res.ok) {
-            const data: any = await res.json();
-            const ins = data.insights?.data?.[0] || {};
-            const spend = Number(ins.spend || 0);
-            const imp = Number(ins.impressions || 0);
-            const reach = Number(ins.reach || 0);
-            const clicks = Number(ins.clicks || 0);
-            const actions = ins.actions || [];
-            const actionValues = ins.action_values || [];
-
-            const leadsAction = actions.find((a: any) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped' || a.action_type === 'contact');
-            const convAction = actions.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-            const leads = Number(leadsAction?.value || 0);
-            const conversions = Number(convAction?.value || 0);
-
-            const revAction = actionValues.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase');
-            const revenue = Number(revAction?.value || (ins.purchase_roas?.[0]?.value ? spend * Number(ins.purchase_roas[0].value) : 0));
-            const budget = Number(data.daily_budget ? Number(data.daily_budget) * 30 / 100 : (data.lifetime_budget ? Number(data.lifetime_budget) / 100 : spend * 1.5 || c.budget || 50000));
-
-            await db.query(`
-              UPDATE campaigns SET
-                name = $1,
-                status = $2,
-                budget = $3,
-                updated_at = NOW()
-              WHERE id = $4;
-            `, [data.name || c.name, data.status === 'ACTIVE' ? 'Active' : 'Paused', budget, c.id]);
-
-            const today = new Date().toISOString().split('T')[0];
-            await db.query(`
-              INSERT INTO campaign_metrics (
-                campaign_id, date, spend, impressions, reach, clicks, leads, conversions, revenue, notes
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-              ON CONFLICT (campaign_id, date)
-              DO UPDATE SET
-                spend = EXCLUDED.spend,
-                impressions = EXCLUDED.impressions,
-                reach = EXCLUDED.reach,
-                clicks = EXCLUDED.clicks,
-                leads = EXCLUDED.leads,
-                conversions = EXCLUDED.conversions,
-                revenue = EXCLUDED.revenue,
-                notes = EXCLUDED.notes;
-            `, [c.id, today, spend, imp, reach, clicks, leads, conversions, revenue, 'Live Synced via Meta Marketing API']);
-
-            updatedCount++;
-          }
-        } catch (e) {
-          console.warn(`Failed to sync telemetry for campaign ${c.id}:`, e);
-        }
-      }
-    }
+    const updatedCount = await syncCampaignTelemetryInternal({
+      orgId,
+      clientId: client_id,
+      campaignId: campaign_id,
+      force: true
+    });
 
     res.json({
       success: true,
