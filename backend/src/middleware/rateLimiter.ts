@@ -34,11 +34,16 @@ export function createRateLimiter(options: RateLimiterOptions) {
   if (cleanupInterval.unref) cleanupInterval.unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // Get real IP — works behind Render/Vercel/Nginx proxies with trust proxy set
     const ip =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
       req.ip ||
       'unknown';
+
+    // Allow unlimited requests in local development or for loopback
+    if (process.env.NODE_ENV === 'development' || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost') {
+      next();
+      return;
+    }
 
     const now = Date.now();
     const entry = store.get(ip);

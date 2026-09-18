@@ -292,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onCrea
 
   return (
     <div className="pb-16 transition-colors duration-200">
-      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 max-w-[1600px] mx-auto">
+      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 w-full">
       {/* ========================================================================= */}
       {/* 1. TOP GREETING & COMMAND CONTROLS (Matching Image 2)                    */}
       {/* ========================================================================= */}

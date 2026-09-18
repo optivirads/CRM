@@ -418,7 +418,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-[1600px] mx-auto transition-colors duration-200">
+    <div className="p-6 space-y-5 w-full transition-colors duration-200">
       {/* ========================================================================= */}
       {/* 1. BREADCRUMB & TITLE WORKSPACE HEADER (Matching Image 1)                 */}
       {/* ========================================================================= */}

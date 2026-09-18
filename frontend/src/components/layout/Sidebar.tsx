@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
 
       {/* Sidebar Drawer */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-64 lg:w-[264px] bg-[#0A1628] dark:bg-[#070E1A] text-slate-300 border-r border-[#14233D] dark:border-[#0E1A2E] flex flex-col h-screen select-none shrink-0 transition-transform duration-300 ease-in-out
         md:static md:translate-x-0 md:z-auto
         ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
       `}>
@@ -170,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
                       >
                         <Icon
                           className={`w-4 h-4 shrink-0 transition ${
-                            isActive ? 'text-[#EF4444]' : 'text-[#64748B]'
+                            isActive ? 'text-blue-300 dark:text-white' : 'text-[#64748B]'
                           }`}
                         />
                         <span className="truncate">{item.label}</span>
@@ -184,16 +184,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
         </div>
 
         {/* 3. Footer System Status & Quick Nav */}
-        <div className="p-3.5 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B] shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-[#94A3B8]">System Status</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
+        <div className="p-3 border-t border-[#14233D] bg-[#070F1C] flex items-center justify-between text-xs text-[#64748B] shrink-0 whitespace-nowrap gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] text-[#94A3B8] whitespace-nowrap">System Status</span>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse shrink-0"></span>
               <span className="text-emerald-400 font-semibold text-[11px]">Operational</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-[#94A3B8] font-mono">
-            <span className="hidden sm:inline">Quick Nav</span>
+          <div className="flex items-center gap-1 text-[11px] text-[#94A3B8] font-mono shrink-0">
+            <span className="hidden sm:inline text-[10px]">Quick Nav</span>
             <kbd className="px-1.5 py-0.5 rounded bg-[#112440] border border-[#1D365D] text-[10px] text-[#CBD5E1]">⌘K</kbd>
           </div>
         </div>

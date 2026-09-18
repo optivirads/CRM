@@ -1063,13 +1063,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
           items: [
             { id: 'Integrations Hub', icon: Network, greenDot: true }
           ]
-        },
-        {
-          title: 'AUDIT TELEMETRY',
-          count: 1,
-          items: [
-            { id: 'Audit Telemetry', icon: Activity, badge: 'Live', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' }
-          ]
         }
       ]
     : [
@@ -1129,7 +1122,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
+      <div className="p-4 sm:p-6 space-y-5 w-full">
         {/* 1. Header & Navigation Breadcrumb */}
         <div>
           <div className="flex items-center gap-2.5">
@@ -1239,36 +1232,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
               ))}
             </div>
 
-            {/* TENANT QUOTA CARD (Bottom of Sidebar) - Owner Only */}
-            {isMasterOwner && (
-              <div className="bg-[#0A1628] text-white rounded-2xl p-4 shadow-xs space-y-3 border border-[#14233D]">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[10px] tracking-wider uppercase text-slate-300">
-                    TENANT QUOTA
-                  </span>
-                  <Cloud className="w-4 h-4 text-blue-400" />
-                </div>
-
-                <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-slate-400">Active Seats</span>
-                  <span className="font-bold text-white text-sm">{usersList.length} / 50</span>
-                </div>
-
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-slate-400">Actual Storage Space</span>
-                    <span className="font-semibold text-slate-200 text-[11px]">{storageData.formattedUsage} / {storageData.formattedQuota}</span>
-                  </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.max(storageData.percent, 0.5)}%` }}></div>
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
-                    <span>Actual Usage: {storageData.percent}%</span>
-                    <span>Browser &amp; OS Storage Quota</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* RIGHT MAIN CONFIGURATION PANEL (9 cols) */}
@@ -2197,83 +2160,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 )}
                               </td>
                               <td className="py-3 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
-                                  {u.status}
+                                <span className={u.status === 'Active' ? 'text-emerald-500 font-semibold text-xs' : 'text-amber-500 font-semibold text-xs'}>
+                                  {u.status || 'Active'}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right whitespace-nowrap">
-                                {isMasterOwner && (u.activeSessionId || u.currentDevice) && (
-                                  <button
-                                    onClick={async () => {
-                                      const displayName = u.name || u.email;
-                                      if (!confirm(`Are you sure you want to sign out and revoke the active system session for ${displayName}? They will be logged out immediately.`)) return;
-                                      try {
-                                        await api.revokeUserSession(u.id);
-                                        showToast(`Revoked active device session for ${displayName}`);
-                                        await loadUsers();
-                                      } catch (err: any) {
-                                        showToast(`Failed to revoke session: ${err.message}`, 'error');
-                                      }
-                                    }}
-                                    className="text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 font-semibold text-[11px] mr-3 cursor-pointer"
-                                    title="Revoke active device session and sign out user"
-                                  >
-                                    Sign Out Device
-                                  </button>
-                                )}
-                                {isMasterOwner && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
-                                  <button
-                                    onClick={() => {
-                                      setEditingUser(u);
-                                      setEditRole(u.role || 'sales_lead');
-                                      setEditDesignation(u.designation || '');
-                                      setEditAllowedTabs(u.allowed_tabs || ['*']);
-                                      setEditIsClientOnly(!!u.clientId || u.role === 'client_portal');
-                                      setEditSelectedClientId(u.clientId || (clientsList[0]?.id || ''));
-                                      setShowEditPermissionsModal(true);
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 font-semibold text-[11px] mr-3 cursor-pointer"
-                                    title="Edit Module Permissions"
-                                  >
-                                    Permissions
-                                  </button>
-                                )}
-                                {isMasterOwner && (
-                                  <button
-                                    onClick={() => {
-                                      setResettingUser(u);
-                                      setAdminNewPassword('');
-                                      setShowResetPasswordModal(true);
-                                    }}
-                                    className="text-amber-600 hover:text-amber-800 dark:hover:text-amber-400 font-semibold text-[11px] mr-3 cursor-pointer"
-                                    title="Reset User Password"
-                                  >
-                                    Reset Password
-                                  </button>
-                                )}
-                                {isMasterOwner && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
-                                  <button
-                                    onClick={async () => {
-                                      const displayName = u.name || u.email;
-                                      if (!confirm(`Are you sure you want to remove ${displayName} from the workspace?`)) return;
-                                      try {
-                                        if (u.id && !u.id.startsWith('usr-')) {
-                                          await api.deleteSettingsUser(u.id);
-                                          await loadUsers();
-                                        } else {
-                                          setUsersList(prev => prev.filter(item => item.id !== u.id));
-                                        }
-                                        showToast(`Removed ${displayName} from directory`);
-                                      } catch (err: any) {
-                                        showToast(`Failed to remove ${displayName}: ${err.message}`, 'error');
-                                      }
-                                    }}
-                                    className="text-rose-500 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
-                                  >
-                                    Remove
-                                  </button>
-                                )}
-                                {!isMasterOwner && (
+                                {isMasterOwner ? (
+                                  <>
+                                    {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingUser(u);
+                                          setEditRole(u.role || 'sales_lead');
+                                          setEditDesignation(u.designation || '');
+                                          setEditAllowedTabs(u.allowed_tabs || ['*']);
+                                          setEditIsClientOnly(!!u.clientId || u.role === 'client_portal');
+                                          setEditSelectedClientId(u.clientId || (clientsList[0]?.id || ''));
+                                          setShowEditPermissionsModal(true);
+                                        }}
+                                        className="text-blue-500 hover:text-blue-400 font-semibold text-xs mr-3 cursor-pointer"
+                                        title="Edit Module Permissions"
+                                      >
+                                        Permissions
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setResettingUser(u);
+                                        setAdminNewPassword('');
+                                        setShowResetPasswordModal(true);
+                                      }}
+                                      className="text-amber-500 hover:text-amber-400 font-semibold text-xs mr-3 cursor-pointer"
+                                      title="Reset User Password"
+                                    >
+                                      Reset Password
+                                    </button>
+                                    {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                      <button
+                                        onClick={async () => {
+                                          const displayName = u.name || u.email;
+                                          if (!confirm(`Are you sure you want to remove ${displayName} from the workspace?`)) return;
+                                          try {
+                                            if (u.id && !u.id.startsWith('usr-')) {
+                                              await api.deleteSettingsUser(u.id);
+                                              await loadUsers();
+                                            } else {
+                                              setUsersList(prev => prev.filter(item => item.id !== u.id));
+                                            }
+                                            showToast(`Removed ${displayName} from directory`);
+                                          } catch (err: any) {
+                                            showToast(`Failed to remove ${displayName}: ${err.message}`, 'error');
+                                          }
+                                        }}
+                                        className="text-rose-500 hover:text-rose-400 font-semibold text-xs cursor-pointer ml-3"
+                                        title="Remove User"
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
                                   <span className="text-[10px] text-slate-400 italic">Owner Protected</span>
                                 )}
                               </td>

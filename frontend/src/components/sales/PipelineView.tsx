@@ -244,7 +244,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ onNavigate }) => {
   const weightedPipelineVal = deals.filter(d => d.status === 'open').reduce((sum, d) => sum + Number(d.weighted_value || (Number(d.value || 0) * 0.5)), 0);
 
   return (
-    <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto transition-colors duration-200">
+    <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 w-full transition-colors duration-200">
       {/* Top Header & Weighted Pipeline Metrics Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#FFFFFF] dark:bg-[#0F2747] border border-[#E5E7EB] dark:border-[#1E3A6D] p-5 rounded-2xl shadow-xs">
         <div>

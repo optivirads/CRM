@@ -130,7 +130,7 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto transition-colors duration-200">
+    <div className="p-6 space-y-6 w-full transition-colors duration-200">
       {/* ========================================================================= */}
       {/* 1. TOP BREADCRUMBS & SYNC STATUS (Matching Image 3 & 4)                  */}
       {/* ========================================================================= */}

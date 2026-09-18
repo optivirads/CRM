@@ -797,7 +797,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       {/* VIEW 1: PROPOSALS DIRECTORY LIST                                         */}
       {/* ========================================================================= */}
       {currentView === 'list' && (
-        <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+        <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
           {/* Header & Quick Action Ribbon */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -1161,7 +1161,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       {/* VIEW 2: AGENCY PACKAGES VAULT (ADD PACKAGES & GENERATE FROM PACKAGE)      */}
       {/* ========================================================================= */}
       {currentView === 'packages' && (
-        <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+        <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -1321,7 +1321,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
         <div className="space-y-4">
           {/* Top Detail Header Bar */}
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-3 shadow-xs">
-            <div className="max-w-[1700px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
                   <button onClick={() => setCurrentView('list')} className="hover:underline">
@@ -1433,7 +1433,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
           {/* Sub Navigation Bar */}
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-2">
-            <div className="max-w-[1700px] mx-auto flex items-center justify-between gap-4 overflow-x-auto text-xs">
+            <div className="w-full flex items-center justify-between gap-4 overflow-x-auto text-xs">
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
                 {[
                   '1. 3-Column Workspace',
@@ -1475,7 +1475,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           {/* TAB 1: 3-COLUMN WORKSPACE                                             */}
           {/* ===================================================================== */}
           {activeDetailTab === '1. 3-Column Workspace' && (
-            <div className="max-w-[1700px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="w-full px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Outline Column */}
               <div className="lg:col-span-3 space-y-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
@@ -2125,7 +2125,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           {/* TAB 4: PACKAGES CATALOG TAB                                           */}
           {/* ===================================================================== */}
           {activeDetailTab === '4. Packages Catalog' && (
-            <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+            <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">

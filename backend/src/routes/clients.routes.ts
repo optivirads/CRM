@@ -172,8 +172,10 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
         COALESCE(SUM(cm.revenue), 0) as total_revenue,
         ROUND(AVG(cm.roas), 2) as avg_roas
       FROM campaigns c
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies comp ON cl.company_id = comp.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE c.client_id = $1 AND c.deleted_at IS NULL
+      WHERE (c.client_id = $1 OR cl.company_id = (SELECT company_id FROM clients WHERE id = $1) OR comp.name ILIKE (SELECT comp2.name FROM clients cl2 JOIN companies comp2 ON cl2.company_id = comp2.id WHERE cl2.id = $1)) AND c.deleted_at IS NULL
       GROUP BY c.id
       ORDER BY c.created_at DESC;
     `, [clientId]);
@@ -189,7 +191,9 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
         ROUND(AVG(cm.roas), 2) as roas
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
-      WHERE c.client_id = $1
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies comp ON cl.company_id = comp.id
+      WHERE (c.client_id = $1 OR cl.company_id = (SELECT company_id FROM clients WHERE id = $1) OR comp.name ILIKE (SELECT comp2.name FROM clients cl2 JOIN companies comp2 ON cl2.company_id = comp2.id WHERE cl2.id = $1))
       GROUP BY cm.date
       ORDER BY cm.date ASC;
     `, [clientId]);

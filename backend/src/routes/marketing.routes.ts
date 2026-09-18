@@ -59,8 +59,21 @@ router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Res
 // 2. Marketing Analytics Overview (Platform attribution & Daily trend)
 router.get('/analytics', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const { clientId } = req.query;
 
   try {
+    let whereClause = `WHERE c.organization_id = $1 AND c.deleted_at IS NULL`;
+    const params: any[] = [orgId];
+
+    if (req.user?.clientId) {
+      params.push(req.user.clientId);
+      whereClause += ` AND c.client_id = $${params.length}`;
+    } else if (clientId) {
+      params.push(clientId);
+      params.push(`%${clientId}%`);
+      whereClause += ` AND (c.client_id::text = $${params.length - 1} OR cl.company_id::text = $${params.length - 1} OR comp.name ILIKE $${params.length})`;
+    }
+
     // Platform Breakdown
     const platformRes = await db.query(`
       SELECT 
@@ -72,25 +85,41 @@ router.get('/analytics', requireAuth, async (req: AuthenticatedRequest, res: Res
         COALESCE(SUM(cm.revenue), 0) as revenue,
         ROUND(AVG(cm.roas), 2) as roas
       FROM campaigns c
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies comp ON cl.company_id = comp.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
+      ${whereClause}
       GROUP BY c.platform;
-    `, [orgId]);
+    `, params);
 
     // Paid vs Organic Spend Comparison
     const paidSpendRes = await db.query(`
       SELECT COALESCE(SUM(cm.spend), 0) as paid_spend
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
-      WHERE c.organization_id = $1;
-    `, [orgId]);
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies comp ON cl.company_id = comp.id
+      ${whereClause};
+    `, params);
+
+    let orgWhere = `WHERE cl.organization_id = $1`;
+    const orgParams: any[] = [orgId];
+    if (req.user?.clientId) {
+      orgParams.push(req.user.clientId);
+      orgWhere += ` AND cl.id = $${orgParams.length}`;
+    } else if (clientId) {
+      orgParams.push(clientId);
+      orgParams.push(`%${clientId}%`);
+      orgWhere += ` AND (cl.id::text = $${orgParams.length - 1} OR cl.company_id::text = $${orgParams.length - 1} OR comp.name ILIKE $${orgParams.length})`;
+    }
 
     const organicSpendRes = await db.query(`
       SELECT COALESCE(SUM(op.organic_spend), 0) as organic_spend
       FROM organic_performance op
       JOIN clients cl ON op.client_id = cl.id
-      WHERE cl.organization_id = $1;
-    `, [orgId]);
+      LEFT JOIN companies comp ON cl.company_id = comp.id
+      ${orgWhere};
+    `, orgParams);
 
     res.json({
       success: true,
