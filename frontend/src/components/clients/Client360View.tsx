@@ -2176,6 +2176,27 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                             <Package className="w-3.5 h-3.5" />
                             <span>Ad Creatives</span>
                           </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Are you sure you want to delete campaign "${camp.name}"? This action will remove the campaign and its ad telemetry from this client.`)) return;
+                              try {
+                                const res = await api.deleteCampaign(camp.id);
+                                if (res?.success) {
+                                  showToast(`Campaign "${camp.name}" deleted successfully`);
+                                  setDbCampaigns(prev => prev.filter(c => c.id !== camp.id));
+                                } else {
+                                  showToast(res?.message || 'Failed to delete campaign', 'error');
+                                }
+                              } catch (err: any) {
+                                showToast(err.message || 'Error deleting campaign', 'error');
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-rose-200 dark:border-rose-900/40 cursor-pointer active:scale-95"
+                            title="Delete Campaign"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
                         </div>
                       </div>
 
