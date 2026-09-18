@@ -863,7 +863,7 @@ router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedReq
       last_synced_at: null
     };
 
-    let profileMetrics = {};
+    let profileMetrics: any = {};
     if (row.facebook_access_token) {
       try {
         profileMetrics = await SocialMediaSyncService.fetchProfileMetrics(row);
@@ -874,6 +874,7 @@ router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedReq
       success: true,
       data: {
         ...row,
+        facebook_page_name: profileMetrics.facebook?.name || null,
         profile_metrics: profileMetrics
       }
     });
