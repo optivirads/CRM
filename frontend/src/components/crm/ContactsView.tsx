@@ -235,7 +235,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
   const paginatedContacts = filteredContacts.slice(startIndex, endIndex);
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto p-6 transition-colors duration-200">
+    <div className="space-y-4 w-full p-6 transition-colors duration-200">
 
       {/* ========================================================================= */}
       {/* 2. BREADCRUMB, HEADER & ACTIONS (Matching Image 1)                       */}

@@ -981,7 +981,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
         </div>
       </div>
 
-      <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+      <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
         {/* 2. Hero Client Profile Card Header */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

@@ -48,12 +48,60 @@ async function syncUsers() {
   // 4. Link standard agency personas
   const usersToSync = [
     {
+      email: 'coo@optivirads.com',
+      firstName: 'Operations',
+      lastName: 'Lead (COO)',
+      role: 'coo',
+      designation: 'Chief Operating Officer • OptiVir',
+      tabs: ['dashboard', 'leads', 'contacts', 'clients', 'client-360', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'activities', 'documents', 'notifications', 'settings']
+    },
+    {
+      email: 'coo@optivir.com',
+      firstName: 'Operations',
+      lastName: 'Lead (COO)',
+      role: 'coo',
+      designation: 'Chief Operating Officer • OptiVir',
+      tabs: ['dashboard', 'leads', 'contacts', 'clients', 'client-360', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'activities', 'documents', 'notifications', 'settings']
+    },
+    {
       email: 'sales@optivirads.com',
       firstName: 'Priya',
       lastName: 'Sharma',
       role: 'sales_lead',
       designation: 'Head of Growth & Pipeline',
-      tabs: ['dashboard', 'leads', 'pipeline', 'proposals', 'clients', 'reports']
+      tabs: ['dashboard', 'leads', 'contacts', 'companies', 'opportunities', 'pipeline', 'proposals', 'sales', 'activities', 'notifications']
+    },
+    {
+      email: 'sales@optivir.com',
+      firstName: 'Priya',
+      lastName: 'Sharma',
+      role: 'sales_lead',
+      designation: 'Head of Growth & Pipeline',
+      tabs: ['dashboard', 'leads', 'contacts', 'companies', 'opportunities', 'pipeline', 'proposals', 'sales', 'activities', 'notifications']
+    },
+    {
+      email: 'marketing@optivirads.com',
+      firstName: 'Ananya',
+      lastName: 'Iyer',
+      role: 'marketing_lead',
+      designation: 'Head of Marketing & Growth',
+      tabs: ['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks', 'proposals']
+    },
+    {
+      email: 'marketing@optivir.com',
+      firstName: 'Ananya',
+      lastName: 'Iyer',
+      role: 'marketing_lead',
+      designation: 'Head of Marketing & Growth',
+      tabs: ['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks', 'proposals']
+    },
+    {
+      email: 'social@optivirads.com',
+      firstName: 'Rohan',
+      lastName: 'Kapoor',
+      role: 'social_media_lead',
+      designation: 'Social Media & Content Lead',
+      tabs: ['dashboard', 'marketing', 'projects', 'tasks', 'clients', 'reports']
     },
     {
       email: 'media@optivirads.com',
@@ -69,7 +117,31 @@ async function syncUsers() {
       lastName: 'Mehta',
       role: 'finance_lead',
       designation: 'Financial Controller',
-      tabs: ['dashboard', 'finance', 'proposals', 'reports']
+      tabs: ['dashboard', 'finance', 'proposals', 'reports', 'documents', 'activities', 'notifications']
+    },
+    {
+      email: 'finance@optivir.com',
+      firstName: 'Karan',
+      lastName: 'Mehta',
+      role: 'finance_lead',
+      designation: 'Financial Controller',
+      tabs: ['dashboard', 'finance', 'proposals', 'reports', 'documents', 'activities', 'notifications']
+    },
+    {
+      email: 'accounts@optivir.com',
+      firstName: 'Rahul',
+      lastName: 'Verma',
+      role: 'account_manager',
+      designation: 'Client Account Manager',
+      tabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'finance', 'reports']
+    },
+    {
+      email: 'client@portal.com',
+      firstName: 'Client',
+      lastName: 'Partner',
+      role: 'client_portal',
+      designation: 'Client Review Portal',
+      tabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'finance', 'reports']
     }
   ];
 

@@ -143,7 +143,7 @@ export const ReportsView: React.FC = () => {
       {/* Live Compilation Pipeline Banner */}
       {showActivePipelineBanner && (
         <div className="bg-[#0D1B33] text-white border-b border-[#1C3259] px-6 py-3 shadow-sm">
-          <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="w-full flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center shrink-0">
                 <Activity className="w-4 h-4 text-blue-400 animate-spin" />
@@ -203,7 +203,7 @@ export const ReportsView: React.FC = () => {
         </div>
       )}
 
-      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
+      <div className="p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 w-full">
         {/* 1. Breadcrumbs & Header */}
         <div>
           <div className="flex items-center gap-2 text-[11px] text-[#64748B] dark:text-[#94A3B8] font-medium mb-1">

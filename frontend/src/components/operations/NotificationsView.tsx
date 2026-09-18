@@ -106,7 +106,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         </div>
       )}
 
-      <div className="p-6 space-y-6 max-w-[1600px] mx-auto relative">
+      <div className="p-6 space-y-6 w-full relative">
         {/* 1. Header & Navigation Breadcrumb */}
         <div>
           <div className="flex items-center gap-2 text-[11px] text-[#64748B] dark:text-[#94A3B8] font-medium mb-1">

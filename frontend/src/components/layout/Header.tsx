@@ -146,28 +146,31 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
         <button
           onClick={() => onToggleSidebar ? onToggleSidebar() : onNavigate && onNavigate('dashboard')}
-          className="text-[#64748B] hover:text-[#0B1727] dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34] transition shrink-0"
+          className="text-[#64748B] hover:text-[#0B1727] dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34] transition shrink-0 cursor-pointer"
           title="Toggle Navigation Menu"
           aria-label="Toggle navigation menu"
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-1 sm:gap-1.5 text-xs min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 text-xs min-w-0">
           <button
             onClick={() => onNavigate && onNavigate('dashboard')}
-            className="shrink-0 flex items-center hover:opacity-80 transition"
+            className="shrink-0 flex items-center gap-1.5 hover:opacity-80 transition cursor-pointer"
             title="OptiVir CRM Dashboard"
           >
             <img
-              src="/images/optivir-logo.png"
+              src="/images/optivir-icon.png"
               alt="OptiVir CRM"
-              className="h-5 w-auto object-contain hidden sm:block"
+              className="h-4.5 w-4.5 rounded-full object-contain shrink-0"
+              onError={(e) => {
+                // Fallback to text if icon file issue
+                (e.target as HTMLElement).style.display = 'none';
+              }}
             />
+            <span className="font-bold text-[#DC2626] text-xs tracking-tight">OptiVir</span>
           </button>
-          <div className="hidden sm:flex items-center gap-1">
-            <ChevronRight className="w-3 h-3 text-[#94A3B8] shrink-0" />
-            <span className="text-[#64748B] dark:text-[#94A3B8] font-medium truncate max-w-[80px] lg:max-w-none">{breadcrumb.section}</span>
-          </div>
+          <ChevronRight className="w-3 h-3 text-[#94A3B8] shrink-0" />
+          <span className="text-[#64748B] dark:text-[#94A3B8] font-medium truncate max-w-[80px] lg:max-w-none">{breadcrumb.section}</span>
           <ChevronRight className="w-3 h-3 text-[#94A3B8] shrink-0" />
           <span className="text-[#0B1727] dark:text-[#F8FAFC] font-semibold truncate max-w-[100px] sm:max-w-[180px] lg:max-w-none">{breadcrumb.page}</span>
         </div>

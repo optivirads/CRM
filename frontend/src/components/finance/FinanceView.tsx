@@ -343,7 +343,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
         </div>
       </div>
 
-      <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+      <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
         {/* ========================================================================= */}
         {/* SCREEN A: INVOICES LEDGER (Reference Image 4)                             */}
         {/* ========================================================================= */}

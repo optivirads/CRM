@@ -553,7 +553,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         </div>
       </div>
 
-      <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+      <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
         {viewMode === 'campaigns' ? (
           <div className="space-y-6">
             {/* 1. Executive Telemetry Strip */}

@@ -326,7 +326,7 @@ export const ProjectsView: React.FC = () => {
     <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#060B13] text-slate-800 dark:text-slate-100 pb-16 transition-colors">
 
 
-      <div className="max-w-[1700px] mx-auto p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
+      <div className="w-full p-3 sm:p-5 lg:p-6 space-y-4 sm:space-y-6">
         {/* 2. Header & Breadcrumbs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
