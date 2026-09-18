@@ -2620,7 +2620,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </div>
                         <div>
                           <span className="font-bold text-xs text-slate-900 dark:text-white block">Meta / Facebook</span>
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">OptiVir Ads Page</span>
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate max-w-[140px] block" title={pm.facebook?.name || socialIntegrationConfig.facebook_page_name || (socialIntegrationConfig.facebook_page_id ? activeClientName : 'Facebook Page')}>
+                            {pm.facebook?.name || socialIntegrationConfig.facebook_page_name || (socialIntegrationConfig.facebook_page_id ? activeClientName : 'Facebook Page')}
+                          </span>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-600">
@@ -2658,7 +2660,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </div>
                         <div>
                           <span className="font-bold text-xs text-slate-900 dark:text-white block">LinkedIn</span>
-                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Company Page</span>
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate max-w-[140px] block" title={socialIntegrationConfig.linkedin_page_id || 'Company Page'}>
+                            {socialIntegrationConfig.linkedin_page_id || 'Company Page'}
+                          </span>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600">
@@ -2696,7 +2700,9 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         </div>
                         <div>
                           <span className="font-bold text-xs text-slate-900 dark:text-white block">YouTube</span>
-                          <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">Channel</span>
+                          <span className="text-[10px] text-red-600 dark:text-red-400 font-medium truncate max-w-[140px] block" title={socialIntegrationConfig.youtube_channel_id || 'Channel'}>
+                            {socialIntegrationConfig.youtube_channel_id || 'Channel'}
+                          </span>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-950/40 text-red-600">
