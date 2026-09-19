@@ -403,10 +403,22 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
+  const [editTermOption, setEditTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
+  const [editCustomTerm, setEditCustomTerm] = useState('12');
+  const [editStatus, setEditStatus] = useState('Active');
+  const [editMonthlyValue, setEditMonthlyValue] = useState('0');
   const [editContractValue, setEditContractValue] = useState('0');
   const [editBillingFrequency, setEditBillingFrequency] = useState('monthly');
   const [editHealthStatus, setEditHealthStatus] = useState('Healthy');
   const [isSavingAccount, setIsSavingAccount] = useState(false);
+
+  const getTermMonths = (opt: string, custom: string) => {
+    if (opt === 'custom') {
+      const parsed = parseInt(custom, 10);
+      return isNaN(parsed) || parsed <= 0 ? 12 : parsed;
+    }
+    return parseInt(opt, 10) || 12;
+  };
 
   const openEditAccountModal = () => {
     setEditCompanyName(liveClient?.company_name || activeClientName || '');
@@ -419,8 +431,36 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     setEditContactPhone(liveClient?.contact_phone || '');
     setEditContactRole(liveClient?.contact_role || 'Lead Stakeholder');
     setEditAccountManagerId(liveClient?.account_manager_id || '');
-    setEditContractValue(liveClient?.contract_value ? String(liveClient.contract_value) : '0');
-    setEditBillingFrequency(liveClient?.billing_frequency || 'monthly');
+
+    const savedTerm = Number(liveClient?.custom_fields?.contract_term_months || 12);
+    if (['12', '6', '3', '1'].includes(String(savedTerm))) {
+      setEditTermOption(String(savedTerm) as any);
+      setEditCustomTerm(String(savedTerm));
+    } else {
+      setEditTermOption('custom');
+      setEditCustomTerm(String(savedTerm));
+    }
+
+    setEditStatus(liveClient?.status || 'Active');
+
+    const rawContract = Number(liveClient?.contract_value || 0);
+    const freq = liveClient?.billing_frequency || 'monthly';
+    let initMonthly = 0;
+    let initAnnual = rawContract;
+    if (freq === 'monthly') {
+      if (rawContract > 0 && rawContract <= 60000) {
+        initMonthly = rawContract;
+        initAnnual = rawContract * savedTerm;
+      } else if (rawContract > 60000) {
+        initAnnual = rawContract;
+        initMonthly = Math.round(rawContract / savedTerm);
+      }
+    } else {
+      initMonthly = Math.round(rawContract / 12);
+    }
+    setEditMonthlyValue(initMonthly ? String(initMonthly) : '');
+    setEditContractValue(initAnnual ? String(initAnnual) : '0');
+    setEditBillingFrequency(freq);
     setEditHealthStatus(liveClient?.health_status || 'Healthy');
     setShowEditModal(true);
   };
@@ -1063,10 +1103,47 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Active
-                </span>
+                {(() => {
+                  const st = liveClient?.status || 'Active';
+                  if (st === 'Notice Period') {
+                    return (
+                      <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        Notice Period (Exit)
+                      </span>
+                    );
+                  }
+                  if (st === 'Churned') {
+                    return (
+                      <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        Churned / Offboarded
+                      </span>
+                    );
+                  }
+                  if (st === 'At Risk') {
+                    return (
+                      <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                        At Risk
+                      </span>
+                    );
+                  }
+                  if (st === 'Onboarding') {
+                    return (
+                      <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Onboarding
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Active Retainer
+                    </span>
+                  );
+                })()}
                 <button
                   onClick={() => setShowGenerateDeliverableModal(true)}
                   className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#B91C1C] hover:bg-[#991B1B] text-white flex items-center gap-1.5 shadow-sm transition active:scale-95"
@@ -1154,16 +1231,39 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
           {/* ACV Contract */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">ACV CONTRACT</div>
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                {Number(liveClient?.custom_fields?.contract_term_months || 12) === 12 ? 'ACV CONTRACT' : 'TCV CONTRACT'}
+              </div>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                {Number(liveClient?.custom_fields?.contract_term_months || 12)}M
+              </span>
+            </div>
             <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹{Number(liveClient?.contract_value || 0).toLocaleString('en-IN')}</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">Contract SOW Value</div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">
+              {Number(liveClient?.custom_fields?.contract_term_months || 12)} Mos Commitment
+            </div>
           </div>
 
           {/* Monthly MRR */}
           <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">MONTHLY MRR</div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">₹{Number(liveClient?.monthly_retainer || 0).toLocaleString('en-IN')}</div>
-            <div className="text-[11px] text-slate-500 font-medium mt-1">{(liveClient?.services || []).length} Active Scopes</div>
+            <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              ₹{(() => {
+                const rawVal = Number(liveClient?.contract_value || 0);
+                const term = Number(liveClient?.custom_fields?.contract_term_months || 12);
+                if (liveClient?.monthly_retainer && Number(liveClient.monthly_retainer) > 0) {
+                  return Number(liveClient.monthly_retainer).toLocaleString('en-IN');
+                }
+                if (rawVal > 0) {
+                  return Math.round(rawVal / term).toLocaleString('en-IN');
+                }
+                return '0';
+              })()}
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium mt-1">
+              {liveClient?.status === 'Churned' ? 'Cancelled / ₹0 active' : `${Number(liveClient?.custom_fields?.contract_term_months || 12)}M Retainer Run-Rate`}
+            </div>
           </div>
 
           {/* Retainers */}
@@ -5641,6 +5741,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                 try {
                   setIsSavingAccount(true);
                   const parsedVal = parseFloat(String(editContractValue).replace(/[^0-9.]/g, '')) || 0;
+                  const activeTerm = getTermMonths(editTermOption, editCustomTerm);
                   const res = await api.updateClient(targetId, {
                     company_name: editCompanyName.trim(),
                     industry: editIndustry,
@@ -5654,7 +5755,12 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     account_manager_id: editAccountManagerId || null,
                     contract_value: parsedVal,
                     billing_frequency: editBillingFrequency,
-                    health_status: editHealthStatus
+                    health_status: editHealthStatus,
+                    status: editStatus,
+                    custom_fields: {
+                      ...(liveClient?.custom_fields || {}),
+                      contract_term_months: activeTerm
+                    }
                   });
 
                   if (res.success) {
@@ -5833,27 +5939,29 @@ export const Client360View: React.FC<Client360ViewProps> = ({
               {/* Section 4: Commercial Terms & Health */}
               <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
-                  Commercial Terms &amp; Health Status
+                  Commercial Terms &amp; Account Lifecycle
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Contract Value (TCV ₹)</label>
-                    <input
-                      type="number"
-                      value={editContractValue}
-                      onChange={(e) => setEditContractValue(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Billing Frequency</label>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300 text-xs">Billing Frequency</label>
                     <select
                       value={editBillingFrequency}
-                      onChange={(e) => setEditBillingFrequency(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditBillingFrequency(val);
+                        if (val === 'monthly') {
+                          const cur = parseFloat(editContractValue) || 0;
+                          const months = getTermMonths(editTermOption, editCustomTerm);
+                          if (cur > 0 && cur <= 60000) {
+                            setEditMonthlyValue(String(cur));
+                            setEditContractValue(String(cur * months));
+                          } else if (cur > 60000) {
+                            setEditMonthlyValue(String(Math.round(cur / months)));
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs"
                     >
                       <option value="monthly">Monthly Retainer</option>
                       <option value="annual">Annual Retainer</option>
@@ -5865,11 +5973,11 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Account Health</label>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300 text-xs">Account Health</label>
                     <select
                       value={editHealthStatus}
                       onChange={(e) => setEditHealthStatus(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs"
                     >
                       <option value="Healthy">Healthy (Good Standing)</option>
                       <option value="Attention Needed">Attention Needed</option>
@@ -5877,6 +5985,180 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {/* Lifecycle Status Selector */}
+                <div>
+                  <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300 text-xs">
+                    Account Lifecycle Status *
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs"
+                  >
+                    <option value="Active">🟢 Active (Delivering Monthly Retainer)</option>
+                    <option value="Notice Period">⚠️ Notice Period (Exit Notice Served - 30/60 Days)</option>
+                    <option value="Churned">🚫 Churned (Contract Cancelled / Offboarded)</option>
+                    <option value="At Risk">🔴 At Risk (Retention Threat / Renewal Alert)</option>
+                    <option value="Onboarding">🔵 Onboarding (Intake &amp; Setup Phase)</option>
+                    <option value="Completed">⚪ Completed (SOW Concluded / Delivered)</option>
+                  </select>
+                </div>
+
+                {editStatus === 'Notice Period' && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>⚠️ Exit Notice Protocol Active</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300/90 leading-relaxed">
+                      Client has served cancellation notice. Final billing cycle continues through the notice window (e.g. 30 days) while accounts and campaign data are prepared for handover.
+                    </p>
+                  </div>
+                )}
+
+                {editStatus === 'Churned' && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>🚫 Retainer Cancelled / Churned</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 dark:text-rose-300/90 leading-relaxed">
+                      Account is deactivated. Future monthly retainers will not be billed. Total realized revenue remains recorded from past settled invoices.
+                    </p>
+                  </div>
+                )}
+
+                {editBillingFrequency === 'monthly' ? (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Monthly Retainer (₹ / mo) *
+                          </label>
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Input</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={editMonthlyValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditMonthlyValue(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(editTermOption, editCustomTerm);
+                              setEditContractValue(num > 0 ? String(Math.round(num * months)) : '0');
+                            }}
+                            placeholder="e.g. 15000"
+                            className="w-full pl-7 pr-3 py-2 border border-rose-300 dark:border-rose-800/80 rounded-xl bg-white dark:bg-slate-900 font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300 text-xs">
+                          Commitment Term
+                        </label>
+                        <select
+                          value={editTermOption}
+                          onChange={(e) => {
+                            const opt = e.target.value as any;
+                            setEditTermOption(opt);
+                            const months = getTermMonths(opt, editCustomTerm);
+                            const num = parseFloat(editMonthlyValue) || 0;
+                            if (num > 0) {
+                              setEditContractValue(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs"
+                        >
+                          <option value="12">12 Months (Annual Run-Rate)</option>
+                          <option value="6">6 Months (Semi-Annual / H1)</option>
+                          <option value="3">3 Months (Pilot Trial)</option>
+                          <option value="1">1 Month (Rolling Month-to-Month)</option>
+                          <option value="custom">Custom Duration...</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Contract Value (₹) *
+                          </label>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Auto-Calc</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={editContractValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditContractValue(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(editTermOption, editCustomTerm);
+                              setEditMonthlyValue(num > 0 ? String(Math.round(num / months)) : '0');
+                            }}
+                            placeholder="e.g. 180000"
+                            className="w-full pl-7 pr-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {editTermOption === 'custom' && (
+                      <div className="max-w-xs">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                          Custom Duration (Months) *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editCustomTerm}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditCustomTerm(val);
+                            const months = parseInt(val, 10) || 1;
+                            const num = parseFloat(editMonthlyValue) || 0;
+                            if (num > 0) {
+                              setEditContractValue(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs"
+                        />
+                      </div>
+                    )}
+
+                    <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                        <span>Retainer Formula:</span>
+                      </div>
+                      <div className="font-mono font-bold text-rose-600 dark:text-rose-400 text-right text-[11px]">
+                        ₹{Number(editMonthlyValue || 0).toLocaleString('en-IN')} / mo × {getTermMonths(editTermOption, editCustomTerm)} mos = ₹{Number(editContractValue || 0).toLocaleString('en-IN')} {getTermMonths(editTermOption, editCustomTerm) === 12 ? 'ACV' : 'TCV'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300 text-xs">Contract Value (TCV ₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editContractValue}
+                        onChange={(e) => setEditContractValue(e.target.value)}
+                        placeholder="0"
+                        className="w-full pl-7 pr-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
