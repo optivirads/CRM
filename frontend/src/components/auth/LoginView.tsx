@@ -102,8 +102,8 @@ export const LoginView: React.FC = () => {
         <aside className="w-64 bg-[#0A1628] border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
           <div className="space-y-6">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#DC2626] to-[#991B1B] text-white flex items-center justify-center font-black text-sm">
-                OV
+              <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700/60 p-1 flex items-center justify-center">
+                <img src="/icon.png" alt="OptiVir CRM" className="w-full h-full object-contain" />
               </div>
               <div>
                 <div className="font-extrabold text-sm text-white">OptiVir CRM</div>
@@ -210,8 +210,8 @@ export const LoginView: React.FC = () => {
       {/* ========================================================================= */}
       <header className="relative z-20 w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
         <div className="flex items-center space-x-3 bg-slate-950/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-2xl shadow-lg">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#DC2626] to-[#991B1B] flex items-center justify-center font-black text-white text-xs tracking-wider shadow-md border border-rose-400/30">
-            OV
+          <div className="w-8 h-8 rounded-lg bg-slate-900/80 p-1 flex items-center justify-center shadow-md border border-rose-500/30">
+            <img src="/icon.png" alt="OptiVir CRM" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center space-x-2">

@@ -22,6 +22,7 @@ import { DocumentsView } from '@/components/operations/DocumentsView';
 import { NotificationsView } from '@/components/operations/NotificationsView';
 import { SettingsView } from '@/components/operations/SettingsView';
 import { LoginView } from '@/components/auth/LoginView';
+import { LogoLoader } from '@/components/common/LogoLoader';
 import { useAuth } from '@/lib/auth-context';
 import { ShieldAlert, Lock } from 'lucide-react';
 
@@ -199,23 +200,11 @@ export default function Home() {
   // 1. Session Initialization Splash (guarantees SSR/CSR hydration parity)
   if (!mounted || isLoading) {
     return (
-      <div className="h-screen w-full bg-[#060B13] flex flex-col items-center justify-center space-y-4 text-white font-sans">
-        <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#DC2626] to-[#991B1B] flex items-center justify-center font-black text-xl tracking-wider shadow-2xl shadow-rose-900/60 border border-rose-500/30">
-            OV
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
-            <Lock className="w-3 h-3 text-rose-400" />
-          </div>
-        </div>
-        <div className="text-center space-y-1">
-          <div className="font-bold text-sm tracking-wide">OptiVir CRM</div>
-          <p className="text-xs text-slate-400">Verifying Agency Security Session & RBAC Policy...</p>
-        </div>
-        <div className="w-36 h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-          <div className="w-1/2 h-full bg-[#DC2626] rounded-full animate-pulse" />
-        </div>
-      </div>
+      <LogoLoader
+        fullScreen
+        text="OptiVir CRM"
+        subtext="Verifying Agency Security Session & RBAC Policy..."
+      />
     );
   }
 

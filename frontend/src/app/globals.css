@@ -262,3 +262,32 @@ body {
     color: #B91C1C !important;
   }
 }
+
+/* Logo Loading Animations */
+@keyframes logo-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes logo-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.4));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 25px rgba(220, 38, 38, 0.7));
+  }
+}
+
+.animate-logo-orbit {
+  animation: logo-orbit 3s linear infinite;
+}
+
+.animate-logo-pulse {
+  animation: logo-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

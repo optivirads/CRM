@@ -11,9 +11,13 @@ export const metadata: Metadata = {
   title: 'OptiVir CRM | Performance Marketing CRM & Operating System',
   description: 'OptiVir CRM agency operating system managing full performance marketing, campaigns, clients, onboarding, projects, and finance.',
   icons: {
-    icon: '/images/optivir-logo.png',
-    shortcut: '/images/optivir-logo.png',
-    apple: '/images/optivir-logo.png',
+    icon: [
+      { url: '/icon.png', type: 'image/png' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon.png', sizes: '16x16', type: 'image/png' },
+    ],
+    shortcut: '/icon.png',
+    apple: '/icon.png',
   },
 };
 
@@ -25,6 +29,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/icon.png" type="image/png" sizes="any" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
