@@ -1555,8 +1555,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   {/* Company & Client Header */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded bg-[#0A1628] text-white flex items-center justify-center font-bold text-xs">
-                        OV
+                      <div className="w-8 h-8 rounded bg-[#0A1628] p-1 text-white flex items-center justify-center font-bold text-xs">
+                        <img src="/icon.png" alt="OV" className="w-full h-full object-contain" />
                       </div>
                       <div>
                         <div className="font-black text-slate-900 dark:text-white">OPTIVIR CRM SOLUTIONS</div>
@@ -1802,8 +1802,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <p className="text-xs text-slate-400 mt-1">Contract Identifier: {selectedProposal.code}</p>
                 </div>
                 <div className="text-right">
-                  <div className="w-10 h-10 rounded-xl bg-rose-600 text-white font-black text-sm flex items-center justify-center ml-auto">
-                    OV
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700/60 p-1 text-white font-black text-sm flex items-center justify-center ml-auto">
+                    <img src="/icon.png" alt="OV" className="w-full h-full object-contain" />
                   </div>
                   <span className="text-[10px] text-slate-400 block mt-1">Authoritative SOW</span>
                 </div>
