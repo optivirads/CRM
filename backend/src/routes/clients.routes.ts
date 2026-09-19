@@ -417,11 +417,13 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       return f;
     })();
 
+    const { custom_fields } = req.body;
+
     const result = await db.query(`
       INSERT INTO clients (
         organization_id, company_id, primary_contact_id, account_manager_id, contract_value,
-        billing_frequency, health_status, status, start_date, renewal_date, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        billing_frequency, health_status, status, start_date, renewal_date, notes, created_by, custom_fields
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *;
     `, [
       orgId,
@@ -435,7 +437,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       start_date || new Date(),
       renewal_date || null,
       notes || null,
-      userId
+      userId,
+      custom_fields ? JSON.stringify(custom_fields) : '{}'
     ]);
 
     await recordAuditLog(orgId, userId, 'CREATE', 'clients', result.rows[0].id, null, result.rows[0], req);
@@ -480,7 +483,8 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     renewal_date,
     notes,
     account_manager_id,
-    assigned_team_ids
+    assigned_team_ids,
+    custom_fields
   } = req.body;
 
   try {
@@ -562,6 +566,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         notes = COALESCE($7, notes),
         account_manager_id = CASE WHEN $8::text IS NOT NULL THEN $8::uuid ELSE account_manager_id END,
         assigned_team_ids = COALESCE($9, assigned_team_ids),
+        custom_fields = CASE WHEN $13::jsonb IS NOT NULL THEN COALESCE(clients.custom_fields, '{}'::jsonb) || $13::jsonb ELSE clients.custom_fields END,
         updated_by = $10
       WHERE id = $11 AND organization_id = $12
       RETURNING *;
@@ -577,7 +582,8 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       assigned_team_ids,
       userId,
       clientId,
-      orgId
+      orgId,
+      custom_fields ? JSON.stringify(custom_fields) : null
     ]);
 
     // Fetch updated client with company, contact & AM info

@@ -97,6 +97,11 @@ export interface ClientAccount {
   servicesCount: string;
   activeProjects: string;
   contractValue: string;
+  rawContractValue?: number;
+  billingFrequency?: string;
+  status: string;
+  termMonths?: number;
+  customFields?: Record<string, any>;
   healthStatus: string;
   renewal: string;
   renewalUrgent?: boolean;
@@ -187,7 +192,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newContactRole, setNewContactRole] = useState('Primary Contact');
   const [newAccountManagerId, setNewAccountManagerId] = useState('');
   const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
-  const [newContractVal, setNewContractVal] = useState('₹0');
+  const [newTermOption, setNewTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
+  const [newCustomTerm, setNewCustomTerm] = useState('12');
+  const [newStatus, setNewStatus] = useState('Active');
+  const [newMonthlyVal, setNewMonthlyVal] = useState('15000');
+  const [newContractVal, setNewContractVal] = useState('180000');
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
@@ -206,11 +215,23 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
+  const [editTermOption, setEditTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
+  const [editCustomTerm, setEditCustomTerm] = useState('12');
+  const [editStatus, setEditStatus] = useState('Active');
+  const [editMonthlyVal, setEditMonthlyVal] = useState('0');
   const [editContractVal, setEditContractVal] = useState('0');
   const [editBillingModel, setEditBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
   const [editHealthStatus, setEditHealthStatus] = useState<string>('Healthy');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  const getTermMonths = (opt: string, custom: string) => {
+    if (opt === 'custom') {
+      const parsed = parseInt(custom, 10);
+      return isNaN(parsed) || parsed <= 0 ? 12 : parsed;
+    }
+    return parseInt(opt, 10) || 12;
+  };
 
   // Client accounts data from PostgreSQL
   const [clients, setClients] = useState<ClientAccount[]>([]);
@@ -250,6 +271,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           servicesCount: c.services_count ? `${c.services_count} Services` : (c.project_count ? `${c.project_count} SOWs` : 'Retainer'),
           activeProjects: `${c.project_count || 0} Active`,
           contractValue: c.contract_value && Number(c.contract_value) > 0 ? `₹${Number(c.contract_value).toLocaleString('en-IN')}` : '₹0',
+          rawContractValue: Number(c.contract_value || 0),
+          billingFrequency: c.billing_frequency || 'monthly',
+          status: c.status || 'Active',
+          termMonths: Number(c.custom_fields?.contract_term_months || 12),
+          customFields: c.custom_fields || {},
           healthStatus: c.health_status || 'Healthy',
           renewal: c.renewal_date ? new Date(c.renewal_date).toLocaleDateString() : 'Ongoing Retainer',
           lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Active',
@@ -317,9 +343,52 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setEditContactPhone(client.contactPhone || '');
     setEditContactRole(client.contactRole || 'Lead Stakeholder');
     setEditAccountManagerId(client.accountManagerId || '');
-    const rawVal = client.contractValue ? client.contractValue.replace(/[^0-9]/g, '') : '0';
-    setEditContractVal(rawVal || '0');
-    setEditBillingModel(client.contractValue?.includes('Demand') ? 'on_demand' : client.contractValue?.includes('Pay-As-You-Go') ? 'pay_as_you_go' : 'monthly_retainer');
+
+    const clientStatus = client.status || 'Active';
+    setEditStatus(clientStatus);
+
+    const savedTerm = Number(client.customFields?.contract_term_months || client.termMonths || 12);
+    if (['12', '6', '3', '1'].includes(String(savedTerm))) {
+      setEditTermOption(String(savedTerm) as any);
+      setEditCustomTerm(String(savedTerm));
+    } else {
+      setEditTermOption('custom');
+      setEditCustomTerm(String(savedTerm));
+    }
+
+    const freq = client.billingFrequency || (client.contractValue?.includes('Demand') ? 'on_demand' : client.contractValue?.includes('Pay-As-You-Go') ? 'pay_as_you_go' : 'monthly');
+    const model = freq === 'on_demand'
+      ? 'on_demand'
+      : freq === 'pay_as_you_go'
+        ? 'pay_as_you_go'
+        : freq === 'annually' || freq === 'annual'
+          ? 'annual_retainer'
+          : freq === 'one_time'
+            ? 'one_time'
+            : 'monthly_retainer';
+
+    setEditBillingModel(model);
+
+    const rawNum = Number(client.rawContractValue ?? (client.contractValue ? String(client.contractValue).replace(/[^0-9]/g, '') : 0));
+
+    let initMonthly = 0;
+    let initAnnual = rawNum;
+
+    if (model === 'monthly_retainer') {
+      if (rawNum > 0 && rawNum <= 60000) {
+        initMonthly = rawNum;
+        initAnnual = rawNum * savedTerm;
+      } else if (rawNum > 60000) {
+        initAnnual = rawNum;
+        initMonthly = Math.round(rawNum / savedTerm);
+      }
+    } else if (model === 'annual_retainer') {
+      initAnnual = rawNum;
+      initMonthly = Math.round(rawNum / 12);
+    }
+
+    setEditMonthlyVal(initMonthly ? String(initMonthly) : '');
+    setEditContractVal(initAnnual ? String(initAnnual) : '0');
     setEditHealthStatus(client.healthStatus || 'Healthy');
     setShowEditClientModal(true);
   };
@@ -337,6 +406,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         ? 0
         : parseFloat(String(editContractVal).replace(/[^0-9.]/g, '')) || 0;
       const normBillingFreq = editBillingModel === 'annual_retainer' ? 'annually' : editBillingModel === 'on_demand' ? 'on_demand' : editBillingModel === 'pay_as_you_go' ? 'pay_as_you_go' : 'monthly';
+      const activeTerm = getTermMonths(editTermOption, editCustomTerm);
 
       const res = await api.updateClient(editingClient.id, {
         company_name: editName.trim(),
@@ -349,7 +419,12 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         account_manager_id: editAccountManagerId || null,
         contract_value: parsedVal,
         billing_frequency: normBillingFreq,
-        health_status: editHealthStatus
+        health_status: editHealthStatus,
+        status: editStatus,
+        custom_fields: {
+          ...(editingClient.customFields || {}),
+          contract_term_months: activeTerm
+        }
       });
 
       if (res.success) {
@@ -405,6 +480,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         : parseFloat(newContractVal.replace(/[^0-9.]/g, '')) || 0;
       const normBillingFreq = newBillingModel === 'annual_retainer' ? 'annually' : newBillingModel === 'on_demand' ? 'on_demand' : newBillingModel === 'pay_as_you_go' ? 'pay_as_you_go' : 'monthly';
 
+      const activeTerm = getTermMonths(newTermOption, newCustomTerm);
       const res = await api.createClient({
         company_name: newCompanyName.trim(),
         industry: resolvedIndustry || 'Technology',
@@ -417,7 +493,10 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         contract_value: parsedVal,
         billing_frequency: normBillingFreq,
         health_status: 'Healthy',
-        status: 'Active'
+        status: newStatus || 'Active',
+        custom_fields: {
+          contract_term_months: activeTerm
+        }
       });
 
       if (res.success) {
@@ -434,7 +513,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         setNewContactRole('Primary Contact');
         setNewAccountManagerId('');
         setNewBillingModel('monthly_retainer');
-        setNewContractVal('₹0');
+        setNewTermOption('12');
+        setNewCustomTerm('12');
+        setNewStatus('Active');
+        setNewMonthlyVal('15000');
+        setNewContractVal('180000');
         fetchClients();
       }
     } catch (err: any) {
@@ -504,7 +587,8 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     if (activeFilterTab === 'my') return matchesSearch && isMyClient(c);
     if (activeFilterTab === 'healthy') return matchesSearch && c.healthStatus === 'Healthy';
     if (activeFilterTab === 'attention') return matchesSearch && c.healthStatus === 'Attention Needed';
-    if (activeFilterTab === 'at_risk') return matchesSearch && (c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk');
+    if (activeFilterTab === 'at_risk') return matchesSearch && (c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk' || c.status === 'At Risk');
+    if (activeFilterTab === 'notice_churn') return matchesSearch && (c.status === 'Notice Period' || c.status === 'Churned');
     if (activeFilterTab === 'renewals') return matchesSearch && c.renewal.includes('2026');
     if (activeFilterTab === 'high_val') return matchesSearch && (c.contractValue.includes('₹24') || c.contractValue.includes('₹32') || c.contractValue.includes('₹18'));
     if (activeFilterTab === 'new') return matchesSearch && c.id.startsWith('c-');
@@ -976,7 +1060,8 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
             { id: 'my', label: `My Clients (${clients.filter(isMyClient).length})` },
             { id: 'healthy', label: `Healthy (${clients.filter(c => c.healthStatus === 'Healthy').length})` },
             { id: 'attention', label: `Attention Needed (${clients.filter(c => c.healthStatus === 'Attention Needed').length})` },
-            { id: 'at_risk', label: `● At Risk (${clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk').length})`, isAlert: true },
+            { id: 'at_risk', label: `● At Risk (${clients.filter(c => c.isAtRisk || c.healthStatus === 'At Risk' || c.healthStatus === 'At-Risk' || c.status === 'At Risk').length})`, isAlert: true },
+            { id: 'notice_churn', label: `⚠️ Notice / Churned (${clients.filter(c => c.status === 'Notice Period' || c.status === 'Churned').length})`, isAlert: clients.some(c => c.status === 'Notice Period') },
             { id: 'renewals', label: `Renewals Upcoming (${clients.filter(c => c.renewalUrgent).length})` },
           ].map((tab) => (
             <button
@@ -1326,11 +1411,19 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                               <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/contract:opacity-100 transition" />
                             </span>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900 dark:text-slate-100 group-hover/contract:text-rose-600 transition">
-                                {client.contractValue || '—'}
-                              </span>
-                              <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/contract:opacity-100 transition" />
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 group-hover/contract:text-rose-600 transition">
+                                  {client.contractValue || '—'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">/ yr</span>
+                                <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/contract:opacity-100 transition" />
+                              </div>
+                              {client.billingFrequency === 'monthly' && Number(client.rawContractValue || 0) > 0 && (
+                                <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold font-mono">
+                                  ₹{Math.round(Number(client.rawContractValue) / 12).toLocaleString('en-IN')}/mo
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1377,17 +1470,36 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                         {client.lastActivity}
                       </td>
 
-                      {/* Billing */}
+                      {/* Status / Billing */}
                       <td className="p-3.5">
-                        {client.billingOverdue ? (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                            {client.billingStatus}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            Current
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1 items-start">
+                          {client.status === 'Notice Period' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Notice Period
+                            </span>
+                          ) : client.status === 'Churned' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              Churned
+                            </span>
+                          ) : client.status === 'Onboarding' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                              Onboarding
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Active Retainer
+                            </span>
+                          )}
+                          {client.billingOverdue && (
+                            <span className="text-[10px] text-rose-500 font-bold">
+                              Overdue AR
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -1634,13 +1746,20 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       const val = e.target.value as any;
                       setNewBillingModel(val);
                       if (val === 'on_demand') {
-                        setNewContractVal('On-Demand / As-Needed');
+                        setNewContractVal('0');
+                        setNewMonthlyVal('0');
                       } else if (val === 'pay_as_you_go') {
-                        setNewContractVal('Pay-As-You-Go');
-                      } else if (val === 'one_time') {
-                        setNewContractVal('One-Time Project');
-                      } else {
-                        setNewContractVal('₹18.5L / yr');
+                        setNewContractVal('0');
+                        setNewMonthlyVal('0');
+                      } else if (val === 'monthly_retainer') {
+                        const cur = parseFloat(newContractVal.replace(/[^0-9.]/g, '')) || 180000;
+                        if (cur > 0 && cur <= 60000) {
+                          setNewMonthlyVal(String(cur));
+                          setNewContractVal(String(cur * 12));
+                        } else {
+                          setNewContractVal(String(cur));
+                          setNewMonthlyVal(String(Math.round(cur / 12)));
+                        }
                       }
                     }}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white mb-2 text-xs"
@@ -1653,24 +1772,147 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   </select>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Annual Contract Value (₹) {newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
-                  </label>
-                  <input
-                    type="text"
-                    value={newContractVal}
-                    onChange={(e) => setNewContractVal(e.target.value)}
-                    placeholder={newBillingModel === 'on_demand' ? 'On-Demand / As-Needed (No Fixed ACV)' : 'e.g. ₹18.5L / yr'}
-                    disabled={newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go'}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs"
-                  />
-                  {(newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go') && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                      <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
-                    </p>
-                  )}
-                </div>
+                {newBillingModel === 'monthly_retainer' ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Monthly Fee (₹ / mo) *
+                          </label>
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Input</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={newMonthlyVal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewMonthlyVal(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(newTermOption, newCustomTerm);
+                              setNewContractVal(num > 0 ? String(Math.round(num * months)) : '0');
+                            }}
+                            placeholder="e.g. 15000"
+                            className="w-full pl-7 pr-3 py-2 border border-rose-300 dark:border-rose-800/80 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-rose-500 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                          Commitment Term
+                        </label>
+                        <select
+                          value={newTermOption}
+                          onChange={(e) => {
+                            const opt = e.target.value as any;
+                            setNewTermOption(opt);
+                            const months = getTermMonths(opt, newCustomTerm);
+                            const num = parseFloat(newMonthlyVal) || 0;
+                            if (num > 0) {
+                              setNewContractVal(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                        >
+                          <option value="12">12 Months (Annual Run-Rate)</option>
+                          <option value="6">6 Months (Semi-Annual / H1)</option>
+                          <option value="3">3 Months (Pilot Trial)</option>
+                          <option value="1">1 Month (Rolling Month-to-Month)</option>
+                          <option value="custom">Custom Duration...</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Contract Value (₹) *
+                          </label>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Auto-Calc</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={newContractVal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewContractVal(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(newTermOption, newCustomTerm);
+                              setNewMonthlyVal(num > 0 ? String(Math.round(num / months)) : '0');
+                            }}
+                            placeholder="e.g. 180000"
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {newTermOption === 'custom' && (
+                      <div className="max-w-xs">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                          Custom Duration (Months) *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={newCustomTerm}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewCustomTerm(val);
+                            const months = parseInt(val, 10) || 1;
+                            const num = parseFloat(newMonthlyVal) || 0;
+                            if (num > 0) {
+                              setNewContractVal(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                        />
+                      </div>
+                    )}
+
+                    <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                        <span>Retainer Formula:</span>
+                      </div>
+                      <div className="font-mono font-bold text-rose-600 dark:text-rose-400 text-right text-[11px]">
+                        ₹{Number(newMonthlyVal || 0).toLocaleString('en-IN')} / mo × {getTermMonths(newTermOption, newCustomTerm)} mos = ₹{Number(newContractVal || 0).toLocaleString('en-IN')} {getTermMonths(newTermOption, newCustomTerm) === 12 ? 'ACV' : 'TCV'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Annual Contract Value (₹) {newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
+                    </label>
+                    <div className="relative">
+                      {newBillingModel !== 'on_demand' && newBillingModel !== 'pay_as_you_go' && (
+                        <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                      )}
+                      <input
+                        type="text"
+                        value={newContractVal}
+                        onChange={(e) => setNewContractVal(e.target.value)}
+                        placeholder={newBillingModel === 'on_demand' ? 'On-Demand / As-Needed (No Fixed ACV)' : 'e.g. 500000'}
+                        disabled={newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go'}
+                        className={`w-full ${newBillingModel !== 'on_demand' && newBillingModel !== 'pay_as_you_go' ? 'pl-7' : 'pl-3'} pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs`}
+                      />
+                    </div>
+                    {(newBillingModel === 'on_demand' || newBillingModel === 'pay_as_you_go') && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                        <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
 
@@ -1876,8 +2118,18 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       setEditBillingModel(val);
                       if (val === 'on_demand') {
                         setEditContractVal('0');
+                        setEditMonthlyVal('0');
                       } else if (val === 'pay_as_you_go') {
                         setEditContractVal('0');
+                        setEditMonthlyVal('0');
+                      } else if (val === 'monthly_retainer') {
+                        const cur = parseFloat(editContractVal.replace(/[^0-9.]/g, '')) || 0;
+                        if (cur > 0 && cur <= 60000) {
+                          setEditMonthlyVal(String(cur));
+                          setEditContractVal(String(cur * 12));
+                        } else if (cur > 60000) {
+                          setEditMonthlyVal(String(Math.round(cur / 12)));
+                        }
                       }
                     }}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white mb-2 text-xs"
@@ -1890,24 +2142,189 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   </select>
                 </div>
 
+                {/* Lifecycle Status Selector */}
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Annual Contract Value (₹) {editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                    Account Lifecycle Status *
                   </label>
-                  <input
-                    type="number"
-                    value={editContractVal}
-                    onChange={(e) => setEditContractVal(e.target.value)}
-                    placeholder={editBillingModel === 'on_demand' ? '0' : 'e.g. 500000'}
-                    disabled={editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go'}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs"
-                  />
-                  {(editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go') && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                      <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
-                    </p>
-                  )}
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs font-medium"
+                  >
+                    <option value="Active">🟢 Active (Delivering Monthly Retainer)</option>
+                    <option value="Notice Period">⚠️ Notice Period (Exit Notice Served - 30/60 Days)</option>
+                    <option value="Churned">🚫 Churned (Contract Cancelled / Offboarded)</option>
+                    <option value="At Risk">🔴 At Risk (Retention Threat / Renewal Alert)</option>
+                    <option value="Onboarding">🔵 Onboarding (Intake &amp; Setup Phase)</option>
+                    <option value="Completed">⚪ Completed (SOW Concluded / Delivered)</option>
+                  </select>
                 </div>
+
+                {editStatus === 'Notice Period' && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>⚠️ Exit Notice Protocol Active</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300/90 leading-relaxed">
+                      Client has served cancellation notice. Final billing cycle continues through the notice window (e.g. 30 days) while accounts and campaign data are prepared for handover.
+                    </p>
+                  </div>
+                )}
+
+                {editStatus === 'Churned' && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>🚫 Retainer Cancelled / Churned</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 dark:text-rose-300/90 leading-relaxed">
+                      Account is deactivated. Future monthly retainers will not be billed. Total realized revenue remains recorded from past settled invoices.
+                    </p>
+                  </div>
+                )}
+
+                {editBillingModel === 'monthly_retainer' ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Monthly Fee (₹ / mo) *
+                          </label>
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Input</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={editMonthlyVal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditMonthlyVal(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(editTermOption, editCustomTerm);
+                              setEditContractVal(num > 0 ? String(Math.round(num * months)) : '0');
+                            }}
+                            placeholder="e.g. 15000"
+                            className="w-full pl-7 pr-3 py-2 border border-rose-300 dark:border-rose-800/80 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-rose-500 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                          Commitment Term
+                        </label>
+                        <select
+                          value={editTermOption}
+                          onChange={(e) => {
+                            const opt = e.target.value as any;
+                            setEditTermOption(opt);
+                            const months = getTermMonths(opt, editCustomTerm);
+                            const num = parseFloat(editMonthlyVal) || 0;
+                            if (num > 0) {
+                              setEditContractVal(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                        >
+                          <option value="12">12 Months (Annual Run-Rate)</option>
+                          <option value="6">6 Months (Semi-Annual / H1)</option>
+                          <option value="3">3 Months (Pilot Trial)</option>
+                          <option value="1">1 Month (Rolling Month-to-Month)</option>
+                          <option value="custom">Custom Duration...</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            Contract Value (₹) *
+                          </label>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Auto-Calc</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={editContractVal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditContractVal(val);
+                              const num = parseFloat(val) || 0;
+                              const months = getTermMonths(editTermOption, editCustomTerm);
+                              setEditMonthlyVal(num > 0 ? String(Math.round(num / months)) : '0');
+                            }}
+                            placeholder="e.g. 180000"
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {editTermOption === 'custom' && (
+                      <div className="max-w-xs">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 text-xs">
+                          Custom Duration (Months) *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editCustomTerm}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditCustomTerm(val);
+                            const months = parseInt(val, 10) || 1;
+                            const num = parseFloat(editMonthlyVal) || 0;
+                            if (num > 0) {
+                              setEditContractVal(String(Math.round(num * months)));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                        />
+                      </div>
+                    )}
+
+                    <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                        <span>Retainer Formula:</span>
+                      </div>
+                      <div className="font-mono font-bold text-rose-600 dark:text-rose-400 text-right text-[11px]">
+                        ₹{Number(editMonthlyVal || 0).toLocaleString('en-IN')} / mo × {getTermMonths(editTermOption, editCustomTerm)} mos = ₹{Number(editContractVal || 0).toLocaleString('en-IN')} {getTermMonths(editTermOption, editCustomTerm) === 12 ? 'ACV' : 'TCV'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Annual Contract Value (₹) {editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go' ? '(Not Applicable / On-Demand)' : '*'}
+                    </label>
+                    <div className="relative">
+                      {editBillingModel !== 'on_demand' && editBillingModel !== 'pay_as_you_go' && (
+                        <span className="absolute left-3 top-2 text-slate-400 font-medium text-xs">₹</span>
+                      )}
+                      <input
+                        type="number"
+                        min="0"
+                        value={editContractVal}
+                        onChange={(e) => setEditContractVal(e.target.value)}
+                        placeholder={editBillingModel === 'on_demand' ? '0' : 'e.g. 500000'}
+                        disabled={editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go'}
+                        className={`w-full ${editBillingModel !== 'on_demand' && editBillingModel !== 'pay_as_you_go' ? 'pl-7' : 'pl-3'} pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 text-xs`}
+                      />
+                    </div>
+                    {(editBillingModel === 'on_demand' || editBillingModel === 'pay_as_you_go') && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                        <span>⚡ Configured as On-Demand: You run ads as needed for this client with no fixed annual commitment.</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
 

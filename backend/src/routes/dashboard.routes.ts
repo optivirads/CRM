@@ -26,10 +26,12 @@ router.get('/stats', requireAuth, async (req: AuthenticatedRequest, res: Respons
       SELECT 
         COUNT(*) as total_clients,
         COUNT(*) FILTER (WHERE status = 'Active') as active_clients,
+        COUNT(*) FILTER (WHERE status = 'Notice Period') as notice_period_clients,
+        COUNT(*) FILTER (WHERE status = 'Churned') as churned_clients,
         COUNT(*) FILTER (WHERE status = 'Onboarding') as onboarding_clients,
         COUNT(*) FILTER (WHERE health_status = 'At Risk' OR health_status = 'Attention Needed') as clients_at_risk,
         COUNT(*) FILTER (WHERE renewal_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'Active') as upcoming_renewals,
-        COALESCE(SUM(contract_value), 0) as total_annual_contract_value
+        COALESCE(SUM(contract_value) FILTER (WHERE status NOT IN ('Churned', 'Completed')), 0) as total_annual_contract_value
       FROM clients 
       WHERE organization_id = $1 AND deleted_at IS NULL;
     `, [orgId]);
