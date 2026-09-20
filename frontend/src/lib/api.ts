@@ -1069,6 +1069,287 @@ class ApiClient {
   async getNotifications() {
     return this.request<{ success: boolean; data: any[] }>('/notifications');
   }
+
+  // ============================================================================
+  // CREATIVES & CLIENT PROOFING PIPELINE (CLOUDFLARE R2)
+  // ============================================================================
+
+  async getCreativeMetrics() {
+    return this.request<{
+      success: boolean;
+      metrics: {
+        totalCreatives: number;
+        draft: number;
+        internalReview: number;
+        pendingClientApproval: number;
+        changesRequested: number;
+        approved: number;
+        deploymentReady: number;
+        live: number;
+        overdue: number;
+        approvalRate: number;
+        revisionsRequested: number;
+      };
+    }>('/creatives/metrics');
+  }
+
+  async getCreatives(params?: {
+    clientId?: string;
+    status?: string;
+    platform?: string;
+    format?: string;
+    designerId?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.clientId) query.set('clientId', params.clientId);
+    if (params?.status) query.set('status', params.status);
+    if (params?.platform) query.set('platform', params.platform);
+    if (params?.format) query.set('format', params.format);
+    if (params?.designerId) query.set('designerId', params.designerId);
+    if (params?.search) query.set('search', params.search);
+
+    const qs = query.toString();
+    return this.request<{ success: boolean; creatives: any[] }>(`/creatives${qs ? `?${qs}` : ''}`);
+  }
+
+  async getCreativeDetails(id: string) {
+    return this.request<{
+      success: boolean;
+      creative: any;
+      proofs: any[];
+      auditLogs: any[];
+    }>(`/creatives/${id}`);
+  }
+
+  async createCreative(payload: {
+    clientId?: string;
+    projectId?: string;
+    name: string;
+    description?: string;
+    campaignName?: string;
+    targetPlatform?: string;
+    adFormat?: string;
+    aspectRatio?: string;
+    primaryAdCopy?: string;
+    headline?: string;
+    callToAction?: string;
+    destinationUrl?: string;
+    designerId?: string;
+    approvalDueAt?: string;
+    tags?: string[];
+    initialProof?: {
+      title?: string;
+      changeSummary?: string;
+      assets: any[];
+    };
+  }) {
+    return this.request<{ success: boolean; creative: any; message?: string }>('/creatives', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCreative(id: string, payload: any) {
+    return this.request<{ success: boolean; creative: any; message?: string }>(`/creatives/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async registerProofVersion(id: string, payload: {
+    title?: string;
+    changeSummary?: string;
+    assets: any[];
+    parentProofId?: string;
+    setAsActive?: boolean;
+  }) {
+    return this.request<{ success: boolean; proof: any; message?: string }>(`/creatives/${id}/proofs`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getUploadSession(payload: {
+    creativeId?: string;
+    versionNumber?: number;
+    fileName: string;
+    mimeType: string;
+    assetType?: string;
+    slideOrder?: number;
+  }) {
+    return this.request<{
+      success: boolean;
+      uploadUrl: string;
+      storageKey: string;
+      expiresInSeconds: number;
+      bucket: string;
+    }>('/creatives/upload-session', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async initMultipartUpload(payload: {
+    creativeId?: string;
+    versionNumber?: number;
+    fileName: string;
+    mimeType?: string;
+    assetType?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      uploadId: string;
+      storageKey: string;
+      bucket: string;
+    }>('/creatives/upload-session/multipart/init', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getMultipartParts(payload: {
+    storageKey: string;
+    uploadId: string;
+    partNumbers: number[];
+  }) {
+    return this.request<{
+      success: boolean;
+      parts: { partNumber: number; uploadUrl: string }[];
+    }>('/creatives/upload-session/multipart/parts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async completeMultipartUpload(payload: {
+    storageKey: string;
+    uploadId: string;
+    parts: { PartNumber: number; ETag: string }[];
+  }) {
+    return this.request<{
+      success: boolean;
+      storageKey: string;
+      location?: string;
+    }>('/creatives/upload-session/multipart/complete', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async abortMultipartUpload(payload: { storageKey: string; uploadId: string }) {
+    return this.request<{ success: boolean; message: string }>('/creatives/upload-session/multipart/abort', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateShareLink(id: string, proofId: string, payload?: {
+    expiresInDays?: number;
+    allowComments?: boolean;
+    allowApprovals?: boolean;
+  }) {
+    return this.request<{
+      success: boolean;
+      shareLink: {
+        id: string;
+        token: string;
+        shareUrl: string;
+        expires_at: string;
+        allow_comments: boolean;
+        allow_approvals: boolean;
+      };
+    }>(`/creatives/${id}/proofs/${proofId}/share`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async revokeShareLink(linkId: string) {
+    return this.request<{ success: boolean; message: string }>(`/creatives/share-links/${linkId}/revoke`, {
+      method: 'POST',
+    });
+  }
+
+  async addCreativeComment(id: string, proofId: string, payload: {
+    assetId?: string;
+    content: string;
+    pinXPercent?: number;
+    pinYPercent?: number;
+    timestampStartSeconds?: number;
+    timestampEndSeconds?: number;
+    parentCommentId?: string;
+  }) {
+    return this.request<{ success: boolean; comment: any }>(`/creatives/${id}/proofs/${proofId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resolveCreativeComment(commentId: string, isResolved: boolean) {
+    return this.request<{ success: boolean; comment: any }>(`/creatives/comments/${commentId}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isResolved }),
+    });
+  }
+
+  async submitInternalApproval(id: string, proofId: string, payload: {
+    decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+    feedbackNotes?: string;
+  }) {
+    return this.request<{ success: boolean; approval: any; creativeStatus: string }>(`/creatives/${id}/proofs/${proofId}/approvals`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Public Client Portal API (No Bearer token needed)
+  async getPublicProof(token: string) {
+    return this.request<{
+      success: boolean;
+      shareLink: any;
+      creative: any;
+      proof: any;
+    }>(`/public/proofs/${token}`);
+  }
+
+  async submitPublicProofComment(token: string, payload: {
+    assetId?: string;
+    authorName: string;
+    authorEmail?: string;
+    content: string;
+    pinXPercent?: number;
+    pinYPercent?: number;
+    timestampStartSeconds?: number;
+    timestampEndSeconds?: number;
+  }) {
+    return this.request<{ success: boolean; comment: any }>(`/public/proofs/${token}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async approvePublicProof(token: string, payload: {
+    approverName: string;
+    approverEmail: string;
+    feedbackNotes?: string;
+  }) {
+    return this.request<{ success: boolean; approval: any; message?: string }>(`/public/proofs/${token}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async requestChangesPublicProof(token: string, payload: {
+    reviewerName: string;
+    reviewerEmail?: string;
+    changeNotes: string;
+  }) {
+    return this.request<{ success: boolean; approval: any; message?: string }>(`/public/proofs/${token}/request-changes`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 export const api = new ApiClient();

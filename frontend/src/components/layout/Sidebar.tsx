@@ -17,6 +17,7 @@ import {
   Settings,
   Rocket,
   CheckSquare,
+  Palette,
   X
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -34,6 +35,7 @@ export type NavItem =
   | 'onboarding'
   | 'projects'
   | 'tasks'
+  | 'creatives'
   | 'sales'
   | 'marketing'
   | 'finance'
@@ -76,6 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
         { id: 'onboarding' as NavItem, label: 'Onboarding', icon: Rocket },
         { id: 'projects' as NavItem, label: 'Projects', icon: FolderClosed },
         { id: 'tasks' as NavItem, label: 'Tasks', icon: CheckSquare },
+        { id: 'creatives' as NavItem, label: 'Creative Studio', icon: Palette },
       ]
     },
     {

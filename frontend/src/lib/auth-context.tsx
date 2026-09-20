@@ -71,7 +71,7 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Chief Operating Officer • OptiVir',
     avatarText: 'CO',
     avatarBg: 'bg-purple-700',
-    allowedTabs: ['dashboard', 'leads', 'contacts', 'clients', 'client-360', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'activities', 'documents', 'notifications', 'settings'],
+    allowedTabs: ['dashboard', 'leads', 'contacts', 'clients', 'client-360', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'creatives', 'marketing', 'finance', 'reports', 'activities', 'documents', 'notifications', 'settings'],
     description: 'Executive operational command across all agency deliverables, pipelines, and modules'
   },
   {
@@ -95,7 +95,7 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Head of Marketing & Growth',
     avatarText: 'ML',
     avatarBg: 'bg-indigo-600',
-    allowedTabs: ['dashboard', 'marketing', 'reports', 'clients', 'projects', 'tasks', 'proposals'],
+    allowedTabs: ['dashboard', 'marketing', 'creatives', 'reports', 'clients', 'projects', 'tasks', 'proposals'],
     description: 'Omnichannel performance marketing, brand campaigns, and conversion attribution'
   },
   {
@@ -107,7 +107,7 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Social Media & Content Lead',
     avatarText: 'SL',
     avatarBg: 'bg-pink-600',
-    allowedTabs: ['dashboard', 'marketing', 'projects', 'tasks', 'clients', 'reports'],
+    allowedTabs: ['dashboard', 'marketing', 'creatives', 'projects', 'tasks', 'clients', 'reports'],
     description: 'Social post insights, creative deliverables, engagement KPIs, and brand community'
   },
   {
@@ -119,7 +119,7 @@ export const AGENCY_PERSONAS: Persona[] = [
     designation: 'Head of Media & Ad Buying',
     avatarText: 'AD',
     avatarBg: 'bg-cyan-600',
-    allowedTabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'reports', 'notifications'],
+    allowedTabs: ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'creatives', 'marketing', 'reports', 'notifications'],
     description: 'Google & Meta Ads telemetry, ROAS attribution, creative deliverables & project sprints'
   },
   {

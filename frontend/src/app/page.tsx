@@ -13,6 +13,7 @@ import { ClientsListView } from '@/components/clients/ClientsListView';
 import { ClientOnboardingView } from '@/components/clients/ClientOnboardingView';
 import { ProjectsView } from '@/components/projects/ProjectsView';
 import { TasksView } from '@/components/projects/TasksView';
+import { CreativeProofingView } from '@/components/creatives/CreativeProofingView';
 import { MarketingView } from '@/components/marketing/MarketingView';
 import { FinanceView } from '@/components/finance/FinanceView';
 import { ReportsView } from '@/components/reports/ReportsView';
@@ -53,7 +54,7 @@ export default function Home() {
         const validTabs: NavItem[] = [
           'dashboard', 'leads', 'contacts', 'companies', 'opportunities',
           'pipeline', 'proposals', 'clients', 'client-360', 'onboarding',
-          'projects', 'tasks', 'sales', 'marketing', 'finance',
+          'projects', 'tasks', 'creatives', 'sales', 'marketing', 'finance',
           'documents', 'activities', 'reports', 'notifications', 'settings'
         ];
 
@@ -178,6 +179,8 @@ export default function Home() {
         return { title: 'Service Delivery Projects', subtitle: 'Agency deliverables, budgets, and milestone progress' };
       case 'tasks':
         return { title: 'Tasks & Operational Kanban', subtitle: 'Team workloads, deliverables, and overdue tracking' };
+      case 'creatives':
+        return { title: 'Creative Studio & Client Proofing', subtitle: 'Multi-platform ad creative proofing, immutable versioning, video frame annotations & Cloudflare R2 client sign-offs' };
       case 'marketing':
         return { title: 'Marketing Intelligence & Attribution', subtitle: 'Omni-channel ROAS, conversions, and Paid vs Organic breakdown' };
       case 'finance':
@@ -324,6 +327,7 @@ export default function Home() {
               )}
               {currentTab === 'projects' && <ProjectsView />}
               {currentTab === 'tasks' && <TasksView />}
+              {currentTab === 'creatives' && <CreativeProofingView onNavigate={(tab) => navigateTo(tab)} />}
               {currentTab === 'sales' && <PipelineView onNavigate={(tab: any) => navigateTo(tab)} />}
               {currentTab === 'marketing' && <MarketingView />}
               {currentTab === 'finance' && (
