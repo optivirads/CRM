@@ -327,10 +327,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
       }
 
       // Fetch team members
-      const usersRes = await api.getSettingsUsers().catch(() => api.getTeamMembers()).catch(() => null);
-      if (usersRes?.data && Array.isArray(usersRes.data)) {
-        setTeamMembers(usersRes.data);
-      }
+      await loadTeamMembers();
 
       // Fetch client-linked projects
       const projRes = await api.getProjects().catch(() => null);
@@ -348,8 +345,26 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     }
   };
 
+  const loadTeamMembers = async () => {
+    try {
+      const res = await api.getSettingsUsers().catch(() => null);
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setTeamMembers(res.data);
+        return;
+      }
+      const teamRes = await api.getTeamMembers().catch(() => null);
+      if (teamRes?.data && Array.isArray(teamRes.data) && teamRes.data.length > 0) {
+        setTeamMembers(teamRes.data);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed loading team members:', err);
+    }
+  };
+
   useEffect(() => {
     fetchClientData();
+    loadTeamMembers();
   }, [clientId, propClientName]);
 
   const [resolvedClient] = useState<any>(() => {
@@ -1092,6 +1107,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       </span>
                       <button
                         onClick={() => {
+                          loadTeamMembers();
                           setSelectedAmId(liveClient?.account_manager_id || '');
                           setSelectedAssistantId(liveClient?.account_assistant_id || '');
                           const initAssts: string[] = Array.isArray(liveClient?.assistants)
@@ -4177,72 +4193,6 @@ export const Client360View: React.FC<Client360ViewProps> = ({
         </div>
       )}
 
-      {/* 1. Assign Client to Team Member Modal */}
-      {showAssignMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center">
-                  <UserPlus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Assign Dedicated Account Lead</h3>
-                  <p className="text-[11px] text-slate-500">{activeClientName}</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAssignMemberModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAssignTeamMember} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
-                  Select Team Member / Account Manager
-                </label>
-                <select
-                  value={selectedAmId}
-                  onChange={(e) => setSelectedAmId(e.target.value)}
-                  className="w-full px-3 py-2.5 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium"
-                >
-                  <option value="">Unassigned / Primary Admin Pool</option>
-                  {teamMembers.map((member: any) => (
-                    <option key={member.id} value={member.id}>
-                      {member.first_name ? `${member.first_name} ${member.last_name || ''}` : (member.name || member.email)} ({member.role || 'Member'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-xl text-[11px] text-blue-900 dark:text-blue-300 leading-relaxed">
-                <div className="font-bold flex items-center gap-1.5 mb-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Role &amp; Scoped Access Isolation</span>
-                </div>
-                Assigning this client to a team member enables full account isolation when standard permissions are set. The assigned team member will exclusively see this client&apos;s data, ad spend, and tasks.
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignMemberModal(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAssigningMember}
-                  className="px-4 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl text-xs font-bold transition disabled:opacity-50"
-                >
-                  {isAssigningMember ? 'Assigning...' : 'Confirm Assignment'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* 1b. Connect Ad Account to Client Modal */}
       {showConnectAdAccountModal && (
@@ -5969,18 +5919,20 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   Dedicated Account Lead &amp; Assistant Assignment
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
-                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Dedicated Account Manager</label>
+                    <label className="text-xs font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
+                      Dedicated Account Manager
+                    </label>
                     <select
                       value={editAccountManagerId}
                       onChange={(e) => setEditAccountManagerId(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs text-slate-900 dark:text-white"
+                      className="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium"
                     >
                       <option value="">Unassigned (Team Pool)</option>
                       {teamMembers.map((m: any) => {
-                        const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
-                        const roleStr = m.role_name || m.role || 'Member';
+                        const fullName = m.name || `${m.firstName || m.first_name || ''} ${m.lastName || m.last_name || ''}`.trim() || m.email;
+                        const roleStr = m.roleLabel || m.role_name || m.designation || m.role || 'Member';
                         return (
                           <option key={m.id} value={m.id}>
                             {fullName} ({roleStr})
@@ -5991,23 +5943,46 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Account Assistant (Co-Pilot)</label>
-                    <select
-                      value={editAccountAssistantId}
-                      onChange={(e) => setEditAccountAssistantId(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-medium text-xs text-slate-900 dark:text-white"
-                    >
-                      <option value="">Unassigned (Optional)</option>
-                      {teamMembers.map((m: any) => {
-                        const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
-                        const roleStr = m.role_name || m.role || 'Member';
-                        return (
-                          <option key={m.id} value={m.id}>
-                            {fullName} ({roleStr})
-                          </option>
-                        );
-                      })}
-                    </select>
+                    <label className="text-xs font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
+                      Account Assistants (Co-Pilots) — Select one or multiple
+                    </label>
+                    <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-700 rounded-xl">
+                      {teamMembers.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-400">
+                          Loading team members...
+                        </div>
+                      ) : (
+                        teamMembers.map((m: any) => {
+                          const fullName = m.name || `${m.firstName || m.first_name || ''} ${m.lastName || m.last_name || ''}`.trim() || m.email;
+                          const roleStr = m.roleLabel || m.role_name || m.designation || m.role || 'Member';
+                          const isSelected = editAccountAssistantIds.includes(m.id);
+                          return (
+                            <label
+                              key={m.id}
+                              className={`flex items-center gap-2.5 p-1.5 rounded-lg text-xs cursor-pointer transition ${isSelected ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditAccountAssistantIds([...editAccountAssistantIds, m.id]);
+                                  } else {
+                                    setEditAccountAssistantIds(editAccountAssistantIds.filter(id => id !== m.id));
+                                  }
+                                }}
+                                className="rounded text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                              />
+                              <span>{fullName}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">({roleStr})</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Selected Assistants: <strong>{editAccountAssistantIds.length}</strong>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -6302,15 +6277,19 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     className="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium"
                   >
                     <option value="">Unassigned (Team Pool)</option>
-                    {teamMembers.map((m: any) => {
-                      const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
-                      const roleStr = m.role_name || m.role || 'Member';
-                      return (
-                        <option key={m.id} value={m.id}>
-                          {fullName} ({roleStr})
-                        </option>
-                      );
-                    })}
+                    {teamMembers.length === 0 ? (
+                      <option value="" disabled>Loading team members...</option>
+                    ) : (
+                      teamMembers.map((m: any) => {
+                        const fullName = m.name || `${m.firstName || m.first_name || ''} ${m.lastName || m.last_name || ''}`.trim() || m.email;
+                        const roleStr = m.roleLabel || m.designation || m.role_name || m.role || 'Member';
+                        return (
+                          <option key={m.id} value={m.id}>
+                            {fullName} ({roleStr})
+                          </option>
+                        );
+                      })
+                    )}
                   </select>
                 </div>
 
@@ -6319,32 +6298,38 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     Account Assistants (Co-Pilots) — Select one or multiple
                   </label>
                   <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-700 rounded-xl">
-                    {teamMembers.map((m: any) => {
-                      const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
-                      const roleStr = m.role_name || m.role || 'Member';
-                      const isSelected = selectedAssistantIds.includes(m.id);
-                      return (
-                        <label
-                          key={m.id}
-                          className={`flex items-center gap-2.5 p-1.5 rounded-lg text-xs cursor-pointer transition ${isSelected ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedAssistantIds([...selectedAssistantIds, m.id]);
-                              } else {
-                                setSelectedAssistantIds(selectedAssistantIds.filter(id => id !== m.id));
-                              }
-                            }}
-                            className="rounded text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
-                          />
-                          <span>{fullName}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">({roleStr})</span>
-                        </label>
-                      );
-                    })}
+                    {teamMembers.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-400">
+                        Loading team members...
+                      </div>
+                    ) : (
+                      teamMembers.map((m: any) => {
+                        const fullName = m.name || `${m.firstName || m.first_name || ''} ${m.lastName || m.last_name || ''}`.trim() || m.email;
+                        const roleStr = m.roleLabel || m.designation || m.role_name || m.role || 'Member';
+                        const isSelected = selectedAssistantIds.includes(m.id);
+                        return (
+                          <label
+                            key={m.id}
+                            className={`flex items-center gap-2.5 p-1.5 rounded-lg text-xs cursor-pointer transition ${isSelected ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedAssistantIds([...selectedAssistantIds, m.id]);
+                                } else {
+                                  setSelectedAssistantIds(selectedAssistantIds.filter(id => id !== m.id));
+                                }
+                              }}
+                              className="rounded text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                            />
+                            <span>{fullName}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">({roleStr})</span>
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-400 mt-1">
                     Selected Assistants: <strong>{selectedAssistantIds.length}</strong>
