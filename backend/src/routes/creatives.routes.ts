@@ -1,9 +1,17 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import multer from 'multer';
 import { db } from '../config/db';
 import { requireAuth } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { StorageService } from '../services/storage.service';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500 MB limit
+  }
+});
 
 const router = Router();
 
@@ -875,8 +883,58 @@ router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: R
 });
 
 // ---------------------------------------------------------------------------
-// 8. R2 STORAGE UPLOAD SESSIONS (Direct Presigned PUT & Multipart Uploads)
+// 8. R2 STORAGE UPLOAD SESSIONS & DIRECT PROXY
 // ---------------------------------------------------------------------------
+
+// Direct Backend Stream Upload (Guarantees zero-CORS issues & supports up to 500MB video/image streaming)
+router.post(
+  '/upload-direct',
+  requireAuth,
+  upload.single('file'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const orgId = req.user!.organizationId;
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'No file uploaded' });
+      return;
+    }
+
+    const {
+      creativeId = 'temp_' + Date.now(),
+      versionNumber = '1',
+      assetType = 'IMAGE',
+      slideOrder
+    } = req.body;
+
+    try {
+      const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const timestamp = Date.now();
+      const storageKey = `creatives/${orgId}/${creativeId}/v${versionNumber}/${assetType}_${timestamp}_${sanitizedFileName}`;
+
+      await StorageService.uploadDirectBuffer(
+        storageKey,
+        req.file.buffer,
+        req.file.mimetype || 'application/octet-stream'
+      );
+
+      res.json({
+        success: true,
+        storageKey,
+        fileName: req.file.originalname,
+        fileSizeBytes: req.file.size,
+        mimeType: req.file.mimetype || 'application/octet-stream',
+        assetType: assetType,
+        slideOrder: slideOrder ? parseInt(slideOrder, 10) : undefined
+      });
+    } catch (err: any) {
+      console.error('[Creatives API] Direct Upload Error:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to stream file to Cloudflare R2',
+        error: err.message
+      });
+    }
+  }
+);
 
 // Single-part presigned PUT URL
 router.post('/upload-session', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {

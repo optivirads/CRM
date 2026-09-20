@@ -347,45 +347,39 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       setIsUploading(true);
       setUploadProgress(10);
 
-      // 1. Upload files directly to Cloudflare R2 via Presigned URLs
+      // 1. Upload files directly to Cloudflare R2 via Backend Streaming (Bypasses browser CORS & supports large files up to 500MB)
       const processedAssets: any[] = [];
       const totalFiles = uploadedFiles.length;
 
       for (let i = 0; i < totalFiles; i++) {
         const item = uploadedFiles[i];
-        setUploadProgress(15 + Math.round((i / totalFiles) * 60));
 
-        // Get Presigned PUT URL from backend
-        const sessionRes = await api.getUploadSession({
-          fileName: item.file.name,
-          mimeType: item.file.type || 'image/jpeg',
+        const uploadRes = await api.uploadCreativeAssetDirect(
+          item.file,
+          {
+            assetType: createForm.adFormat === 'CAROUSEL' ? 'CAROUSEL_SLIDE' : item.assetType,
+            slideOrder: i + 1,
+            versionNumber: 1
+          },
+          (filePercent) => {
+            const baseProgress = 10 + Math.round((i / totalFiles) * 75);
+            const chunkProgress = Math.round((filePercent / 100) * (75 / totalFiles));
+            setUploadProgress(Math.min(85, baseProgress + chunkProgress));
+          }
+        );
+
+        if (!uploadRes.success || !uploadRes.storageKey) {
+          throw new Error(`Failed to upload ${item.file.name}`);
+        }
+
+        processedAssets.push({
+          storageKey: uploadRes.storageKey,
+          fileName: uploadRes.fileName || item.file.name,
+          fileSizeBytes: uploadRes.fileSizeBytes || item.file.size,
+          mimeType: uploadRes.mimeType || item.file.type || 'image/jpeg',
           assetType: createForm.adFormat === 'CAROUSEL' ? 'CAROUSEL_SLIDE' : item.assetType,
           slideOrder: i + 1
         });
-
-        if (sessionRes.success && sessionRes.uploadUrl) {
-          // Direct browser PUT to Cloudflare R2 Private Bucket
-          const uploadToR2 = await fetch(sessionRes.uploadUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': item.file.type || 'image/jpeg'
-            },
-            body: item.file
-          });
-
-          if (!uploadToR2.ok) {
-            throw new Error(`Failed to upload ${item.file.name} to Cloudflare R2 (${uploadToR2.statusText})`);
-          }
-
-          processedAssets.push({
-            storageKey: sessionRes.storageKey,
-            fileName: item.file.name,
-            fileSizeBytes: item.file.size,
-            mimeType: item.file.type || 'image/jpeg',
-            assetType: createForm.adFormat === 'CAROUSEL' ? 'CAROUSEL_SLIDE' : item.assetType,
-            slideOrder: i + 1
-          });
-        }
       }
 
       setUploadProgress(85);

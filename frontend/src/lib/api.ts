@@ -1176,6 +1176,77 @@ class ApiClient {
     });
   }
 
+  async uploadCreativeAssetDirect(
+    file: File,
+    metadata: {
+      creativeId?: string;
+      versionNumber?: number;
+      assetType?: string;
+      slideOrder?: number;
+    },
+    onProgress?: (percent: number) => void
+  ): Promise<{
+    success: boolean;
+    storageKey: string;
+    fileName: string;
+    fileSizeBytes: number;
+    mimeType: string;
+    assetType?: string;
+    slideOrder?: number;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata.creativeId) formData.append('creativeId', metadata.creativeId);
+    if (metadata.versionNumber) formData.append('versionNumber', String(metadata.versionNumber));
+    if (metadata.assetType) formData.append('assetType', metadata.assetType);
+    if (metadata.slideOrder) formData.append('slideOrder', String(metadata.slideOrder));
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('optivir_token') : null;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${baseUrl}/creatives/upload-direct`);
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            resolve(data);
+          } catch (e) {
+            reject(new Error('Invalid response from server'));
+          }
+        } else {
+          try {
+            const errData = JSON.parse(xhr.responseText);
+            reject(new Error(errData.message || `Upload failed with status ${xhr.status}`));
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error('Network error during upload'));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
   async getUploadSession(payload: {
     creativeId?: string;
     versionNumber?: number;
