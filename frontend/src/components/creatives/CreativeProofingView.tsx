@@ -43,7 +43,8 @@ import {
   History,
   Send,
   FolderClosed,
-  Building2
+  Building2,
+  Download
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -318,6 +319,89 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       }
     } catch (err) {
       console.error('Failed to generate share link:', err);
+    }
+  };
+
+  // Watermark exemption rule: Only COO, Owner, or the user who uploaded/created the creative are exempt from watermark
+  const isWatermarkExempt = (creative?: any, proof?: any) => {
+    if (!user) return false;
+    const role = (user.role || '').toLowerCase();
+    if (role === 'owner' || role === 'coo') return true;
+    if (creative?.created_by && user.id === creative.created_by) return true;
+    if (proof?.uploaded_by && user.id === proof.uploaded_by) return true;
+    return false;
+  };
+
+  // Download asset (applying watermark if user is non-exempt)
+  const handleDownloadAsset = async (asset: any) => {
+    if (!asset?.viewingUrl) return;
+
+    const exempt = isWatermarkExempt(activeCreativeDetails?.creative, currentProof);
+    const fileName = asset.fileName || 'proof_asset';
+
+    if (exempt || asset.asset_type === 'VIDEO') {
+      const a = document.createElement('a');
+      a.href = asset.viewingUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // For non-exempt users downloading an image, stamp watermark onto canvas
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = asset.viewingUrl;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+
+      // Draw repeating diagonal watermark
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((-25 * Math.PI) / 180);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+      const fontSize = Math.max(20, Math.round(canvas.width / 22));
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = Math.max(1, Math.round(fontSize / 12));
+      ctx.textAlign = 'center';
+
+      const stepX = Math.round(canvas.width / 2.5);
+      const stepY = Math.round(canvas.height / 3.5);
+
+      for (let x = -canvas.width; x < canvas.width * 2; x += stepX) {
+        for (let y = -canvas.height; y < canvas.height * 2; y += stepY) {
+          ctx.strokeText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
+          ctx.fillText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
+        }
+      }
+      ctx.restore();
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `WATERMARKED_${fileName}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(asset.viewingUrl, '_blank');
     }
   };
 
@@ -912,8 +996,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       {/* 4. CREATIVE PROOFING STUDIO MODAL (CANVAS + PIN ANNOTATIONS + VIDEO SCRUBBER) */}
       {/* ========================================================================= */}
       {activeCreativeId && activeCreativeDetails && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 lg:p-6 overflow-hidden animate-fade-in">
-          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 lg:p-6 overflow-hidden animate-fade-in">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[92vh] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-[#070D18]">
               <div className="flex items-center gap-3">
@@ -943,6 +1027,16 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
               {/* Header Actions */}
               <div className="flex items-center gap-2">
+                {currentAsset?.viewingUrl && (
+                  <button
+                    onClick={() => handleDownloadAsset(currentAsset)}
+                    title={isWatermarkExempt(activeCreativeDetails.creative, currentProof) ? "Download Original Asset" : "Download Watermarked Proof"}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+                )}
                 <button
                   onClick={handleGenerateShareLink}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs"
@@ -1046,6 +1140,24 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                       <div className="p-16 text-center text-slate-400 space-y-2">
                         <ImageIcon className="w-12 h-12 mx-auto text-slate-600" />
                         <p className="text-xs">No visual asset attached to this version</p>
+                      </div>
+                    )}
+
+                    {/* Watermark Overlay for non-exempt viewers (Everybody except COO, Owner, or uploader) */}
+                    {!isWatermarkExempt(activeCreativeDetails?.creative, currentProof) && (
+                      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center overflow-hidden select-none">
+                        <div className="w-[150%] h-[150%] grid grid-cols-3 grid-rows-3 gap-8 p-6 opacity-25 dark:opacity-30 transform -rotate-12 pointer-events-none select-none">
+                          {Array.from({ length: 9 }).map((_, i) => (
+                            <div key={i} className="flex flex-col items-center justify-center text-center select-none">
+                              <div className="text-xs sm:text-base font-black tracking-widest uppercase text-slate-800 dark:text-white drop-shadow-md border border-slate-700/40 dark:border-slate-300/40 px-3 py-1 rounded-lg backdrop-blur-2xs">
+                                OPTIVIR PROOF
+                              </div>
+                              <div className="text-[9px] sm:text-[10px] font-bold text-slate-700 dark:text-slate-300 tracking-wider mt-0.5">
+                                PREVIEW ONLY • CONFIDENTIAL
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -1272,7 +1384,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       {/* 5. CREATE NEW CREATIVE PROOF MODAL (Client -> Project Hierarchy) */}
       {/* ========================================================================= */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-5 my-8">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
@@ -1524,7 +1636,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       {/* 6. DELETE CREATIVE CONFIRMATION MODAL (R2 Assets Cleanup) */}
       {/* ========================================================================= */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-red-600">
               <div className="w-10 h-10 rounded-2xl bg-red-500/10 flex items-center justify-center">
@@ -1573,7 +1685,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       {/* 7. CLIENT SHARE LINK MODAL (Cryptographic SHA-256 Hashed URL) */}
       {/* ========================================================================= */}
       {showShareModal && shareLinkData && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">

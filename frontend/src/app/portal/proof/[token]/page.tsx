@@ -19,7 +19,8 @@ import {
   Check,
   X,
   Layers,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Download
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -157,6 +158,73 @@ export default function ClientProofingPortalPage() {
     }
   };
 
+  const handleDownloadWatermarked = async (asset: any) => {
+    if (!asset?.viewingUrl) return;
+    const fileName = asset.fileName || 'client_proof_preview';
+
+    if (asset.assetType === 'VIDEO') {
+      const a = document.createElement('a');
+      a.href = asset.viewingUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = asset.viewingUrl;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(img, 0, 0);
+
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((-25 * Math.PI) / 180);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+      const fontSize = Math.max(20, Math.round(canvas.width / 22));
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = Math.max(1, Math.round(fontSize / 12));
+      ctx.textAlign = 'center';
+
+      const stepX = Math.round(canvas.width / 2.5);
+      const stepY = Math.round(canvas.height / 3.5);
+
+      for (let x = -canvas.width; x < canvas.width * 2; x += stepX) {
+        for (let y = -canvas.height; y < canvas.height * 2; y += stepY) {
+          ctx.strokeText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
+          ctx.fillText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
+        }
+      }
+      ctx.restore();
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `WATERMARKED_${fileName}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(asset.viewingUrl, '_blank');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#060B13] text-white flex flex-col items-center justify-center p-4">
@@ -246,22 +314,35 @@ export default function ClientProofingPortalPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
         {/* Left: Media Canvas */}
         <div className="flex-1 flex flex-col items-center justify-center bg-[#070D18] border border-slate-800/80 rounded-3xl p-4 sm:p-6 relative overflow-hidden shadow-2xl">
-          {/* Pin Mode Switch */}
+          {/* Pin Mode & Download Bar */}
           <div className="w-full flex items-center justify-between mb-4 text-xs">
             <span className="text-slate-400 font-medium">
               Format: <strong className="text-white">{creative.ad_format}</strong> ({creative.aspect_ratio || '1:1'})
             </span>
 
-            <button
-              onClick={() => {
-                setIsPlacingPin(!isPlacingPin);
-                setPendingPin(null);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>{isPlacingPin ? 'Click image to drop pin' : 'Add Pin Comment'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {currentAsset?.viewingUrl && (
+                <button
+                  onClick={() => handleDownloadWatermarked(currentAsset)}
+                  title="Download Watermarked Proof"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Proof</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setIsPlacingPin(!isPlacingPin);
+                  setPendingPin(null);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>{isPlacingPin ? 'Click image to drop pin' : 'Add Pin Comment'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Canvas Display */}
@@ -290,6 +371,22 @@ export default function ClientProofingPortalPage() {
                 <p>No media asset attached</p>
               </div>
             )}
+
+            {/* Watermark Overlay for Client Portal Proofing Viewers */}
+            <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center overflow-hidden select-none">
+              <div className="w-[150%] h-[150%] grid grid-cols-3 grid-rows-3 gap-8 p-6 opacity-25 dark:opacity-30 transform -rotate-12 pointer-events-none select-none">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center justify-center text-center select-none">
+                    <div className="text-xs sm:text-base font-black tracking-widest uppercase text-slate-800 dark:text-white drop-shadow-md border border-slate-700/40 dark:border-slate-300/40 px-3 py-1 rounded-lg backdrop-blur-2xs">
+                      OPTIVIR PROOF
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] font-bold text-slate-700 dark:text-slate-300 tracking-wider mt-0.5">
+                      PREVIEW ONLY • CONFIDENTIAL
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Pins */}
             {proof.comments
