@@ -25,7 +25,10 @@ import {
   Check,
   Sparkles,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Image,
+  Film,
+  Palette
 } from 'lucide-react';
 
 interface ProjectDetailsModalProps {
@@ -42,11 +45,13 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
   onDeleteProject,
 }) => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'financials' | 'edit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'creatives' | 'financials' | 'edit'>('overview');
   const [loading, setLoading] = useState(true);
   const [projectData, setProjectData] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [creatives, setCreatives] = useState<any[]>([]);
+  const [loadingCreatives, setLoadingCreatives] = useState(false);
 
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -127,11 +132,31 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
     }
   };
 
+  const loadProjectCreatives = async () => {
+    try {
+      setLoadingCreatives(true);
+      const res = await api.getCreatives({ projectId }).catch(() => null);
+      if (res?.success && Array.isArray(res.creatives)) {
+        setCreatives(res.creatives);
+      }
+    } catch (err: any) {
+      console.error('Failed to load project creatives:', err);
+    } finally {
+      setLoadingCreatives(false);
+    }
+  };
+
   useEffect(() => {
     if (projectId) {
       loadProjectDetails();
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (activeTab === 'creatives' && creatives.length === 0) {
+      loadProjectCreatives();
+    }
+  }, [activeTab]);
 
   const handleQuickStatusChange = async (newStatus: string) => {
     try {
@@ -395,6 +420,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
           {[
             { id: 'overview', label: 'Overview & Scope', icon: Layers },
             { id: 'tasks', label: `Tasks & Sprints (${tasks.length})`, icon: CheckSquare },
+            { id: 'creatives', label: `Creatives (${creatives.length})`, icon: Palette },
             { id: 'financials', label: 'Budget & Financials', icon: DollarSign },
             { id: 'edit', label: 'Edit Project Details', icon: Edit2 },
           ].map((tab) => {
@@ -690,7 +716,135 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: FINANCIALS */}
+              {/* TAB 3: CREATIVES */}
+              {activeTab === 'creatives' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Project Creatives & Proofing</h3>
+                      <p className="text-xs text-slate-500">All creative assets linked to this project scope</p>
+                    </div>
+                    <button
+                      onClick={loadProjectCreatives}
+                      disabled={loadingCreatives}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingCreatives ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+
+                  {loadingCreatives ? (
+                    <div className="py-12 text-center text-slate-400 space-y-2">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-rose-500" />
+                      <p className="text-xs">Loading creatives...</p>
+                    </div>
+                  ) : creatives.length === 0 ? (
+                    <div className="py-12 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto">
+                        <Palette className="w-6 h-6 text-purple-500" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-xs text-slate-700 dark:text-slate-300">No creatives linked yet</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Create creatives in the Creatives module and link them to this project.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {creatives.map((creative) => {
+                        const statusColors: Record<string, string> = {
+                          DRAFT: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+                          INTERNAL_REVIEW: 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300',
+                          PENDING_CLIENT_APPROVAL: 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300',
+                          CHANGES_REQUESTED: 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300',
+                          APPROVED: 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300',
+                          DEPLOYMENT_READY: 'bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300',
+                          LIVE: 'bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-300',
+                        };
+                        const statusLabel: Record<string, string> = {
+                          DRAFT: 'Draft',
+                          INTERNAL_REVIEW: 'In Review',
+                          PENDING_CLIENT_APPROVAL: 'Client Approval',
+                          CHANGES_REQUESTED: 'Changes Requested',
+                          APPROVED: 'Approved',
+                          DEPLOYMENT_READY: 'Ready to Deploy',
+                          LIVE: 'Live',
+                        };
+                        const statusClass = statusColors[creative.status] || statusColors.DRAFT;
+                        const hasThumb = creative.thumbnail_url || creative.preview_url;
+                        const isVideo = creative.ad_format === 'VIDEO' || creative.target_platform === 'YOUTUBE';
+
+                        return (
+                          <div
+                            key={creative.id}
+                            className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden hover:border-rose-400 dark:hover:border-rose-700 hover:shadow-md transition-all duration-200"
+                          >
+                            {/* Thumbnail / Preview */}
+                            <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 overflow-hidden">
+                              {hasThumb ? (
+                                <img
+                                  src={hasThumb}
+                                  alt={creative.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  {isVideo
+                                    ? <Film className="w-10 h-10 text-slate-400 dark:text-slate-600" />
+                                    : <Image className="w-10 h-10 text-slate-400 dark:text-slate-600" />}
+                                </div>
+                              )}
+                              {/* Version badge */}
+                              {creative.version_count > 0 && (
+                                <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded-md">
+                                  v{creative.active_version || 1}
+                                </div>
+                              )}
+                              {/* Status badge */}
+                              <div className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-md ${statusClass}`}>
+                                {statusLabel[creative.status] || creative.status}
+                              </div>
+                            </div>
+
+                            {/* Info */}
+                            <div className="p-3 space-y-1.5">
+                              <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                                {creative.name}
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                {creative.target_platform && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-medium">
+                                    {creative.target_platform}
+                                  </span>
+                                )}
+                                {creative.ad_format && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-medium">
+                                    {creative.ad_format}
+                                  </span>
+                                )}
+                                {creative.unresolved_comments_count > 0 && (
+                                  <span className="ml-auto px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 rounded font-bold">
+                                    {creative.unresolved_comments_count} comment{creative.unresolved_comments_count > 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              {creative.designer_name && (
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                  <User className="w-3 h-3" />
+                                  <span>{creative.designer_name}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: FINANCIALS */}
               {activeTab === 'financials' && (
                 <div className="space-y-4 animate-in fade-in">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -731,7 +885,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 4: EDIT FORM */}
+              {/* TAB 5: EDIT FORM */}
               {activeTab === 'edit' && (
                 <form onSubmit={handleSaveEdit} className="space-y-4 animate-in fade-in text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

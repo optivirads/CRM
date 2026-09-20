@@ -1099,6 +1099,8 @@ class ApiClient {
 
   async getCreatives(params?: {
     clientId?: string;
+    projectId?: string;
+    taskId?: string;
     status?: string;
     platform?: string;
     format?: string;
@@ -1107,6 +1109,8 @@ class ApiClient {
   }) {
     const query = new URLSearchParams();
     if (params?.clientId) query.set('clientId', params.clientId);
+    if (params?.projectId) query.set('projectId', params.projectId);
+    if (params?.taskId) query.set('taskId', params.taskId);
     if (params?.status) query.set('status', params.status);
     if (params?.platform) query.set('platform', params.platform);
     if (params?.format) query.set('format', params.format);
@@ -1158,6 +1162,13 @@ class ApiClient {
     return this.request<{ success: boolean; creative: any; message?: string }>(`/creatives/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+    });
+  }
+
+  async linkCreativeToTask(creativeId: string, taskId: string | null) {
+    return this.request<{ success: boolean; creative: any; message?: string }>(`/creatives/${creativeId}/link-task`, {
+      method: 'PATCH',
+      body: JSON.stringify({ taskId }),
     });
   }
 

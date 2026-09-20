@@ -175,7 +175,7 @@ router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Respo
 // ---------------------------------------------------------------------------
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
-  const { clientId, projectId, status, platform, format, search, designerId } = req.query;
+  const { clientId, projectId, taskId, status, platform, format, search, designerId } = req.query;
 
   try {
     let query = `
@@ -210,6 +210,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     if (projectId) {
       params.push(projectId);
       query += ` AND c.project_id = $${params.length}`;
+    }
+    if (taskId) {
+      params.push(taskId);
+      query += ` AND c.task_id = $${params.length}`;
     }
     if (status) {
       params.push(status);
@@ -623,6 +627,7 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     name,
     clientId,
     projectId,
+    taskId,
     description,
     campaignName,
     targetPlatform,
@@ -674,27 +679,29 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         name = COALESCE($1, name),
         client_id = COALESCE($2, client_id),
         project_id = COALESCE($3, project_id),
-        description = COALESCE($4, description),
-        campaign_name = COALESCE($5, campaign_name),
-        target_platform = COALESCE($6, target_platform),
-        ad_format = COALESCE($7, ad_format),
-        aspect_ratio = COALESCE($8, aspect_ratio),
-        status = COALESCE($9, status),
-        active_proof_id = COALESCE($10, active_proof_id),
-        primary_ad_copy = COALESCE($11, primary_ad_copy),
-        headline = COALESCE($12, headline),
-        call_to_action = COALESCE($13, call_to_action),
-        destination_url = COALESCE($14, destination_url),
-        designer_id = COALESCE($15, designer_id),
-        approval_due_at = COALESCE($16, approval_due_at),
-        tags = COALESCE($17, tags),
+        task_id = COALESCE($4, task_id),
+        description = COALESCE($5, description),
+        campaign_name = COALESCE($6, campaign_name),
+        target_platform = COALESCE($7, target_platform),
+        ad_format = COALESCE($8, ad_format),
+        aspect_ratio = COALESCE($9, aspect_ratio),
+        status = COALESCE($10, status),
+        active_proof_id = COALESCE($11, active_proof_id),
+        primary_ad_copy = COALESCE($12, primary_ad_copy),
+        headline = COALESCE($13, headline),
+        call_to_action = COALESCE($14, call_to_action),
+        destination_url = COALESCE($15, destination_url),
+        designer_id = COALESCE($16, designer_id),
+        approval_due_at = COALESCE($17, approval_due_at),
+        tags = COALESCE($18, tags),
         updated_at = NOW()
-      WHERE id = $18 AND organization_id = $19
+      WHERE id = $19 AND organization_id = $20
       RETURNING *`,
       [
         name,
         clientId,
         projectId,
+        taskId,
         description,
         campaignName,
         targetPlatform,
@@ -740,6 +747,50 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   } catch (err: any) {
     console.error('[Creatives API] Update Error:', err);
     res.status(500).json({ success: false, message: 'Failed to update creative', error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5b. LINK / UNLINK CREATIVE TO A TASK (Lightweight PATCH)
+// ---------------------------------------------------------------------------
+router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const { id } = req.params;
+  // taskId: a valid task UUID to link, or null/empty string to unlink
+  const { taskId } = req.body;
+
+  try {
+    // Verify creative exists and belongs to this org
+    const check = await db.query(
+      `SELECT id, project_id, task_id FROM creatives WHERE id = $1 AND organization_id = $2`,
+      [id, orgId]
+    );
+    if (check.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Creative not found' });
+      return;
+    }
+
+    // If linking a task, verify the task belongs to the same organization (and optionally the same project)
+    if (taskId) {
+      const taskCheck = await db.query(
+        `SELECT id, project_id FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+        [taskId, orgId]
+      );
+      if (taskCheck.rows.length === 0) {
+        res.status(400).json({ success: false, message: 'Task not found in this organization' });
+        return;
+      }
+    }
+
+    const result = await db.query(
+      `UPDATE creatives SET task_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3 RETURNING *`,
+      [taskId || null, id, orgId]
+    );
+
+    res.json({ success: true, message: taskId ? 'Creative linked to task' : 'Creative unlinked from task', creative: result.rows[0] });
+  } catch (err: any) {
+    console.error('[Creatives API] Link Task Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to link creative to task', error: err.message });
   }
 });
 
