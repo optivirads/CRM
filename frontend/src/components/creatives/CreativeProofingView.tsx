@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Palette,
   Layers,
@@ -55,6 +56,12 @@ interface CreativeProofingViewProps {
 
 export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNavigate }) => {
   const { user } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(true);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // State
   const [loading, setLoading] = useState(true);
@@ -995,9 +1002,9 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       {/* ========================================================================= */}
       {/* 4. CREATIVE PROOFING STUDIO MODAL (CANVAS + PIN ANNOTATIONS + VIDEO SCRUBBER) */}
       {/* ========================================================================= */}
-      {activeCreativeId && activeCreativeDetails && (
-        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 lg:p-6 overflow-hidden animate-fade-in">
-          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[92vh] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden">
+      {activeCreativeId && activeCreativeDetails && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 lg:p-6 overflow-hidden animate-fade-in">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[94vh] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-[#070D18]">
               <div className="flex items-center gap-3">
@@ -1070,7 +1077,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     setActiveCreativeId(null);
                     setActiveCreativeDetails(null);
                   }}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1081,8 +1088,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               {/* LEFT: MEDIA CANVAS & INTERACTIVE PINS */}
               <div className="flex-1 bg-slate-950 flex flex-col items-center justify-between p-4 overflow-hidden relative">
-                {/* Version switcher pill on canvas */}
-                <div className="w-full flex items-center justify-between z-10 text-white text-xs">
+                {/* Version switcher pill and Toolbar on canvas */}
+                <div className="w-full flex items-center justify-between z-10 text-white text-xs gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400">Version:</span>
                     <div className="flex items-center bg-slate-900/80 backdrop-blur-md rounded-lg p-0.5 border border-slate-800">
@@ -1101,17 +1108,28 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     </div>
                   </div>
 
-                  {/* Pin Drop Toggle */}
-                  <button
-                    onClick={() => {
-                      setIsPlacingPin(!isPlacingPin);
-                      setPendingPin(null);
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'}`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>{isPlacingPin ? 'Click canvas to drop pin' : 'Place Pin Annotation'}</span>
-                  </button>
+                  {/* Canvas Controls: Watermark Toggle + Pin Drop Toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowWatermark(!showWatermark)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${showWatermark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs' : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'}`}
+                      title="Toggle Preview Watermark"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{showWatermark ? 'Watermark: ON' : 'Watermark: OFF'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsPlacingPin(!isPlacingPin);
+                        setPendingPin(null);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'}`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>{isPlacingPin ? 'Click canvas to drop pin' : 'Place Pin Annotation'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Media Container with Spatial Coordinates */}
@@ -1119,14 +1137,14 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   <div
                     ref={mediaContainerRef}
                     onClick={handleCanvasClick}
-                    className={`relative max-w-full max-h-[60vh] rounded-xl overflow-hidden shadow-2xl ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
+                    className={`relative max-w-full max-h-[60vh] rounded-xl overflow-hidden shadow-2xl bg-black flex items-center justify-center ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
                   >
                     {/* Render Image or Video */}
                     {currentAsset?.asset_type === 'VIDEO' ? (
                       <video
                         ref={videoRef}
                         src={currentAsset.viewingUrl}
-                        className="max-h-[60vh] object-contain rounded-xl"
+                        className="max-h-[60vh] max-w-full object-contain rounded-xl"
                         onTimeUpdate={() => setVideoCurrentTime(videoRef.current?.currentTime || 0)}
                         onLoadedMetadata={() => setVideoDuration(videoRef.current?.duration || 0)}
                       />
@@ -1134,7 +1152,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                       <img
                         src={currentAsset.viewingUrl}
                         alt="Proof version"
-                        className="max-h-[60vh] object-contain rounded-xl select-none"
+                        className="max-h-[60vh] max-w-full object-contain rounded-xl select-none"
                       />
                     ) : (
                       <div className="p-16 text-center text-slate-400 space-y-2">
@@ -1143,16 +1161,16 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                       </div>
                     )}
 
-                    {/* Watermark Overlay for non-exempt viewers (Everybody except COO, Owner, or uploader) */}
-                    {!isWatermarkExempt(activeCreativeDetails?.creative, currentProof) && (
-                      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center overflow-hidden select-none">
-                        <div className="w-[150%] h-[150%] grid grid-cols-3 grid-rows-3 gap-8 p-6 opacity-25 dark:opacity-30 transform -rotate-12 pointer-events-none select-none">
+                    {/* Watermark Overlay for Client Protection Preview */}
+                    {showWatermark && (
+                      <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden select-none">
+                        <div className="w-[160%] h-[160%] grid grid-cols-3 grid-rows-3 gap-6 sm:gap-10 p-4 transform -rotate-12 pointer-events-none select-none">
                           {Array.from({ length: 9 }).map((_, i) => (
                             <div key={i} className="flex flex-col items-center justify-center text-center select-none">
-                              <div className="text-xs sm:text-base font-black tracking-widest uppercase text-slate-800 dark:text-white drop-shadow-md border border-slate-700/40 dark:border-slate-300/40 px-3 py-1 rounded-lg backdrop-blur-2xs">
+                              <div className="text-xs sm:text-base font-black tracking-widest uppercase text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] border border-white/40 bg-black/60 px-3 py-1 rounded-xl backdrop-blur-xs">
                                 OPTIVIR PROOF
                               </div>
-                              <div className="text-[9px] sm:text-[10px] font-bold text-slate-700 dark:text-slate-300 tracking-wider mt-0.5">
+                              <div className="text-[9px] sm:text-[10px] font-bold text-slate-200 tracking-widest mt-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] bg-black/50 px-2 py-0.5 rounded-md">
                                 PREVIEW ONLY • CONFIDENTIAL
                               </div>
                             </div>
@@ -1171,7 +1189,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             left: `${comment.pin_x_percent}%`,
                             top: `${comment.pin_y_percent}%`
                           }}
-                          className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shadow-lg ring-2 ring-white transition transform hover:scale-125 cursor-pointer ${comment.is_resolved ? 'bg-emerald-600 text-white opacity-70' : 'bg-[#DC2626] text-white'}`}
+                          className={`absolute z-30 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shadow-lg ring-2 ring-white transition transform hover:scale-125 cursor-pointer ${comment.is_resolved ? 'bg-emerald-600 text-white opacity-70' : 'bg-[#DC2626] text-white'}`}
                           title={`${comment.author_name}: ${comment.content}`}
                         >
                           {idx + 1}
@@ -1185,7 +1203,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           left: `${pendingPin.x}%`,
                           top: `${pendingPin.y}%`
                         }}
-                        className="absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xl ring-2 ring-white animate-bounce"
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xl ring-2 ring-white animate-bounce"
                       >
                         ?
                       </div>
@@ -1209,7 +1227,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             }
                           }
                         }}
-                        className="p-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] text-white transition"
+                        className="p-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] text-white transition cursor-pointer"
                       >
                         {isVideoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       </button>
@@ -1368,7 +1386,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     <button
                       onClick={handleSaveComment}
                       disabled={submittingComment || !newCommentText.trim()}
-                      className="p-2 rounded-xl bg-[#DC2626] text-white hover:bg-[#B91C1C] transition disabled:opacity-50"
+                      className="p-2 rounded-xl bg-[#DC2626] text-white hover:bg-[#B91C1C] transition disabled:opacity-50 cursor-pointer"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>
@@ -1377,14 +1395,15 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 5. CREATE NEW CREATIVE PROOF MODAL (Client -> Project Hierarchy) */}
       {/* ========================================================================= */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+      {showCreateModal && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-5 my-8">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
@@ -1629,14 +1648,15 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 6. DELETE CREATIVE CONFIRMATION MODAL (R2 Assets Cleanup) */}
       {/* ========================================================================= */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+      {showDeleteModal && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-red-600">
               <div className="w-10 h-10 rounded-2xl bg-red-500/10 flex items-center justify-center">
@@ -1657,7 +1677,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   setShowDeleteModal(false);
                   setDeletingCreativeId(null);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1665,7 +1685,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 type="button"
                 disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isDeleting ? (
                   <>
@@ -1678,21 +1698,22 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 7. CLIENT SHARE LINK MODAL (Cryptographic SHA-256 Hashed URL) */}
       {/* ========================================================================= */}
-      {showShareModal && shareLinkData && (
-        <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+      {showShareModal && shareLinkData && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-500" />
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Client Proofing Portal Link</h3>
               </div>
-              <button onClick={() => setShowShareModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowShareModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1714,7 +1735,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   setShareCopied(true);
                   setTimeout(() => setShareCopied(false), 2000);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-[#DC2626] text-white text-xs font-bold shrink-0 transition"
+                className="px-3 py-1.5 rounded-lg bg-[#DC2626] text-white text-xs font-bold shrink-0 transition cursor-pointer"
               >
                 {shareCopied ? 'Copied!' : 'Copy'}
               </button>
@@ -1733,7 +1754,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </a>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
