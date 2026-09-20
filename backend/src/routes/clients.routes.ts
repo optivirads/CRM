@@ -65,6 +65,19 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email,
         u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email,
+        (
+          SELECT COALESCE(json_agg(json_build_object(
+            'id', u_sub.id,
+            'first_name', u_sub.first_name,
+            'last_name', u_sub.last_name,
+            'email', u_sub.email,
+            'avatar_url', u_sub.avatar_url,
+            'role', u_sub.role
+          )), '[]'::json)
+          FROM client_assistants ca_list
+          JOIN users u_sub ON ca_list.user_id = u_sub.id
+          WHERE ca_list.client_id = c.id
+        ) as assistants,
         (SELECT COUNT(*) FROM projects WHERE client_id = c.id AND deleted_at IS NULL) as project_count,
         (SELECT COUNT(*) FROM tasks WHERE client_id = c.id AND status != 'Completed' AND deleted_at IS NULL) as open_tasks_count,
         (SELECT COALESCE(SUM(balance_amount), 0) FROM invoices WHERE client_id = c.id AND deleted_at IS NULL) as outstanding_balance
@@ -119,7 +132,20 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
         comp.name as company_name, comp.industry, comp.website, comp.city, comp.state, comp.country, comp.address,
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email,
-        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email
+        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email,
+        (
+          SELECT COALESCE(json_agg(json_build_object(
+            'id', u_sub.id,
+            'first_name', u_sub.first_name,
+            'last_name', u_sub.last_name,
+            'email', u_sub.email,
+            'avatar_url', u_sub.avatar_url,
+            'role', u_sub.role
+          )), '[]'::json)
+          FROM client_assistants ca_list
+          JOIN users u_sub ON ca_list.user_id = u_sub.id
+          WHERE ca_list.client_id = c.id
+        ) as assistants
       FROM clients c
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
@@ -421,20 +447,27 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       return f;
     })();
 
-    const { custom_fields, account_assistant_id } = req.body;
+    const { custom_fields, account_assistant_id, account_assistant_ids, assistant_ids } = req.body;
+    const rawAssistantIds: string[] = Array.isArray(account_assistant_ids)
+      ? account_assistant_ids.filter(Boolean)
+      : Array.isArray(assistant_ids)
+        ? assistant_ids.filter(Boolean)
+        : (account_assistant_id ? [account_assistant_id] : []);
+    const primaryAssistantId = rawAssistantIds[0] || account_assistant_id || null;
 
     const result = await db.query(`
       INSERT INTO clients (
-        organization_id, company_id, primary_contact_id, account_manager_id, account_assistant_id, contract_value,
+        organization_id, company_id, primary_contact_id, account_manager_id, account_assistant_id, account_assistant_ids, contract_value,
         billing_frequency, health_status, status, start_date, renewal_date, notes, created_by, custom_fields
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `, [
       orgId,
       resolvedCompanyId,
       resolvedContactId,
       account_manager_id || userId,
-      account_assistant_id || null,
+      primaryAssistantId,
+      rawAssistantIds,
       contract_value || 0,
       normBillingFreq,
       health_status || 'Healthy',
@@ -445,6 +478,23 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       userId,
       custom_fields ? JSON.stringify(custom_fields) : '{}'
     ]);
+
+    const createdClient = result.rows[0];
+
+    // Populate client_assistants table
+    if (rawAssistantIds.length > 0) {
+      for (const asstId of rawAssistantIds) {
+        if (asstId) {
+          try {
+            await db.query(`
+              INSERT INTO client_assistants (organization_id, client_id, user_id)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (client_id, user_id) DO NOTHING;
+            `, [orgId, createdClient.id, asstId]);
+          } catch {}
+        }
+      }
+    }
 
     await recordAuditLog(orgId, userId, 'CREATE', 'clients', result.rows[0].id, null, result.rows[0], req);
 
@@ -479,32 +529,45 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const clientId = req.params.id;
-  const {
-    status,
-    health_status,
-    health_score,
-    contract_value,
-    billing_frequency,
-    renewal_date,
-    notes,
-    account_manager_id,
-    account_assistant_id,
-    assigned_team_ids,
-    custom_fields,
-    company_name,
-    industry,
-    website,
-    city,
-    contact_first,
-    contact_last,
-    contact_email,
-    contact_phone,
-    contact_role,
-    asset_scope,
-    onboarding_stage
-  } = req.body;
 
   try {
+    const {
+      status,
+      health_status,
+      health_score,
+      contract_value,
+      billing_frequency,
+      renewal_date,
+      notes,
+      account_manager_id,
+      account_assistant_id,
+      account_assistant_ids,
+      assistant_ids,
+      assigned_team_ids,
+      custom_fields,
+      company_name,
+      industry,
+      website,
+      city,
+      contact_first,
+      contact_last,
+      contact_email,
+      contact_phone,
+      contact_role,
+      asset_scope,
+      onboarding_stage
+    } = req.body;
+
+    const rawAssistantIds: string[] | undefined = Array.isArray(account_assistant_ids)
+      ? account_assistant_ids.filter(Boolean)
+      : Array.isArray(assistant_ids)
+        ? assistant_ids.filter(Boolean)
+        : (account_assistant_id !== undefined ? (account_assistant_id ? [account_assistant_id] : []) : undefined);
+
+    const primaryAssistantId = rawAssistantIds !== undefined
+      ? (rawAssistantIds[0] || null)
+      : (account_assistant_id !== undefined ? (account_assistant_id || null) : undefined);
+
     const current = await db.query('SELECT * FROM clients WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [clientId, orgId]);
     if (current.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Client not found' });
@@ -571,6 +634,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         notes = COALESCE($7, notes),
         account_manager_id = CASE WHEN $8::text IS NOT NULL THEN $8::uuid ELSE account_manager_id END,
         account_assistant_id = CASE WHEN $16::text IS NOT NULL THEN $16::uuid ELSE account_assistant_id END,
+        account_assistant_ids = CASE WHEN $17::uuid[] IS NOT NULL THEN $17::uuid[] ELSE account_assistant_ids END,
         assigned_team_ids = COALESCE($9, assigned_team_ids),
         custom_fields = CASE WHEN $13::jsonb IS NOT NULL THEN COALESCE(clients.custom_fields, '{}'::jsonb) || $13::jsonb ELSE clients.custom_fields END,
         asset_scope = CASE WHEN $14::jsonb IS NOT NULL THEN $14::jsonb ELSE clients.asset_scope END,
@@ -594,17 +658,47 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       custom_fields ? JSON.stringify(custom_fields) : null,
       asset_scope ? JSON.stringify(asset_scope) : null,
       onboarding_stage || null,
-      account_assistant_id !== undefined ? account_assistant_id : null
+      primaryAssistantId !== undefined ? primaryAssistantId : null,
+      rawAssistantIds !== undefined ? rawAssistantIds : null
     ]);
 
-    // Fetch updated client with company, contact, AM & Assistant info
+    // Update client_assistants junction table if provided
+    if (rawAssistantIds !== undefined) {
+      await db.query(`DELETE FROM client_assistants WHERE client_id = $1;`, [clientId]);
+      for (const asstId of rawAssistantIds) {
+        if (asstId) {
+          try {
+            await db.query(`
+              INSERT INTO client_assistants (organization_id, client_id, user_id)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (client_id, user_id) DO NOTHING;
+            `, [orgId, clientId, asstId]);
+          } catch {}
+        }
+      }
+    }
+
+    // Fetch updated client with company, contact, AM, Assistant info, and assistants list
     const fullRes = await db.query(`
       SELECT 
         c.*,
         comp.name as company_name, comp.industry, comp.website, comp.city,
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email,
-        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email
+        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email,
+        (
+          SELECT COALESCE(json_agg(json_build_object(
+            'id', u_sub.id,
+            'first_name', u_sub.first_name,
+            'last_name', u_sub.last_name,
+            'email', u_sub.email,
+            'avatar_url', u_sub.avatar_url,
+            'role', u_sub.role
+          )), '[]'::json)
+          FROM client_assistants ca_list
+          JOIN users u_sub ON ca_list.user_id = u_sub.id
+          WHERE ca_list.client_id = c.id
+        ) as assistants
       FROM clients c
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id

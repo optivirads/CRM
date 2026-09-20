@@ -132,6 +132,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [showAssignMemberModal, setShowAssignMemberModal] = useState(false);
   const [selectedAmId, setSelectedAmId] = useState<string>('');
   const [selectedAssistantId, setSelectedAssistantId] = useState<string>('');
+  const [selectedAssistantIds, setSelectedAssistantIds] = useState<string[]>([]);
   const [isAssigningMember, setIsAssigningMember] = useState(false);
 
   // Live Campaigns State & Metrics Attribution
@@ -405,6 +406,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
   const [editAccountAssistantId, setEditAccountAssistantId] = useState('');
+  const [editAccountAssistantIds, setEditAccountAssistantIds] = useState<string[]>([]);
   const [editTermOption, setEditTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
   const [editCustomTerm, setEditCustomTerm] = useState('12');
   const [editStatus, setEditStatus] = useState('Active');
@@ -434,6 +436,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     setEditContactRole(liveClient?.contact_role || 'Lead Stakeholder');
     setEditAccountManagerId(liveClient?.account_manager_id || '');
     setEditAccountAssistantId(liveClient?.account_assistant_id || '');
+    const initAssts: string[] = Array.isArray(liveClient?.assistants)
+      ? liveClient.assistants.map((a: any) => a.id)
+      : (Array.isArray(liveClient?.account_assistant_ids) ? liveClient.account_assistant_ids : (liveClient?.account_assistant_id ? [liveClient.account_assistant_id] : []));
+    setEditAccountAssistantIds(initAssts);
 
     const savedTerm = Number(liveClient?.custom_fields?.contract_term_months || 12);
     if (['12', '6', '3', '1'].includes(String(savedTerm))) {
@@ -643,10 +649,11 @@ export const Client360View: React.FC<Client360ViewProps> = ({
       setIsAssigningMember(true);
       const res = await api.updateClient(targetId, {
         account_manager_id: selectedAmId || null,
-        account_assistant_id: selectedAssistantId || null
+        account_assistant_id: selectedAssistantIds[0] || selectedAssistantId || null,
+        account_assistant_ids: selectedAssistantIds
       });
       if (res.success) {
-        showToast('Client account assigned to team member successfully!', 'success');
+        showToast('Client account assigned to team members successfully!', 'success');
         setShowAssignMemberModal(false);
         fetchClientData();
       }
@@ -1087,6 +1094,10 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                         onClick={() => {
                           setSelectedAmId(liveClient?.account_manager_id || '');
                           setSelectedAssistantId(liveClient?.account_assistant_id || '');
+                          const initAssts: string[] = Array.isArray(liveClient?.assistants)
+                            ? liveClient.assistants.map((a: any) => a.id)
+                            : (Array.isArray(liveClient?.account_assistant_ids) ? liveClient.account_assistant_ids : (liveClient?.account_assistant_id ? [liveClient.account_assistant_id] : []));
+                          setSelectedAssistantIds(initAssts);
                           setShowAssignMemberModal(true);
                         }}
                         className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer p-0.5"
@@ -1099,19 +1110,37 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                   </div>
                 </div>
 
-                {liveClient?.ast_first && (
+                {((liveClient?.assistants && liveClient.assistants.length > 0) || liveClient?.ast_first) && (
                   <>
                     <div className="h-6 w-[1px] bg-slate-300 dark:bg-slate-700"></div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-purple-900 text-purple-200 flex items-center justify-center text-xs font-bold">
-                        {`${liveClient.ast_first[0]}${liveClient.ast_last?.[0] || ''}`.toUpperCase()}
-                      </div>
-                      <div className="text-xs">
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          {`${liveClient.ast_first} ${liveClient.ast_last || ''}`.trim()}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {liveClient?.assistants && liveClient.assistants.length > 0 ? (
+                        liveClient.assistants.map((asst: any) => (
+                          <div key={asst.id} className="flex items-center gap-1.5 bg-purple-500/10 dark:bg-purple-950/40 border border-purple-500/20 px-2 py-1 rounded-lg">
+                            <div className="w-5 h-5 rounded-full bg-purple-900 text-purple-200 flex items-center justify-center text-[10px] font-bold">
+                              {`${asst.first_name?.[0] || 'A'}${asst.last_name?.[0] || ''}`.toUpperCase()}
+                            </div>
+                            <div className="text-xs">
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {`${asst.first_name || ''} ${asst.last_name || ''}`.trim() || asst.email}
+                              </span>
+                              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold ml-1">(Assistant)</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-purple-900 text-purple-200 flex items-center justify-center text-xs font-bold">
+                            {`${liveClient.ast_first[0]}${liveClient.ast_last?.[0] || ''}`.toUpperCase()}
+                          </div>
+                          <div className="text-xs">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {`${liveClient.ast_first} ${liveClient.ast_last || ''}`.trim()}
+                            </div>
+                            <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Account Assistant</div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Account Assistant</div>
-                      </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -5776,7 +5805,8 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     contact_phone: editContactPhone.trim() || null,
                     contact_role: editContactRole.trim() || 'Lead Stakeholder',
                     account_manager_id: editAccountManagerId || null,
-                    account_assistant_id: editAccountAssistantId || null,
+                    account_assistant_id: editAccountAssistantIds[0] || editAccountAssistantId || null,
+                    account_assistant_ids: editAccountAssistantIds,
                     contract_value: parsedVal,
                     billing_frequency: editBillingFrequency,
                     health_status: editHealthStatus,
@@ -6286,24 +6316,39 @@ export const Client360View: React.FC<Client360ViewProps> = ({
 
                 <div>
                   <label className="text-xs font-semibold block mb-1.5 text-slate-700 dark:text-slate-300">
-                    Account Assistant (Co-Pilot)
+                    Account Assistants (Co-Pilots) — Select one or multiple
                   </label>
-                  <select
-                    value={selectedAssistantId}
-                    onChange={(e) => setSelectedAssistantId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-medium"
-                  >
-                    <option value="">Unassigned (Optional)</option>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-700 rounded-xl">
                     {teamMembers.map((m: any) => {
                       const fullName = `${m.first_name || m.name || ''} ${m.last_name || ''}`.trim() || m.email;
                       const roleStr = m.role_name || m.role || 'Member';
+                      const isSelected = selectedAssistantIds.includes(m.id);
                       return (
-                        <option key={m.id} value={m.id}>
-                          {fullName} ({roleStr})
-                        </option>
+                        <label
+                          key={m.id}
+                          className={`flex items-center gap-2.5 p-1.5 rounded-lg text-xs cursor-pointer transition ${isSelected ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedAssistantIds([...selectedAssistantIds, m.id]);
+                              } else {
+                                setSelectedAssistantIds(selectedAssistantIds.filter(id => id !== m.id));
+                              }
+                            }}
+                            className="rounded text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                          />
+                          <span>{fullName}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">({roleStr})</span>
+                        </label>
                       );
                     })}
-                  </select>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Selected Assistants: <strong>{selectedAssistantIds.length}</strong>
+                  </div>
                 </div>
               </div>
 

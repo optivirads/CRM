@@ -270,8 +270,13 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           contactRole: c.contact_role || 'Primary Contact',
           accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : (c.account_manager_name || 'Unassigned'),
           accountManagerId: c.account_manager_id || '',
-          accountAssistant: c.ast_first ? `${c.ast_first} ${c.ast_last || ''}`.trim() : (c.account_assistant_name || 'Unassigned'),
+          accountAssistant: Array.isArray(c.assistants) && c.assistants.length > 0
+            ? c.assistants.map((a: any) => `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email).join(', ')
+            : (c.ast_first ? `${c.ast_first} ${c.ast_last || ''}`.trim() : (c.account_assistant_name || 'Unassigned')),
           accountAssistantId: c.account_assistant_id || '',
+          accountAssistantIds: Array.isArray(c.assistants) && c.assistants.length > 0
+            ? c.assistants.map((a: any) => a.id)
+            : (Array.isArray(c.account_assistant_ids) ? c.account_assistant_ids : (c.account_assistant_id ? [c.account_assistant_id] : [])),
           assignedTeamIds: Array.isArray(c.assigned_team_ids) ? c.assigned_team_ids : [],
           amInitials: c.am_first ? `${c.am_first[0]}${c.am_last?.[0] || ''}`.toUpperCase() : 'UA',
           astInitials: c.ast_first ? `${c.ast_first[0]}${c.ast_last?.[0] || ''}`.toUpperCase() : 'UA',

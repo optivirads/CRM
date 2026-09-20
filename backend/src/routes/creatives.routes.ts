@@ -26,7 +26,25 @@ function hashProofToken(token: string): string {
  */
 function isGlobalRole(role?: string, isOwner?: boolean): boolean {
   if (isOwner) return true;
-  const globalRoles = ['owner', 'coo', 'marketing_lead', 'operations_lead', 'admin'];
+  const globalRoles = [
+    'owner',
+    'coo',
+    'admin',
+    'super_admin',
+    'marketing_lead',
+    'operations_lead',
+    'creative_lead',
+    'creative_director',
+    'assistant',
+    'account_assistant',
+    'executive_assistant',
+    'marketing_assistant',
+    'operations_assistant',
+    'designer',
+    'video_editor',
+    'account_manager',
+    'lead'
+  ];
   return Boolean(role && globalRoles.includes(role.toLowerCase()));
 }
 
@@ -42,27 +60,38 @@ function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tabl
     return ` AND ${tablePrefix}.client_id = $${params.length}`;
   }
 
-  // 2. Global Agency Leadership: Access all creatives in current organization
+  // 2. Global Agency Leadership & Assistants: Access all creatives in current organization
   if (isGlobalRole(user.role, user.isOwner)) {
     return '';
   }
 
-  // 3. Account Managers, Assistants, Project Members, Designers:
+  // 3. Scoped Team Members:
   // Access if:
-  // - Assigned as Account Manager or Account Assistant on the Client
+  // - Assigned as Account Manager or Account Assistant(s) on the Client
   // - Assigned to the Project as a member
   // - Assigned as the Designer on the Creative
   // - Or is the Creator of the Creative
+  // - Or Creative is internal agency asset (client_id is null)
   params.push(user.id);
   const userParamIdx = params.length;
 
   return ` AND (
     ${tablePrefix}.designer_id = $${userParamIdx}
     OR ${tablePrefix}.created_by = $${userParamIdx}
+    OR ${tablePrefix}.client_id IS NULL
     OR EXISTS (
       SELECT 1 FROM clients cl_scope
       WHERE cl_scope.id = ${tablePrefix}.client_id
-      AND (cl_scope.account_manager_id = $${userParamIdx} OR cl_scope.account_assistant_id = $${userParamIdx})
+      AND (
+        cl_scope.account_manager_id = $${userParamIdx}
+        OR cl_scope.account_assistant_id = $${userParamIdx}
+        OR $${userParamIdx} = ANY(COALESCE(cl_scope.account_assistant_ids, '{}'))
+        OR EXISTS (
+          SELECT 1 FROM client_assistants ca_sub
+          WHERE ca_sub.client_id = cl_scope.id
+          AND ca_sub.user_id = $${userParamIdx}
+        )
+      )
     )
     OR EXISTS (
       SELECT 1 FROM project_members pm_scope
@@ -290,7 +319,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
   // Verify client access if client specified
   if (clientId) {
     const clientCheck = await db.query(
-      `SELECT id, account_manager_id, account_assistant_id FROM clients WHERE id = $1 AND organization_id = $2`,
+      `SELECT id, account_manager_id, account_assistant_id, account_assistant_ids FROM clients WHERE id = $1 AND organization_id = $2`,
       [clientId, orgId]
     );
     if (clientCheck.rows.length === 0) {
@@ -300,7 +329,22 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     const cRow = clientCheck.rows[0];
     if (!isGlobalRole(req.user!.role, req.user!.isOwner)) {
-      if (cRow.account_manager_id !== userId && cRow.account_assistant_id !== userId) {
+      const isAmOrAssistant = (
+        cRow.account_manager_id === userId ||
+        cRow.account_assistant_id === userId ||
+        (Array.isArray(cRow.account_assistant_ids) && cRow.account_assistant_ids.includes(userId))
+      );
+
+      let hasAssistantLink = isAmOrAssistant;
+      if (!hasAssistantLink) {
+        const asstCheck = await db.query(
+          `SELECT 1 FROM client_assistants WHERE client_id = $1 AND user_id = $2`,
+          [clientId, userId]
+        );
+        hasAssistantLink = asstCheck.rows.length > 0;
+      }
+
+      if (!hasAssistantLink) {
         res.status(403).json({ success: false, message: 'You do not have permission to add creatives for this client account.' });
         return;
       }
