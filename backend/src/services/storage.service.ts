@@ -255,12 +255,28 @@ export class StorageService {
   public static async deleteObject(storageKey: string): Promise<void> {
     if (!storageKey || storageKey.startsWith('http')) return;
 
-    const command = new DeleteObjectCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: storageKey,
-    });
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: storageKey,
+      });
 
-    await r2Client.send(command);
+      await r2Client.send(command);
+    } catch (err: any) {
+      console.warn(`[StorageService] Failed to delete object ${storageKey}:`, err.message);
+    }
+  }
+
+  /**
+   * Batch deletes multiple objects from Cloudflare R2
+   */
+  public static async deleteObjects(storageKeys: string[]): Promise<void> {
+    if (!storageKeys || storageKeys.length === 0) return;
+    await Promise.allSettled(
+      storageKeys
+        .filter(k => k && !k.startsWith('http'))
+        .map(key => this.deleteObject(key))
+    );
   }
 
   /**

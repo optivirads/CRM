@@ -7,65 +7,124 @@ import { StorageService } from '../services/storage.service';
 
 const router = Router();
 
-// Helper to hash tokens
+// Helper to hash proof tokens
 function hashProofToken(token: string): string {
   return crypto.createHash('sha256').update(token.trim()).digest('hex');
 }
 
+/**
+ * Access Control Helper:
+ * Determines if user has global org-level creative access or client-scoped access
+ */
+function isGlobalRole(role?: string, isOwner?: boolean): boolean {
+  if (isOwner) return true;
+  const globalRoles = ['owner', 'coo', 'marketing_lead', 'operations_lead', 'admin'];
+  return Boolean(role && globalRoles.includes(role.toLowerCase()));
+}
+
+/**
+ * Generates SQL scope filter for creatives based on user identity & client assignments
+ */
+function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tablePrefix = 'c'): string {
+  const user = req.user!;
+  
+  // 1. Client Portal Role: Strictly limited to their single associated client
+  if (user.role === 'client_portal' || user.clientId) {
+    params.push(user.clientId);
+    return ` AND ${tablePrefix}.client_id = $${params.length}`;
+  }
+
+  // 2. Global Agency Leadership: Access all creatives in current organization
+  if (isGlobalRole(user.role, user.isOwner)) {
+    return '';
+  }
+
+  // 3. Account Managers, Assistants, Project Members, Designers:
+  // Access if:
+  // - Assigned as Account Manager or Account Assistant on the Client
+  // - Assigned to the Project as a member
+  // - Assigned as the Designer on the Creative
+  // - Or is the Creator of the Creative
+  params.push(user.id);
+  const userParamIdx = params.length;
+
+  return ` AND (
+    ${tablePrefix}.designer_id = $${userParamIdx}
+    OR ${tablePrefix}.created_by = $${userParamIdx}
+    OR EXISTS (
+      SELECT 1 FROM clients cl_scope
+      WHERE cl_scope.id = ${tablePrefix}.client_id
+      AND (cl_scope.account_manager_id = $${userParamIdx} OR cl_scope.account_assistant_id = $${userParamIdx})
+    )
+    OR EXISTS (
+      SELECT 1 FROM project_members pm_scope
+      WHERE pm_scope.project_id = ${tablePrefix}.project_id
+      AND pm_scope.user_id = $${userParamIdx}
+    )
+  )`;
+}
+
 // ---------------------------------------------------------------------------
-// 1. METRICS & KPI DASHBOARD
+// 1. METRICS & KPI DASHBOARD (Scoped)
 // ---------------------------------------------------------------------------
 router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
 
   try {
+    const params: any[] = [orgId];
+    const scopeClause = buildCreativeScopeClause(req, params, 'c');
+
     const statsQuery = await db.query(
       `SELECT
         COUNT(*) as total_creatives,
-        COUNT(CASE WHEN status = 'DRAFT' THEN 1 END) as count_draft,
-        COUNT(CASE WHEN status = 'INTERNAL_REVIEW' THEN 1 END) as count_internal_review,
-        COUNT(CASE WHEN status = 'PENDING_CLIENT_APPROVAL' THEN 1 END) as count_pending_approval,
-        COUNT(CASE WHEN status = 'CHANGES_REQUESTED' THEN 1 END) as count_changes_requested,
-        COUNT(CASE WHEN status = 'APPROVED' THEN 1 END) as count_approved,
-        COUNT(CASE WHEN status = 'DEPLOYMENT_READY' THEN 1 END) as count_deployment_ready,
-        COUNT(CASE WHEN status = 'LIVE' THEN 1 END) as count_live,
-        COUNT(CASE WHEN approval_due_at < NOW() AND status IN ('DRAFT', 'INTERNAL_REVIEW', 'PENDING_CLIENT_APPROVAL') THEN 1 END) as count_overdue
-      FROM creatives
-      WHERE organization_id = $1`,
-      [orgId]
+        COUNT(CASE WHEN c.status = 'DRAFT' THEN 1 END) as count_draft,
+        COUNT(CASE WHEN c.status = 'INTERNAL_REVIEW' THEN 1 END) as count_internal_review,
+        COUNT(CASE WHEN c.status = 'PENDING_CLIENT_APPROVAL' THEN 1 END) as count_pending_approval,
+        COUNT(CASE WHEN c.status = 'CHANGES_REQUESTED' THEN 1 END) as count_changes_requested,
+        COUNT(CASE WHEN c.status = 'APPROVED' THEN 1 END) as count_approved,
+        COUNT(CASE WHEN c.status = 'DEPLOYMENT_READY' THEN 1 END) as count_deployment_ready,
+        COUNT(CASE WHEN c.status = 'LIVE' THEN 1 END) as count_live,
+        COUNT(CASE WHEN c.approval_due_at < NOW() AND c.status IN ('DRAFT', 'INTERNAL_REVIEW', 'PENDING_CLIENT_APPROVAL') THEN 1 END) as count_overdue
+      FROM creatives c
+      WHERE c.organization_id = $1 ${scopeClause}`,
+      params
     );
 
     // Approval rate calculation
+    const approvalParams: any[] = [orgId];
+    const approvalScopeClause = buildCreativeScopeClause(req, approvalParams, 'c');
+
     const approvalsQuery = await db.query(
       `SELECT
         COUNT(*) as total_decisions,
-        COUNT(CASE WHEN decision = 'APPROVED' THEN 1 END) as approved_decisions,
-        COUNT(CASE WHEN decision = 'CHANGES_REQUESTED' THEN 1 END) as revisions_requested
-      FROM creative_approvals
-      WHERE organization_id = $1`,
-      [orgId]
+        COUNT(CASE WHEN ca.decision = 'APPROVED' THEN 1 END) as approved_decisions,
+        COUNT(CASE WHEN ca.decision = 'CHANGES_REQUESTED' THEN 1 END) as revisions_requested
+      FROM creative_approvals ca
+      JOIN creatives c ON ca.creative_id = c.id
+      WHERE ca.organization_id = $1 ${approvalScopeClause}`,
+      approvalParams
     );
 
     const stats = statsQuery.rows[0];
     const approvalStats = approvalsQuery.rows[0];
-    const totalDecisions = parseInt(approvalStats.total_decisions || '0');
-    const approvedDecisions = parseInt(approvalStats.approved_decisions || '0');
+    const totalDecisions = parseInt(approvalStats?.total_decisions || '0');
+    const approvedDecisions = parseInt(approvalStats?.approved_decisions || '0');
     const approvalRate = totalDecisions > 0 ? Math.round((approvedDecisions / totalDecisions) * 100) : 100;
 
     res.json({
       success: true,
       metrics: {
-        totalCreatives: parseInt(stats.total_creatives || '0'),
-        draft: parseInt(stats.count_draft || '0'),
-        internalReview: parseInt(stats.count_internal_review || '0'),
-        pendingClientApproval: parseInt(stats.count_pending_approval || '0'),
-        changesRequested: parseInt(stats.count_changes_requested || '0'),
-        approved: parseInt(stats.count_approved || '0'),
-        deploymentReady: parseInt(stats.count_deployment_ready || '0'),
-        live: parseInt(stats.count_live || '0'),
-        overdue: parseInt(stats.count_overdue || '0'),
+        totalCreatives: parseInt(stats?.total_creatives || '0'),
+        draft: parseInt(stats?.count_draft || '0'),
+        internalReview: parseInt(stats?.count_internal_review || '0'),
+        pendingClientApproval: parseInt(stats?.count_pending_approval || '0'),
+        changesRequested: parseInt(stats?.count_changes_requested || '0'),
+        approved: parseInt(stats?.count_approved || '0'),
+        deploymentReady: parseInt(stats?.count_deployment_ready || '0'),
+        live: parseInt(stats?.count_live || '0'),
+        overdue: parseInt(stats?.count_overdue || '0'),
         approvalRate,
-        revisionsRequested: parseInt(approvalStats.revisions_requested || '0')
+        revisionsRequested: parseInt(approvalStats?.revisions_requested || '0')
       }
     });
   } catch (err: any) {
@@ -75,11 +134,11 @@ router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Respo
 });
 
 // ---------------------------------------------------------------------------
-// 2. LIST CREATIVES (With filters, search & proof previews)
+// 2. LIST CREATIVES (With multi-tenant, client & role scoping)
 // ---------------------------------------------------------------------------
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
-  const { clientId, status, platform, format, search, designerId } = req.query;
+  const { clientId, projectId, status, platform, format, search, designerId } = req.query;
 
   try {
     let query = `
@@ -104,9 +163,16 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
 
     const params: any[] = [orgId];
 
+    // Access Control Scoping
+    query += buildCreativeScopeClause(req, params, 'c');
+
     if (clientId) {
       params.push(clientId);
       query += ` AND c.client_id = $${params.length}`;
+    }
+    if (projectId) {
+      params.push(projectId);
+      query += ` AND c.project_id = $${params.length}`;
     }
     if (status) {
       params.push(status);
@@ -116,7 +182,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       params.push(platform);
       query += ` AND c.target_platform = $${params.length}`;
     }
-    if (format) {
+    if (format && format !== 'ALL') {
       params.push(format);
       query += ` AND c.ad_format = $${params.length}`;
     }
@@ -184,7 +250,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
 });
 
 // ---------------------------------------------------------------------------
-// 3. CREATE CREATIVE & INITIAL PROOF
+// 3. CREATE CREATIVE & INITIAL PROOF (Validates Client -> Project hierarchy)
 // ---------------------------------------------------------------------------
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -211,6 +277,38 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
   if (!name) {
     res.status(400).json({ success: false, message: 'Creative name is required' });
     return;
+  }
+
+  // Verify client access if client specified
+  if (clientId) {
+    const clientCheck = await db.query(
+      `SELECT id, account_manager_id, account_assistant_id FROM clients WHERE id = $1 AND organization_id = $2`,
+      [clientId, orgId]
+    );
+    if (clientCheck.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Specified client account does not exist in this organization' });
+      return;
+    }
+
+    const cRow = clientCheck.rows[0];
+    if (!isGlobalRole(req.user!.role, req.user!.isOwner)) {
+      if (cRow.account_manager_id !== userId && cRow.account_assistant_id !== userId) {
+        res.status(403).json({ success: false, message: 'You do not have permission to add creatives for this client account.' });
+        return;
+      }
+    }
+
+    // Verify Project belongs to Client
+    if (projectId) {
+      const projectCheck = await db.query(
+        `SELECT id FROM projects WHERE id = $1 AND client_id = $2 AND organization_id = $3`,
+        [projectId, clientId, orgId]
+      );
+      if (projectCheck.rows.length === 0) {
+        res.status(400).json({ success: false, message: 'Selected project does not belong to the selected client.' });
+        return;
+      }
+    }
   }
 
   const client = await db.getClient();
@@ -249,7 +347,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     const creative = creativeRes.rows[0];
 
-    // 2. If initial proof provided, insert it
+    // 2. Insert initial proof if provided
     let proof = null;
     if (initialProof) {
       const proofRes = await client.query(
@@ -274,7 +372,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
         [proof.id, creative.id]
       );
 
-      // Insert assets if provided
+      // Insert assets
       if (initialProof.assets && Array.isArray(initialProof.assets)) {
         for (let i = 0; i < initialProof.assets.length; i++) {
           const asset = initialProof.assets[i];
@@ -315,7 +413,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
         proof?.id || null,
         userId,
         `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email,
-        JSON.stringify({ name, adFormat, targetPlatform })
+        JSON.stringify({ name, adFormat, targetPlatform, clientId, projectId })
       ]
     );
 
@@ -339,14 +437,16 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 });
 
 // ---------------------------------------------------------------------------
-// 4. GET CREATIVE DETAILS (Full version lineage, assets, comments & sign-offs)
+// 4. GET CREATIVE DETAILS (Scoped)
 // ---------------------------------------------------------------------------
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { id } = req.params;
 
   try {
-    // 1. Fetch Master Creative Record
+    const params: any[] = [id, orgId];
+    const scopeClause = buildCreativeScopeClause(req, params, 'c');
+
     const creativeRes = await db.query(
       `SELECT
         c.*,
@@ -361,18 +461,18 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       LEFT JOIN companies co ON cl.company_id = co.id
       LEFT JOIN projects p ON c.project_id = p.id
       LEFT JOIN users u ON c.designer_id = u.id
-      WHERE c.id = $1 AND c.organization_id = $2`,
-      [id, orgId]
+      WHERE c.id = $1 AND c.organization_id = $2 ${scopeClause}`,
+      params
     );
 
     if (creativeRes.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Creative not found' });
+      res.status(404).json({ success: false, message: 'Creative not found or access denied' });
       return;
     }
 
     const creative = creativeRes.rows[0];
 
-    // 2. Fetch all Proof Versions
+    // Fetch all Proof Versions
     const proofsRes = await db.query(
       `SELECT
         cp.*,
@@ -384,10 +484,9 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       [id]
     );
 
-    // 3. For each proof, load its assets, comments, and approvals
+    // Load assets, comments, and approvals for each proof
     const proofs = await Promise.all(
       proofsRes.rows.map(async (proof) => {
-        // Assets
         const assetsRes = await db.query(
           `SELECT * FROM creative_proof_assets WHERE proof_id = $1 ORDER BY slide_order ASC`,
           [proof.id]
@@ -408,7 +507,6 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
           })
         );
 
-        // Comments
         const commentsRes = await db.query(
           `SELECT
             cc.*,
@@ -421,13 +519,11 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
           [proof.id]
         );
 
-        // Approvals / Sign-offs
         const approvalsRes = await db.query(
           `SELECT * FROM creative_approvals WHERE proof_id = $1 ORDER BY signed_at DESC`,
           [proof.id]
         );
 
-        // Share links
         const shareLinksRes = await db.query(
           `SELECT id, expires_at, revoked_at, last_accessed_at, access_count, allow_comments, allow_approvals, created_at
            FROM creative_share_links
@@ -446,7 +542,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       })
     );
 
-    // 4. Fetch Audit Logs
+    // Fetch Audit Logs
     const auditLogsRes = await db.query(
       `SELECT * FROM creative_audit_logs WHERE creative_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [id]
@@ -465,7 +561,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 });
 
 // ---------------------------------------------------------------------------
-// 5. UPDATE CREATIVE METADATA & STATUS
+// 5. UPDATE CREATIVE METADATA & STATUS (Scoped)
 // ---------------------------------------------------------------------------
 router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -473,6 +569,8 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   const { id } = req.params;
   const {
     name,
+    clientId,
+    projectId,
     description,
     campaignName,
     targetPlatform,
@@ -490,40 +588,61 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   } = req.body;
 
   try {
+    const params: any[] = [id, orgId];
+    const scopeClause = buildCreativeScopeClause(req, params, 'creatives');
+
     const existing = await db.query(
-      `SELECT * FROM creatives WHERE id = $1 AND organization_id = $2`,
-      [id, orgId]
+      `SELECT * FROM creatives WHERE id = $1 AND organization_id = $2 ${scopeClause}`,
+      params
     );
 
     if (existing.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Creative not found' });
+      res.status(404).json({ success: false, message: 'Creative not found or update permission denied' });
       return;
     }
 
     const current = existing.rows[0];
 
+    // Validate project belongs to client if updated
+    const targetClientId = clientId || current.client_id;
+    const targetProjectId = projectId || current.project_id;
+    if (targetClientId && targetProjectId) {
+      const pCheck = await db.query(
+        `SELECT id FROM projects WHERE id = $1 AND client_id = $2 AND organization_id = $3`,
+        [targetProjectId, targetClientId, orgId]
+      );
+      if (pCheck.rows.length === 0) {
+        res.status(400).json({ success: false, message: 'Selected project does not belong to the client account.' });
+        return;
+      }
+    }
+
     const updateRes = await db.query(
       `UPDATE creatives SET
         name = COALESCE($1, name),
-        description = COALESCE($2, description),
-        campaign_name = COALESCE($3, campaign_name),
-        target_platform = COALESCE($4, target_platform),
-        ad_format = COALESCE($5, ad_format),
-        aspect_ratio = COALESCE($6, aspect_ratio),
-        status = COALESCE($7, status),
-        active_proof_id = COALESCE($8, active_proof_id),
-        primary_ad_copy = COALESCE($9, primary_ad_copy),
-        headline = COALESCE($10, headline),
-        call_to_action = COALESCE($11, call_to_action),
-        destination_url = COALESCE($12, destination_url),
-        designer_id = COALESCE($13, designer_id),
-        approval_due_at = COALESCE($14, approval_due_at),
-        tags = COALESCE($15, tags),
+        client_id = COALESCE($2, client_id),
+        project_id = COALESCE($3, project_id),
+        description = COALESCE($4, description),
+        campaign_name = COALESCE($5, campaign_name),
+        target_platform = COALESCE($6, target_platform),
+        ad_format = COALESCE($7, ad_format),
+        aspect_ratio = COALESCE($8, aspect_ratio),
+        status = COALESCE($9, status),
+        active_proof_id = COALESCE($10, active_proof_id),
+        primary_ad_copy = COALESCE($11, primary_ad_copy),
+        headline = COALESCE($12, headline),
+        call_to_action = COALESCE($13, call_to_action),
+        destination_url = COALESCE($14, destination_url),
+        designer_id = COALESCE($15, designer_id),
+        approval_due_at = COALESCE($16, approval_due_at),
+        tags = COALESCE($17, tags),
         updated_at = NOW()
-      WHERE id = $16 AND organization_id = $17
+      WHERE id = $18 AND organization_id = $19
       RETURNING *`,
       [
         name,
+        clientId,
+        projectId,
         description,
         campaignName,
         targetPlatform,
@@ -573,13 +692,84 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 });
 
 // ---------------------------------------------------------------------------
-// 6. REGISTER NEW PROOF VERSION (Immutable Snapshot with Assets)
+// 6. DELETE CREATIVE & PURGE R2 STORAGE ASSETS (Full Cascade & Access Check)
+// ---------------------------------------------------------------------------
+router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { id } = req.params;
+
+  try {
+    const params: any[] = [id, orgId];
+    const scopeClause = buildCreativeScopeClause(req, params, 'creatives');
+
+    const checkRes = await db.query(
+      `SELECT * FROM creatives WHERE id = $1 AND organization_id = $2 ${scopeClause}`,
+      params
+    );
+
+    if (checkRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Creative not found or delete permission denied' });
+      return;
+    }
+
+    const creative = checkRes.rows[0];
+
+    // 1. Gather all R2 storage keys across all proofs belonging to this creative
+    const assetsRes = await db.query(
+      `SELECT cpa.storage_key, cpa.thumbnail_storage_key, cpa.preview_storage_key
+       FROM creative_proof_assets cpa
+       JOIN creative_proofs cp ON cpa.proof_id = cp.id
+       WHERE cp.creative_id = $1 AND cpa.organization_id = $2`,
+      [id, orgId]
+    );
+
+    const storageKeysToDelete: string[] = [];
+    for (const row of assetsRes.rows) {
+      if (row.storage_key) storageKeysToDelete.push(row.storage_key);
+      if (row.thumbnail_storage_key) storageKeysToDelete.push(row.thumbnail_storage_key);
+      if (row.preview_storage_key) storageKeysToDelete.push(row.preview_storage_key);
+    }
+
+    // 2. Batch delete objects from Cloudflare R2 bucket
+    if (storageKeysToDelete.length > 0) {
+      await StorageService.deleteObjects(storageKeysToDelete);
+    }
+
+    // 3. Delete database record (Foreign key constraints cascade to proofs, assets, comments, approvals, share links)
+    await db.query(`DELETE FROM creatives WHERE id = $1 AND organization_id = $2`, [id, orgId]);
+
+    res.json({
+      success: true,
+      message: `Creative "${creative.name}" and ${storageKeysToDelete.length} associated R2 asset files deleted successfully.`
+    });
+  } catch (err: any) {
+    console.error('[Creatives API] Delete Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete creative', error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 7. REGISTER NEW PROOF VERSION (Immutable Snapshot with Assets)
 // ---------------------------------------------------------------------------
 router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const { id } = req.params;
   const { title, changeSummary, assets, parentProofId, setAsActive = true } = req.body;
+
+  // Verify access to creative
+  const params: any[] = [id, orgId];
+  const scopeClause = buildCreativeScopeClause(req, params, 'creatives');
+  const creativeCheck = await db.query(
+    `SELECT id, name FROM creatives WHERE id = $1 AND organization_id = $2 ${scopeClause}`,
+    params
+  );
+
+  if (creativeCheck.rows.length === 0) {
+    res.status(404).json({ success: false, message: 'Creative not found or upload permission denied' });
+    return;
+  }
 
   const client = await db.getClient();
   try {
@@ -685,7 +875,7 @@ router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: R
 });
 
 // ---------------------------------------------------------------------------
-// 7. R2 STORAGE UPLOAD SESSIONS (Direct Presigned PUT & Multipart Uploads)
+// 8. R2 STORAGE UPLOAD SESSIONS (Direct Presigned PUT & Multipart Uploads)
 // ---------------------------------------------------------------------------
 
 // Single-part presigned PUT URL
@@ -800,7 +990,7 @@ router.post('/upload-session/multipart/abort', requireAuth, async (req: Authenti
 });
 
 // ---------------------------------------------------------------------------
-// 8. CRYPTOGRAPHIC CLIENT SHARE LINKS (SHA-256 Hashed Tokens)
+// 9. CRYPTOGRAPHIC CLIENT SHARE LINKS (SHA-256 Hashed Tokens)
 // ---------------------------------------------------------------------------
 router.post('/:id/proofs/:proofId/share', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -914,7 +1104,7 @@ router.post('/share-links/:linkId/revoke', requireAuth, async (req: Authenticate
 });
 
 // ---------------------------------------------------------------------------
-// 9. INTERNAL COMMENTS & ANNOTATIONS
+// 10. INTERNAL COMMENTS & ANNOTATIONS
 // ---------------------------------------------------------------------------
 router.post('/:id/proofs/:proofId/comments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -1021,7 +1211,7 @@ router.patch('/comments/:commentId/resolve', requireAuth, async (req: Authentica
 });
 
 // ---------------------------------------------------------------------------
-// 10. INTERNAL APPROVAL SIGN-OFF
+// 11. INTERNAL APPROVAL SIGN-OFF
 // ---------------------------------------------------------------------------
 router.post('/:id/proofs/:proofId/approvals', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -1112,7 +1302,7 @@ router.post('/:id/proofs/:proofId/approvals', requireAuth, async (req: Authentic
 });
 
 // ---------------------------------------------------------------------------
-// 11. PUBLIC CLIENT PORTAL PROOFING ENDPOINTS (Zero internal CRM Auth required)
+// 12. PUBLIC CLIENT PORTAL PROOFING ENDPOINTS (Zero internal CRM Auth required)
 // ---------------------------------------------------------------------------
 
 // Validate Token & Load Proof for Client

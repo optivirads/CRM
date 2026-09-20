@@ -1157,6 +1157,12 @@ class ApiClient {
     });
   }
 
+  async deleteCreative(id: string) {
+    return this.request<{ success: boolean; message: string }>(`/creatives/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async registerProofVersion(id: string, payload: {
     title?: string;
     changeSummary?: string;

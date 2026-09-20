@@ -41,7 +41,9 @@ import {
   Lock,
   UserCheck,
   History,
-  Send
+  Send,
+  FolderClosed,
+  Building2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -58,6 +60,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [metrics, setMetrics] = useState<any>(null);
   const [creatives, setCreatives] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [allProjects, setAllProjects] = useState<any[]>([]);
+  const [clientProjects, setClientProjects] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'grid' | 'table'>('kanban');
 
   // Filters
@@ -88,14 +92,18 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showVersionUploadModal, setShowVersionUploadModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingCreativeId, setDeletingCreativeId] = useState<string | null>(null);
+  const [deletingCreativeName, setDeletingCreativeName] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const [shareLinkData, setShareLinkData] = useState<any | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Create Form State
+  // Create Form State (Client -> Project Hierarchy)
   const [createForm, setCreateForm] = useState({
     name: '',
     clientId: '',
+    projectId: '',
     campaignName: '',
     targetPlatform: 'META',
     adFormat: 'IMAGE',
@@ -115,8 +123,19 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   // Load Data
   useEffect(() => {
     loadData();
-    loadClients();
+    loadClientsAndProjects();
   }, [selectedPlatform, selectedFormat, selectedStatus, selectedClientId]);
+
+  // When Client changes in create form, filter available projects
+  useEffect(() => {
+    if (createForm.clientId) {
+      const filtered = allProjects.filter(p => p.client_id === createForm.clientId);
+      setClientProjects(filtered);
+    } else {
+      setClientProjects([]);
+    }
+    setCreateForm(prev => ({ ...prev, projectId: '' }));
+  }, [createForm.clientId, allProjects]);
 
   const loadData = async () => {
     try {
@@ -145,14 +164,21 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     }
   };
 
-  const loadClients = async () => {
+  const loadClientsAndProjects = async () => {
     try {
-      const res = await api.getClients();
-      if (res.success && res.data) {
-        setClients(res.data);
+      const [clientsRes, projectsRes] = await Promise.all([
+        api.getClients().catch(() => ({ success: false, data: [] })),
+        api.getProjects().catch(() => ({ success: false, data: [] }))
+      ]);
+
+      if (clientsRes.success && clientsRes.data) {
+        setClients(clientsRes.data);
+      }
+      if (projectsRes.success && projectsRes.data) {
+        setAllProjects(projectsRes.data);
       }
     } catch (err) {
-      console.warn('Failed to load clients dropdown:', err);
+      console.warn('Failed to load clients or projects dropdown:', err);
     }
   };
 
@@ -227,7 +253,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     }
   };
 
-  // Internal Approval Decision
+  // Internal Approval Decision / Status Change
   const handleInternalDecision = async (decision: 'APPROVED' | 'CHANGES_REQUESTED') => {
     if (!activeCreativeId || !currentProof) return;
     const notes = prompt(
@@ -240,11 +266,39 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         decision,
         feedbackNotes: notes || undefined
       });
-      // Refresh
       handleOpenStudio(activeCreativeId);
       loadData();
     } catch (err) {
       console.error('Approval submission failed:', err);
+    }
+  };
+
+  // Delete Creative Confirmation Trigger
+  const promptDeleteCreative = (creativeId: string, creativeName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeletingCreativeId(creativeId);
+    setDeletingCreativeName(creativeName);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm Delete Creative
+  const handleConfirmDelete = async () => {
+    if (!deletingCreativeId) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteCreative(deletingCreativeId);
+      setShowDeleteModal(false);
+      if (activeCreativeId === deletingCreativeId) {
+        setActiveCreativeId(null);
+        setActiveCreativeDetails(null);
+      }
+      setDeletingCreativeId(null);
+      loadData();
+    } catch (err: any) {
+      console.error('Delete creative failed:', err);
+      alert('Delete failed: ' + (err.message || 'Error deleting creative'));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -336,9 +390,10 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
       setUploadProgress(85);
 
-      // 2. Register Creative & Initial Proof on Backend
+      // 2. Register Creative & Initial Proof on Backend (Client -> Project cascade)
       await api.createCreative({
         clientId: createForm.clientId || undefined,
+        projectId: createForm.projectId || undefined,
         name: createForm.name.trim(),
         campaignName: createForm.campaignName || undefined,
         targetPlatform: createForm.targetPlatform,
@@ -362,6 +417,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       setCreateForm({
         name: '',
         clientId: '',
+        projectId: '',
         campaignName: '',
         targetPlatform: 'META',
         adFormat: 'IMAGE',
@@ -421,15 +477,15 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wider uppercase bg-[#DC2626]/10 text-[#DC2626] dark:bg-[#DC2626]/20">
-              Cloudflare R2 Private Bucket
+              Cloudflare R2 Private Storage
             </span>
-            <span className="text-xs text-slate-500 font-medium">• Zero-Data-Loss Proofing Engine</span>
+            <span className="text-xs text-slate-500 font-medium">• Multi-Tenant & Client Scoped</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-1">
             Creative Studio & Client Proofing
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Enterprise multi-format asset proofing, spatial annotations, video timestamps & client sign-offs.
+            Client $\to$ Project ad creative management, spatial annotations, video timestamps & R2 proofs.
           </p>
         </div>
 
@@ -450,12 +506,12 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Creatives</div>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{metrics.totalCreatives}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Across all clients</div>
+            <div className="text-[11px] text-slate-400 mt-1">Assigned accounts</div>
           </div>
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs">
             <div className="text-xs font-semibold text-amber-500 uppercase tracking-wider">Pending Approval</div>
             <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{metrics.pendingClientApproval}</div>
-            <div className="text-[11px] text-slate-400 mt-1">With external clients</div>
+            <div className="text-[11px] text-slate-400 mt-1">With clients</div>
           </div>
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs">
             <div className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Client Approved</div>
@@ -475,7 +531,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs">
             <div className="text-xs font-semibold text-purple-500 uppercase tracking-wider">Overdue SLAs</div>
             <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{metrics.overdue}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Past approval target</div>
+            <div className="text-[11px] text-slate-400 mt-1">Past target date</div>
           </div>
         </div>
       )}
@@ -488,7 +544,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by creative title, client or campaign..."
+              placeholder="Search by creative title, client, or campaign..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadData()}
@@ -617,7 +673,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         <div
                           key={c.id}
                           onClick={() => handleOpenStudio(c.id)}
-                          className="group bg-white dark:bg-[#0B1424] hover:bg-slate-50 dark:hover:bg-[#0F1C33] border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs hover:shadow-md transition cursor-pointer space-y-2.5"
+                          className="group bg-white dark:bg-[#0B1424] hover:bg-slate-50 dark:hover:bg-[#0F1C33] border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs hover:shadow-md transition cursor-pointer space-y-2.5 relative"
                         >
                           {/* Media Thumbnail Preview */}
                           {c.previewUrl ? (
@@ -656,9 +712,10 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1 group-hover:text-[#DC2626] transition">
                               {c.name}
                             </h4>
-                            <p className="text-[11px] text-slate-500 line-clamp-1">
-                              {c.client_name || 'Internal Agency Ad'}
-                            </p>
+                            <div className="flex items-center gap-1 text-[11px] text-slate-500 line-clamp-1">
+                              <span>{c.client_name || 'Internal Agency Ad'}</span>
+                              {c.project_name && <span>• {c.project_name}</span>}
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
@@ -666,7 +723,16 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                               <MessageSquare className="w-3 h-3" />
                               <span>{c.unresolved_comments_count || 0}</span>
                             </div>
-                            {getStatusBadge(c.status)}
+                            <div className="flex items-center gap-1.5">
+                              {getStatusBadge(c.status)}
+                              <button
+                                onClick={(e) => promptDeleteCreative(c.id, c.name, e)}
+                                title="Delete Creative"
+                                className="p-1 text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -684,7 +750,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 <div
                   key={c.id}
                   onClick={() => handleOpenStudio(c.id)}
-                  className="group bg-white dark:bg-[#0B1424] hover:bg-slate-50 dark:hover:bg-[#0F1C33] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs hover:shadow-lg transition cursor-pointer flex flex-col"
+                  className="group bg-white dark:bg-[#0B1424] hover:bg-slate-50 dark:hover:bg-[#0F1C33] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs hover:shadow-lg transition cursor-pointer flex flex-col relative"
                 >
                   <div className="relative aspect-video w-full bg-slate-900 overflow-hidden">
                     {c.previewUrl ? (
@@ -723,7 +789,9 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
                   <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                     <div>
-                      <div className="text-[11px] font-bold text-slate-400">{c.client_name || 'Direct Brand'}</div>
+                      <div className="text-[11px] font-bold text-slate-400">
+                        {c.client_name || 'Direct Brand'} {c.project_name && `• ${c.project_name}`}
+                      </div>
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1 group-hover:text-[#DC2626] transition">
                         {c.name}
                       </h3>
@@ -743,7 +811,16 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         <span>•</span>
                         <span>{c.version_count || 1} versions</span>
                       </div>
-                      {getStatusBadge(c.status)}
+                      <div className="flex items-center gap-1.5">
+                        {getStatusBadge(c.status)}
+                        <button
+                          onClick={(e) => promptDeleteCreative(c.id, c.name, e)}
+                          title="Delete Creative"
+                          className="p-1 text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -759,7 +836,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="py-3 px-4">Creative Name</th>
-                      <th className="py-3 px-4">Client</th>
+                      <th className="py-3 px-4">Client & Project</th>
                       <th className="py-3 px-4">Platform & Format</th>
                       <th className="py-3 px-4">Active Version</th>
                       <th className="py-3 px-4">Status</th>
@@ -790,7 +867,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                          {c.client_name || 'Agency Ad'}
+                          <div>{c.client_name || 'Agency Ad'}</div>
+                          {c.project_name && <div className="text-[11px] text-slate-400 font-normal">{c.project_name}</div>}
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
@@ -810,15 +888,21 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenStudio(c.id);
-                            }}
-                            className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-[#DC2626] hover:text-white text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition"
-                          >
-                            Open Studio
-                          </button>
+                          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleOpenStudio(c.id)}
+                              className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-[#DC2626] hover:text-white text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition"
+                            >
+                              Open Studio
+                            </button>
+                            <button
+                              onClick={(e) => promptDeleteCreative(c.id, c.name, e)}
+                              title="Delete Creative"
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -851,10 +935,14 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400">
                     <span>Client: <strong>{activeCreativeDetails.creative.client_name || 'Internal'}</strong></span>
+                    {activeCreativeDetails.creative.project_name && (
+                      <>
+                        <span>•</span>
+                        <span>Project: <strong>{activeCreativeDetails.creative.project_name}</strong></span>
+                      </>
+                    )}
                     <span>•</span>
                     <span>Platform: <strong>{activeCreativeDetails.creative.target_platform}</strong></span>
-                    <span>•</span>
-                    <span>Format: <strong>{activeCreativeDetails.creative.ad_format}</strong></span>
                   </div>
                 </div>
               </div>
@@ -881,6 +969,13 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Request Changes</span>
+                </button>
+                <button
+                  onClick={() => promptDeleteCreative(activeCreativeDetails.creative.id, activeCreativeDetails.creative.name)}
+                  title="Delete Creative"
+                  className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => {
@@ -1180,7 +1275,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       )}
 
       {/* ========================================================================= */}
-      {/* 5. CREATE NEW CREATIVE PROOF MODAL (Direct Cloudflare R2 Browser Upload) */}
+      {/* 5. CREATE NEW CREATIVE PROOF MODAL (Client -> Project Hierarchy) */}
       {/* ========================================================================= */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
@@ -1192,7 +1287,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create New Ad Creative Proof</h3>
-                  <p className="text-xs text-slate-500">Upload single images, UGC video reels, or carousels directly to Cloudflare R2</p>
+                  <p className="text-xs text-slate-500">Assign to client & project, then stream directly to Cloudflare R2</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -1201,28 +1296,56 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
             </div>
 
             <form onSubmit={handleSubmitCreateCreative} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Creative Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Summer UGC Hook 01"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Client -> Project Hierarchy Dropdowns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Creative Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Summer UGC Hook 01"
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Client Account</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Client Account *
+                  </label>
                   <select
+                    required
                     value={createForm.clientId}
                     onChange={(e) => setCreateForm({ ...createForm, clientId: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white"
                   >
-                    <option value="">Select client...</option>
+                    <option value="">Select client account...</option>
                     {clients.map(c => (
                       <option key={c.id} value={c.id}>{c.company_name || c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Client Project (Optional)
+                  </label>
+                  <select
+                    value={createForm.projectId}
+                    disabled={!createForm.clientId}
+                    onChange={(e) => setCreateForm({ ...createForm, projectId: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white disabled:opacity-50"
+                  >
+                    <option value="">
+                      {!createForm.clientId
+                        ? 'Select a client first'
+                        : clientProjects.length === 0
+                          ? 'No projects found for client'
+                          : 'Select project (optional)...'}
+                    </option>
+                    {clientProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1404,7 +1527,56 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       )}
 
       {/* ========================================================================= */}
-      {/* 6. CLIENT SHARE LINK MODAL (Cryptographic SHA-256 Hashed URL) */}
+      {/* 6. DELETE CREATIVE CONFIRMATION MODAL (R2 Assets Cleanup) */}
+      {/* ========================================================================= */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-2xl bg-red-500/10 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Creative & Purge Proofs</h3>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Are you sure you want to permanently delete <strong>"{deletingCreativeName}"</strong>? This will purge all proof versions, spatial pin annotations, client sign-offs, and automatically delete all associated media files from Cloudflare R2.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingCreativeId(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Purging R2 Assets...</span>
+                  </>
+                ) : (
+                  <span>Permanently Delete</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 7. CLIENT SHARE LINK MODAL (Cryptographic SHA-256 Hashed URL) */}
       {/* ========================================================================= */}
       {showShareModal && shareLinkData && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">

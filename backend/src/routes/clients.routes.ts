@@ -64,6 +64,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
         comp.name as company_name, comp.industry, comp.website, comp.city,
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone,
         u.first_name as am_first, u.last_name as am_last, u.email as am_email,
+        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email,
         (SELECT COUNT(*) FROM projects WHERE client_id = c.id AND deleted_at IS NULL) as project_count,
         (SELECT COUNT(*) FROM tasks WHERE client_id = c.id AND status != 'Completed' AND deleted_at IS NULL) as open_tasks_count,
         (SELECT COALESCE(SUM(balance_amount), 0) FROM invoices WHERE client_id = c.id AND deleted_at IS NULL) as outstanding_balance
@@ -71,6 +72,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
+      LEFT JOIN users u_ast ON c.account_assistant_id = u_ast.id
       ${whereClause}
       ORDER BY c.contract_value DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2};
@@ -114,13 +116,15 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
     const clientRes = await db.query(`
       SELECT 
         c.*,
-        comp.name as company_name, comp.industry, comp.website, comp.email as company_email, comp.phone as company_phone, comp.address, comp.city,
+        comp.name as company_name, comp.industry, comp.website, comp.city, comp.state, comp.country, comp.address,
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
-        u.first_name as am_first, u.last_name as am_last, u.email as am_email
+        u.first_name as am_first, u.last_name as am_last, u.email as am_email,
+        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email
       FROM clients c
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
+      LEFT JOIN users u_ast ON c.account_assistant_id = u_ast.id
       WHERE c.id = $1 AND c.organization_id = $2 AND c.deleted_at IS NULL;
     `, [clientId, orgId]);
 
@@ -417,19 +421,20 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       return f;
     })();
 
-    const { custom_fields } = req.body;
+    const { custom_fields, account_assistant_id } = req.body;
 
     const result = await db.query(`
       INSERT INTO clients (
-        organization_id, company_id, primary_contact_id, account_manager_id, contract_value,
+        organization_id, company_id, primary_contact_id, account_manager_id, account_assistant_id, contract_value,
         billing_frequency, health_status, status, start_date, renewal_date, notes, created_by, custom_fields
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `, [
       orgId,
       resolvedCompanyId,
       resolvedContactId,
       account_manager_id || userId,
+      account_assistant_id || null,
       contract_value || 0,
       normBillingFreq,
       health_status || 'Healthy',
@@ -483,8 +488,20 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     renewal_date,
     notes,
     account_manager_id,
+    account_assistant_id,
     assigned_team_ids,
-    custom_fields
+    custom_fields,
+    company_name,
+    industry,
+    website,
+    city,
+    contact_first,
+    contact_last,
+    contact_email,
+    contact_phone,
+    contact_role,
+    asset_scope,
+    onboarding_stage
   } = req.body;
 
   try {
@@ -495,20 +512,6 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     }
 
     // If company fields are provided, update company table
-    const {
-      company_name,
-      industry,
-      website,
-      city,
-      contact_first,
-      contact_last,
-      contact_email,
-      contact_phone,
-      contact_role,
-      asset_scope,
-      onboarding_stage
-    } = req.body;
-
     if (current.rows[0].company_id && (company_name || industry !== undefined || website !== undefined || city !== undefined)) {
       await db.query(`
         UPDATE companies
@@ -567,6 +570,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         renewal_date = COALESCE($6, renewal_date),
         notes = COALESCE($7, notes),
         account_manager_id = CASE WHEN $8::text IS NOT NULL THEN $8::uuid ELSE account_manager_id END,
+        account_assistant_id = CASE WHEN $16::text IS NOT NULL THEN $16::uuid ELSE account_assistant_id END,
         assigned_team_ids = COALESCE($9, assigned_team_ids),
         custom_fields = CASE WHEN $13::jsonb IS NOT NULL THEN COALESCE(clients.custom_fields, '{}'::jsonb) || $13::jsonb ELSE clients.custom_fields END,
         asset_scope = CASE WHEN $14::jsonb IS NOT NULL THEN $14::jsonb ELSE clients.asset_scope END,
@@ -589,20 +593,23 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       orgId,
       custom_fields ? JSON.stringify(custom_fields) : null,
       asset_scope ? JSON.stringify(asset_scope) : null,
-      onboarding_stage || null
+      onboarding_stage || null,
+      account_assistant_id !== undefined ? account_assistant_id : null
     ]);
 
-    // Fetch updated client with company, contact & AM info
+    // Fetch updated client with company, contact, AM & Assistant info
     const fullRes = await db.query(`
       SELECT 
         c.*,
         comp.name as company_name, comp.industry, comp.website, comp.city,
         ct.first_name as contact_first, ct.last_name as contact_last, ct.email as contact_email, ct.phone as contact_phone, ct.designation as contact_role,
-        u.first_name as am_first, u.last_name as am_last, u.email as am_email
+        u.first_name as am_first, u.last_name as am_last, u.email as am_email,
+        u_ast.first_name as ast_first, u_ast.last_name as ast_last, u_ast.email as ast_email
       FROM clients c
       LEFT JOIN companies comp ON c.company_id = comp.id
       LEFT JOIN contacts ct ON c.primary_contact_id = ct.id
       LEFT JOIN users u ON c.account_manager_id = u.id
+      LEFT JOIN users u_ast ON c.account_assistant_id = u_ast.id
       WHERE c.id = $1;
     `, [clientId]);
 

@@ -91,8 +91,11 @@ export interface ClientAccount {
   contactRole: string;
   accountManager: string;
   accountManagerId?: string;
+  accountAssistant?: string;
+  accountAssistantId?: string;
   assignedTeamIds?: string[];
   amInitials: string;
+  astInitials?: string;
   amBg: string;
   servicesCount: string;
   activeProjects: string;
@@ -191,6 +194,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newContactPhone, setNewContactPhone] = useState('');
   const [newContactRole, setNewContactRole] = useState('Primary Contact');
   const [newAccountManagerId, setNewAccountManagerId] = useState('');
+  const [newAccountAssistantId, setNewAccountAssistantId] = useState('');
   const [newBillingModel, setNewBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
   const [newTermOption, setNewTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
   const [newCustomTerm, setNewCustomTerm] = useState('12');
@@ -215,6 +219,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
+  const [editAccountAssistantId, setEditAccountAssistantId] = useState('');
   const [editTermOption, setEditTermOption] = useState<'12' | '6' | '3' | '1' | 'custom'>('12');
   const [editCustomTerm, setEditCustomTerm] = useState('12');
   const [editStatus, setEditStatus] = useState('Active');
@@ -265,8 +270,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           contactRole: c.contact_role || 'Primary Contact',
           accountManager: c.am_first ? `${c.am_first} ${c.am_last || ''}`.trim() : (c.account_manager_name || 'Unassigned'),
           accountManagerId: c.account_manager_id || '',
+          accountAssistant: c.ast_first ? `${c.ast_first} ${c.ast_last || ''}`.trim() : (c.account_assistant_name || 'Unassigned'),
+          accountAssistantId: c.account_assistant_id || '',
           assignedTeamIds: Array.isArray(c.assigned_team_ids) ? c.assigned_team_ids : [],
           amInitials: c.am_first ? `${c.am_first[0]}${c.am_last?.[0] || ''}`.toUpperCase() : 'UA',
+          astInitials: c.ast_first ? `${c.ast_first[0]}${c.ast_last?.[0] || ''}`.toUpperCase() : 'UA',
           amBg: 'bg-[#0A1628]',
           servicesCount: c.services_count ? `${c.services_count} Services` : (c.project_count ? `${c.project_count} SOWs` : 'Retainer'),
           activeProjects: `${c.project_count || 0} Active`,
@@ -343,6 +351,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setEditContactPhone(client.contactPhone || '');
     setEditContactRole(client.contactRole || 'Lead Stakeholder');
     setEditAccountManagerId(client.accountManagerId || '');
+    setEditAccountAssistantId(client.accountAssistantId || '');
 
     const clientStatus = client.status || 'Active';
     setEditStatus(clientStatus);
@@ -417,6 +426,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         contact_phone: editContactPhone.trim() || null,
         contact_role: editContactRole.trim() || 'Primary Contact',
         account_manager_id: editAccountManagerId || null,
+        account_assistant_id: editAccountAssistantId || null,
         contract_value: parsedVal,
         billing_frequency: normBillingFreq,
         health_status: editHealthStatus,
@@ -490,6 +500,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         contact_phone: newContactPhone.trim() || null,
         contact_role: newContactRole.trim() || 'Primary Contact',
         account_manager_id: newAccountManagerId || null,
+        account_assistant_id: newAccountAssistantId || null,
         contract_value: parsedVal,
         billing_frequency: normBillingFreq,
         health_status: 'Healthy',
@@ -512,6 +523,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         setNewContactPhone('');
         setNewContactRole('Primary Contact');
         setNewAccountManagerId('');
+        setNewAccountAssistantId('');
         setNewBillingModel('monthly_retainer');
         setNewTermOption('12');
         setNewCustomTerm('12');
@@ -1348,18 +1360,26 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                         </div>
                       </td>
 
-                      {/* Account Manager */}
+                      {/* Account Manager & Assistant */}
                       <td className="p-3.5" onClick={(e) => { e.stopPropagation(); openEditModal(client); }}>
-                        <div className="flex items-center gap-2 group/am cursor-pointer" title="Click to edit account manager">
-                          <div
-                            className={`w-6 h-6 rounded-full ${client.amBg} text-white flex items-center justify-center text-[10px] font-bold shrink-0`}
-                          >
-                            {client.amInitials}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 group/am cursor-pointer" title="Click to edit account team">
+                            <div
+                              className={`w-6 h-6 rounded-full ${client.amBg} text-white flex items-center justify-center text-[10px] font-bold shrink-0`}
+                            >
+                              {client.amInitials}
+                            </div>
+                            <span className="font-medium text-slate-800 dark:text-slate-200 group-hover/am:text-rose-600 dark:group-hover/am:text-rose-400 group-hover/am:underline transition">
+                              {client.accountManager}
+                            </span>
+                            <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/am:opacity-100 transition shrink-0" />
                           </div>
-                          <span className="font-medium text-rose-600 dark:text-rose-400 group-hover/am:underline">
-                            {client.accountManager}
-                          </span>
-                          <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover/am:opacity-100 transition shrink-0" />
+                          {client.accountAssistant && client.accountAssistant !== 'Unassigned' && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 pl-8">
+                              <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-[9px] font-bold">Ast</span>
+                              <span>{client.accountAssistant}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -1689,6 +1709,22 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Account Assistant (Co-Pilot)</label>
+                    <select
+                      value={newAccountAssistantId}
+                      onChange={(e) => setNewAccountAssistantId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                    >
+                      <option value="">Unassigned (Optional)</option>
+                      {teamMembers.map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                          {m.first_name || m.name || m.email} ({m.role || 'Member'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Primary Decision Maker / Contact</label>
                     <input
@@ -2091,20 +2127,38 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Assigned Account Manager</label>
-                  <select
-                    value={editAccountManagerId}
-                    onChange={(e) => setEditAccountManagerId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option value="">Unassigned (Team Pool)</option>
-                    {teamMembers.map((m: any) => (
-                      <option key={m.id} value={m.id}>
-                        {m.first_name || m.name || m.email} ({m.role || 'Member'})
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Assigned Account Manager</label>
+                    <select
+                      value={editAccountManagerId}
+                      onChange={(e) => setEditAccountManagerId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                    >
+                      <option value="">Unassigned (Team Pool)</option>
+                      {teamMembers.map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                          {m.first_name || m.name || m.email} ({m.role || 'Member'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Assigned Account Assistant</label>
+                    <select
+                      value={editAccountAssistantId}
+                      onChange={(e) => setEditAccountAssistantId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white text-xs"
+                    >
+                      <option value="">Unassigned (Optional)</option>
+                      {teamMembers.map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                          {m.first_name || m.name || m.email} ({m.role || 'Member'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
