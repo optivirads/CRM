@@ -217,6 +217,56 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
+// 2.1 Single Project Details with Linked Tasks
+router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const projectId = req.params.id;
+
+  try {
+    const projectRes = await db.query(`
+      SELECT 
+        p.*,
+        c.id as client_id, comp.name as client_name, comp.domain as client_domain,
+        u.first_name as pm_first, u.last_name as pm_last, u.email as pm_email,
+        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND deleted_at IS NULL) as total_tasks,
+        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'Completed' AND deleted_at IS NULL) as completed_tasks
+      FROM projects p
+      JOIN clients c ON p.client_id = c.id
+      JOIN companies comp ON c.company_id = comp.id
+      LEFT JOIN users u ON p.project_manager_id = u.id
+      WHERE p.id = $1 AND p.organization_id = $2 AND p.deleted_at IS NULL;
+    `, [projectId, orgId]);
+
+    if (projectRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Project not found' });
+      return;
+    }
+
+    const tasksRes = await db.query(`
+      SELECT 
+        t.*,
+        COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
+        COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
+        u.first_name as assignee_first, u.last_name as assignee_last
+      FROM tasks t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN organization_users ou ON ou.user_id = u.id AND ou.organization_id = t.organization_id
+      WHERE t.project_id = $1 AND t.organization_id = $2 AND t.deleted_at IS NULL
+      ORDER BY t.due_date ASC NULLS LAST;
+    `, [projectId, orgId]);
+
+    res.json({
+      success: true,
+      data: {
+        ...projectRes.rows[0],
+        tasks: tasksRes.rows
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // 3. Create Task
 router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;

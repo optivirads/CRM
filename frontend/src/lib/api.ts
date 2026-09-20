@@ -441,6 +441,10 @@ class ApiClient {
   }
 
   // Projects (CRUD)
+  async getProject(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/projects/${id}`);
+  }
+
   async createProject(payload: any) {
     return this.request<{ success: boolean; data: any }>('/projects', {
       method: 'POST',

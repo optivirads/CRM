@@ -72,10 +72,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
             'last_name', u_sub.last_name,
             'email', u_sub.email,
             'avatar_url', u_sub.avatar_url,
-            'role', u_sub.role
+            'role', COALESCE(ou_sub.designation, 'Assistant')
           )), '[]'::json)
           FROM client_assistants ca_list
           JOIN users u_sub ON ca_list.user_id = u_sub.id
+          LEFT JOIN organization_users ou_sub ON u_sub.id = ou_sub.user_id AND ou_sub.organization_id = c.organization_id
           WHERE ca_list.client_id = c.id
         ) as assistants,
         (SELECT COUNT(*) FROM projects WHERE client_id = c.id AND deleted_at IS NULL) as project_count,
@@ -140,10 +141,11 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
             'last_name', u_sub.last_name,
             'email', u_sub.email,
             'avatar_url', u_sub.avatar_url,
-            'role', u_sub.role
+            'role', COALESCE(ou_sub.designation, 'Assistant')
           )), '[]'::json)
           FROM client_assistants ca_list
           JOIN users u_sub ON ca_list.user_id = u_sub.id
+          LEFT JOIN organization_users ou_sub ON u_sub.id = ou_sub.user_id AND ou_sub.organization_id = c.organization_id
           WHERE ca_list.client_id = c.id
         ) as assistants
       FROM clients c

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ProjectDetailsModal } from './ProjectDetailsModal';
 import {
   Briefcase,
   CheckCircle2,
@@ -98,6 +99,7 @@ export const ProjectsView: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingProject, setDeletingProject] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedDetailProjectId, setSelectedDetailProjectId] = useState<string | null>(null);
 
   const fetchClients = async () => {
     try {
@@ -767,11 +769,12 @@ export const ProjectsView: React.FC = () => {
                     return (
                       <tr
                         key={project.id}
-                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${
+                        onClick={() => setSelectedDetailProjectId(project.id)}
+                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer ${
                           isSelected ? 'bg-rose-50/20 dark:bg-rose-950/10' : ''
                         }`}
                       >
-                        <td className="p-3.5 pl-4">
+                        <td className="p-3.5 pl-4" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -937,9 +940,13 @@ export const ProjectsView: React.FC = () => {
                               <Trash2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => showToast(`Options for project: ${project.name}`, 'info')}
-                              className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                              title="Project options"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDetailProjectId(project.id);
+                              }}
+                              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer"
+                              title="View Project Details"
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
@@ -1024,7 +1031,11 @@ export const ProjectsView: React.FC = () => {
 
                   <div className="space-y-3">
                     {stageProjects.map((p) => (
-                      <div key={p.id} className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-2.5">
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedDetailProjectId(p.id)}
+                        className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-2.5 cursor-pointer hover:border-rose-400 dark:hover:border-rose-500/60 hover:shadow-md transition"
+                      >
                         <div className="text-[10px] font-semibold text-rose-600">{p.clientName}</div>
                         <div className="font-bold text-xs text-slate-900 dark:text-white leading-tight">{p.name}</div>
                         <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -1066,7 +1077,11 @@ export const ProjectsView: React.FC = () => {
             </div>
             <div className="space-y-4 pt-2">
               {projects.map((p) => (
-                <div key={p.id} className="space-y-1 text-xs">
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedDetailProjectId(p.id)}
+                  className="space-y-1 text-xs p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition cursor-pointer"
+                >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800 dark:text-slate-200">{p.name}</span>
                     <span className="text-slate-500">{p.deadline}</span>
@@ -1302,6 +1317,18 @@ export const ProjectsView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* Project Details Modal */}
+      {selectedDetailProjectId && (
+        <ProjectDetailsModal
+          projectId={selectedDetailProjectId}
+          onClose={() => setSelectedDetailProjectId(null)}
+          onProjectUpdated={fetchProjects}
+          onDeleteProject={(p) => {
+            setSelectedDetailProjectId(null);
+            setDeletingProject(p);
+          }}
+        />
       )}
     </div>
   );
