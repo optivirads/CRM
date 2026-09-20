@@ -81,7 +81,8 @@ import {
   BarChart3,
   Laptop,
   Tablet,
-  Monitor
+  Monitor,
+  LogOut
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -92,6 +93,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const { user, activePersona, updateCurrentUser } = useAuth();
   // Strictly enforce Executive Owner role: Only optivirads@gmail.com, isOwner === true, or role === 'owner'
   const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
+  const isSuperAdminEmail = user?.email?.toLowerCase() === 'optivirads@gmail.com';
   const isOwnerOrAdmin = isMasterOwner;
 
   // Active Sub-Navigation Tab
@@ -173,6 +175,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [resettingUser, setResettingUser] = useState<any | null>(null);
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [isAdminResetting, setIsAdminResetting] = useState(false);
+
+  // Remote Logout Session Confirmation Modal State
+  const [logoutConfirmUser, setLogoutConfirmUser] = useState<any | null>(null);
+  const [isLoggingOutSession, setIsLoggingOutSession] = useState(false);
 
   // Self Service Password Change State (In Security tab)
   const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
@@ -644,8 +650,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const loadUsers = async () => {
-    setIsLoadingSection(true);
+  const loadUsers = async (silent = false) => {
+    if (!silent) setIsLoadingSection(true);
     try {
       const [res, clientsRes] = await Promise.allSettled([
         api.getSettingsUsers(),
@@ -660,7 +666,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     } catch (err: any) {
       console.warn('Failed to load users:', err);
     } finally {
-      setIsLoadingSection(false);
+      if (!silent) setIsLoadingSection(false);
     }
   };
 
@@ -845,10 +851,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
 
   // Synchronize section data on section switch
   useEffect(() => {
+    let interval: any = null;
     if (activeSection === 'Organization Identity') loadOrganizationSettings();
     else if (activeSection === 'General Regional') loadRegionalSettings();
     else if (activeSection === 'My Preferences') loadUserPreferences();
-    else if (activeSection === 'User Directory') loadUsers();
+    else if (activeSection === 'User Directory') {
+      loadUsers();
+      interval = setInterval(() => {
+        loadUsers(true);
+      }, 4000);
+    }
     else if (activeSection === 'Roles & Permissions') loadRoles();
     else if (activeSection === 'Teams & Pods') loadTeams();
     else if (activeSection === 'SSO & Security 2FA') loadSecuritySettings();
@@ -860,6 +872,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     else if (activeSection === 'Document Templates') loadDocumentTemplates();
     else if (activeSection === 'Billing & Currency') loadBillingSettings();
     else if (activeSection === 'Audit Telemetry') loadAuditLogs();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [activeSection]);
 
   // Initial load for sidebar metadata counts
@@ -2129,8 +2145,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 )}
                               </td>
                               {/* Logged-In System / Device */}
-                              <td className="py-3 px-4 min-w-[190px]">
-                                {u.currentDevice ? (
+                              <td className="py-3 px-4 min-w-[210px]">
+                                {u.desktopDevice && u.mobileDevice ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-900 dark:text-white font-medium">
+                                      <Laptop className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                      <span className="font-bold truncate text-[10.5px]">{u.desktopDevice.formatted || `${u.desktopDevice.os} • ${u.desktopDevice.browser}`}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-900 dark:text-white font-medium">
+                                      <Smartphone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                      <span className="font-bold truncate text-[10.5px]">{u.mobileDevice.formatted || `${u.mobileDevice.os} • ${u.mobileDevice.browser}`}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-sans font-bold flex items-center gap-1 text-[9px]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                        2 Systems Active (1 Phone + 1 PC)
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : u.currentDevice ? (
                                   <div className="space-y-1">
                                     <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
                                       {u.currentDevice.deviceType === 'mobile' ? (
@@ -2140,7 +2173,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                       ) : (
                                         <Laptop className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                                       )}
-                                      <span className="font-bold text-[11px] text-slate-900 dark:text-white truncate">
+                                      <span className="font-bold text-[11px] text-slate-900 dark:text-white truncate" title={u.currentDevice.formatted || `${u.currentDevice.os} • ${u.currentDevice.browser}`}>
                                         {u.currentDevice.formatted || `${u.currentDevice.os} • ${u.currentDevice.browser}`}
                                       </span>
                                     </div>
@@ -2159,10 +2192,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   </div>
                                 )}
                               </td>
+                              {/* Status & Remote Logout */}
                               <td className="py-3 px-4">
-                                <span className={u.status === 'Active' ? 'text-emerald-500 font-semibold text-xs' : 'text-amber-500 font-semibold text-xs'}>
-                                  {u.status || 'Active'}
-                                </span>
+                                <div className="flex flex-col items-start gap-1.5">
+                                  <span className={u.status === 'Active' ? 'text-emerald-500 font-semibold text-xs' : 'text-amber-500 font-semibold text-xs'}>
+                                    {u.status || 'Active'}
+                                  </span>
+                                  {isSuperAdminEmail && u.email?.toLowerCase() !== 'optivirads@gmail.com' && (u.activeSessionId || u.isOnline || u.currentDevice) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setLogoutConfirmUser(u)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 dark:text-rose-400 text-[10px] font-bold border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                                      title={`Remotely terminate active session for ${u.name || u.email}`}
+                                    >
+                                      <LogOut className="w-2.5 h-2.5" />
+                                      Log Out
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-right whitespace-nowrap">
                                 {isMasterOwner ? (
@@ -2805,6 +2852,184 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           </button>
                         </div>
                       </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Remote Logout Session Confirmation Modal */}
+                {logoutConfirmUser && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800">
+                            <LogOut className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">Confirm Remote Logout</h4>
+                            <p className="text-xs text-slate-500">Terminate active user device session</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setLogoutConfirmUser(null)} 
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer transition-colors p-1"
+                          disabled={isLoggingOutSession}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 py-1 text-xs">
+                        <p className="text-slate-600 dark:text-slate-300">
+                          Are you sure you want to remotely log out <strong className="text-slate-900 dark:text-white font-bold">{logoutConfirmUser.name || logoutConfirmUser.email}</strong>?
+                        </p>
+
+                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 space-y-2">
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-slate-400">User Email:</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{logoutConfirmUser.email}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-slate-400">Role & Access:</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">{logoutConfirmUser.roleLabel || logoutConfirmUser.role}</span>
+                          </div>
+                          {logoutConfirmUser.desktopDevice && (
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="text-slate-400 flex items-center gap-1"><Laptop className="w-3 h-3 text-emerald-500" /> Computer Session:</span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-[10.5px]">
+                                {logoutConfirmUser.desktopDevice.formatted || `${logoutConfirmUser.desktopDevice.os} • ${logoutConfirmUser.desktopDevice.browser}`}
+                              </span>
+                            </div>
+                          )}
+                          {logoutConfirmUser.mobileDevice && (
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="text-slate-400 flex items-center gap-1"><Smartphone className="w-3 h-3 text-blue-500" /> Mobile Session:</span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-[10.5px]">
+                                {logoutConfirmUser.mobileDevice.formatted || `${logoutConfirmUser.mobileDevice.os} • ${logoutConfirmUser.mobileDevice.browser}`}
+                              </span>
+                            </div>
+                          )}
+                          {!logoutConfirmUser.desktopDevice && !logoutConfirmUser.mobileDevice && logoutConfirmUser.currentDevice && (
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="text-slate-400">Active Device:</span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                                {logoutConfirmUser.currentDevice.formatted || `${logoutConfirmUser.currentDevice.os} • ${logoutConfirmUser.currentDevice.browser}`}
+                              </span>
+                            </div>
+                          )}
+                          {logoutConfirmUser.currentDevice?.ip && (
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="text-slate-400">IP Address:</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-300">{logoutConfirmUser.currentDevice.ip}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-300 text-[11px]">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>This user will be immediately disconnected from the selected session and will need to log in again.</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setLogoutConfirmUser(null)}
+                          disabled={isLoggingOutSession}
+                          className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        {logoutConfirmUser.desktopDevice && logoutConfirmUser.mobileDevice && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isLoggingOutSession}
+                              onClick={async () => {
+                                try {
+                                  setIsLoggingOutSession(true);
+                                  const targetName = logoutConfirmUser.name || logoutConfirmUser.email;
+                                  const res = await api.revokeUserSession(logoutConfirmUser.id, 'mobile');
+                                  if (res.success) {
+                                    showToast(`Mobile session terminated for ${targetName}`);
+                                    setLogoutConfirmUser(null);
+                                    await loadUsers();
+                                  } else {
+                                    showToast(res.message || 'Failed to terminate session', 'error');
+                                  }
+                                } catch (err: any) {
+                                  showToast(`Failed to log out: ${err.message}`, 'error');
+                                } finally {
+                                  setIsLoggingOutSession(false);
+                                }
+                              }}
+                              className="px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              Log Out Phone
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isLoggingOutSession}
+                              onClick={async () => {
+                                try {
+                                  setIsLoggingOutSession(true);
+                                  const targetName = logoutConfirmUser.name || logoutConfirmUser.email;
+                                  const res = await api.revokeUserSession(logoutConfirmUser.id, 'desktop');
+                                  if (res.success) {
+                                    showToast(`Computer session terminated for ${targetName}`);
+                                    setLogoutConfirmUser(null);
+                                    await loadUsers();
+                                  } else {
+                                    showToast(res.message || 'Failed to terminate session', 'error');
+                                  }
+                                } catch (err: any) {
+                                  showToast(`Failed to log out: ${err.message}`, 'error');
+                                } finally {
+                                  setIsLoggingOutSession(false);
+                                }
+                              }}
+                              className="px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              Log Out PC
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          disabled={isLoggingOutSession}
+                          onClick={async () => {
+                            try {
+                              setIsLoggingOutSession(true);
+                              const targetName = logoutConfirmUser.name || logoutConfirmUser.email;
+                              const res = await api.revokeUserSession(logoutConfirmUser.id, 'all');
+                              if (res.success) {
+                                showToast(`All sessions terminated for ${targetName}`);
+                                setLogoutConfirmUser(null);
+                                await loadUsers();
+                              } else {
+                                showToast(res.message || 'Failed to terminate session', 'error');
+                              }
+                            } catch (err: any) {
+                              showToast(`Failed to log out user: ${err.message}`, 'error');
+                            } finally {
+                              setIsLoggingOutSession(false);
+                            }
+                          }}
+                          className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50"
+                        >
+                          {isLoggingOutSession ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              Logging Out...
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="w-3.5 h-3.5" />
+                              {logoutConfirmUser.desktopDevice && logoutConfirmUser.mobileDevice ? 'Log Out All Devices' : 'Confirm Log Out'}
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

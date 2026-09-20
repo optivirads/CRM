@@ -248,12 +248,27 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Synchronous initialization from localStorage prevents initial flash of incorrect user or Owner persona
+  // Synchronous initialization from localStorage strictly requires a valid real JWT token
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('optivir_token');
+      if (t && !t.startsWith('ov_jwt_demo_')) return t;
+      localStorage.removeItem('optivir_token');
+      localStorage.removeItem('optivir_cached_user');
+      localStorage.removeItem('optivir_cached_org');
+      localStorage.removeItem('optivir_persona_id');
+    }
+    return null;
+  });
+
   const [user, setUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('optivir_cached_user');
-        if (cached) return JSON.parse(cached);
+        const t = localStorage.getItem('optivir_token');
+        if (t && !t.startsWith('ov_jwt_demo_')) {
+          const cached = localStorage.getItem('optivir_cached_user');
+          if (cached) return JSON.parse(cached);
+        }
       } catch {}
     }
     return null;
@@ -262,17 +277,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [organization, setOrganization] = useState<Organization | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('optivir_cached_org');
-        if (cached) return JSON.parse(cached);
+        const t = localStorage.getItem('optivir_token');
+        if (t && !t.startsWith('ov_jwt_demo_')) {
+          const cached = localStorage.getItem('optivir_cached_org');
+          if (cached) return JSON.parse(cached);
+        }
       } catch {}
-    }
-    return null;
-  });
-
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const t = localStorage.getItem('optivir_token');
-      if (t && !t.startsWith('ov_jwt_demo_')) return t;
     }
     return null;
   });
@@ -549,52 +559,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       throw new Error((res as any)?.message || 'Authentication failed. Please verify your email and password.');
     } catch (apiErr: any) {
-      if (!isDemoMode) {
-        // Secure production behavior: never bypass auth on error or failed response
-        throw new Error(apiErr?.message || 'Authentication failed. Please verify your credentials.');
-      }
-
-      console.warn('API login failed. Proceeding with local credentials verification in DEMO mode only:', apiErr);
-
-      // Local fallback for standalone mode / demo evaluation ONLY when NEXT_PUBLIC_DEMO_MODE is true
-      const matchedPersona = AGENCY_PERSONAS.find(
-        (p) => p.email.toLowerCase() === email.trim().toLowerCase()
-      );
-
-      if (!matchedPersona) {
-        throw new Error('Evaluation persona not found. In demo mode, select an evaluation persona.');
-      }
-
-      const [firstName, ...rest] = matchedPersona.name.split(' ');
-      const fallbackUser: User = {
-        id: `usr-${matchedPersona.role}`,
-        email: matchedPersona.email,
-        firstName,
-        lastName: rest.join(' '),
-        designation: matchedPersona.designation,
-        role: matchedPersona.role,
-        roleName: matchedPersona.roleLabel,
-        isOwner: matchedPersona.role === 'owner'
-      };
-
-      const fallbackOrg: Organization = {
-        id: 'org-1',
-        name: 'OptiVir CRM Global',
-        slug: 'optivir-crm',
-        currency: 'INR'
-      };
-
-      const tokenVal = `ov_jwt_demo_${matchedPersona.role}_${Date.now()}`;
-      localStorage.setItem('optivir_token', tokenVal);
-      localStorage.setItem('optivir_cached_user', JSON.stringify(fallbackUser));
-      localStorage.setItem('optivir_cached_org', JSON.stringify(fallbackOrg));
-      localStorage.setItem('optivir_persona_id', matchedPersona.id);
-      localStorage.setItem('optivir_remember_me', 'true');
-
-      setActivePersona(matchedPersona);
-      setToken(tokenVal);
-      setUser(fallbackUser);
-      setOrganization(fallbackOrg);
+      throw new Error(apiErr?.message || 'Authentication failed. Please verify your credentials.');
     }
   };
 

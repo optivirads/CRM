@@ -504,7 +504,9 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       contact_last,
       contact_email,
       contact_phone,
-      contact_role
+      contact_role,
+      asset_scope,
+      onboarding_stage
     } = req.body;
 
     if (current.rows[0].company_id && (company_name || industry !== undefined || website !== undefined || city !== undefined)) {
@@ -567,6 +569,8 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         account_manager_id = CASE WHEN $8::text IS NOT NULL THEN $8::uuid ELSE account_manager_id END,
         assigned_team_ids = COALESCE($9, assigned_team_ids),
         custom_fields = CASE WHEN $13::jsonb IS NOT NULL THEN COALESCE(clients.custom_fields, '{}'::jsonb) || $13::jsonb ELSE clients.custom_fields END,
+        asset_scope = CASE WHEN $14::jsonb IS NOT NULL THEN $14::jsonb ELSE clients.asset_scope END,
+        onboarding_stage = COALESCE($15, clients.onboarding_stage),
         updated_by = $10
       WHERE id = $11 AND organization_id = $12
       RETURNING *;
@@ -583,7 +587,9 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       userId,
       clientId,
       orgId,
-      custom_fields ? JSON.stringify(custom_fields) : null
+      custom_fields ? JSON.stringify(custom_fields) : null,
+      asset_scope ? JSON.stringify(asset_scope) : null,
+      onboarding_stage || null
     ]);
 
     // Fetch updated client with company, contact & AM info

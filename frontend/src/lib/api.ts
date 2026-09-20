@@ -731,9 +731,10 @@ class ApiClient {
     });
   }
 
-  async revokeUserSession(userId: string) {
-    return this.request<{ success: boolean; message: string }>(`/settings/users/${userId}/revoke-session`, {
+  async revokeUserSession(userId: string, category: 'all' | 'mobile' | 'desktop' = 'all') {
+    return this.request<{ success: boolean; message: string }>(`/settings/users/${userId}/revoke-session?category=${category}`, {
       method: 'POST',
+      body: JSON.stringify({ category }),
     });
   }
 

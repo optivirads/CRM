@@ -467,6 +467,10 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         u.last_login_at,
         u.active_session_id,
         u.current_device_info,
+        u.active_desktop_session_id,
+        u.desktop_device_info,
+        u.active_mobile_session_id,
+        u.mobile_device_info,
         ou.id as membership_id,
         ou.role_id,
         ou.team_id,
@@ -508,6 +512,13 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         ? ['*'] 
         : (u.allowed_tabs && u.allowed_tabs.length > 0 ? u.allowed_tabs : ['dashboard']);
 
+      const desktopDevice = u.desktop_device_info || (u.current_device_info?.deviceCategory === 'desktop' ? u.current_device_info : null);
+      const mobileDevice = u.mobile_device_info || (u.current_device_info?.deviceCategory === 'mobile' ? u.current_device_info : null);
+      const hasDesktop = Boolean(u.active_desktop_session_id || (u.active_session_id && desktopDevice));
+      const hasMobile = Boolean(u.active_mobile_session_id || (u.active_session_id && mobileDevice));
+      const activeDevicesCount = (hasDesktop ? 1 : 0) + (hasMobile ? 1 : 0);
+      const isOnline = activeDevicesCount > 0 || Boolean(u.active_session_id);
+
       return {
         id: u.id,
         membershipId: u.membership_id,
@@ -531,8 +542,13 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         clientName: u.client_name || null,
         allowed_tabs: effectiveTabs,
         activeSessionId: u.active_session_id || null,
-        currentDevice: u.current_device_info || null,
-        isOnline: Boolean(u.active_session_id)
+        currentDevice: u.current_device_info || desktopDevice || mobileDevice || null,
+        desktopDevice: hasDesktop ? desktopDevice : null,
+        mobileDevice: hasMobile ? mobileDevice : null,
+        activeDevicesCount,
+        hasDesktop,
+        hasMobile,
+        isOnline
       };
     });
 
@@ -544,19 +560,38 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
 });
 
 // ---------------------------------------------------------------------------
-// POST /settings/users/:id/revoke-session
+// POST /settings/users/:id/revoke-session (Exclusively authorized for optivirads@gmail.com)
 // ---------------------------------------------------------------------------
 router.post(
   '/users/:id/revoke-session',
   requireAuth,
-  requireOwnerOrRole('super_admin'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (req.user?.email?.toLowerCase() !== 'optivirads@gmail.com') {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: Only optivirads@gmail.com is authorized to log out users and terminate active sessions.'
+      });
+      return;
+    }
     const targetUserId = req.params.id;
+    const category = (req.query.category || req.body?.category || 'all') as string;
     try {
-      await db.query(
-        'UPDATE users SET active_session_id = NULL, current_device_info = NULL WHERE id = $1;',
-        [targetUserId]
-      );
+      if (category === 'mobile') {
+        await db.query(
+          'UPDATE users SET active_mobile_session_id = NULL, mobile_device_info = NULL WHERE id = $1;',
+          [targetUserId]
+        );
+      } else if (category === 'desktop') {
+        await db.query(
+          'UPDATE users SET active_desktop_session_id = NULL, desktop_device_info = NULL WHERE id = $1;',
+          [targetUserId]
+        );
+      } else {
+        await db.query(
+          'UPDATE users SET active_session_id = NULL, current_device_info = NULL, active_desktop_session_id = NULL, desktop_device_info = NULL, active_mobile_session_id = NULL, mobile_device_info = NULL WHERE id = $1;',
+          [targetUserId]
+        );
+      }
       await recordAuditLog(
         req.user!.organizationId,
         req.user!.id,
@@ -564,10 +599,10 @@ router.post(
         'users',
         targetUserId,
         null,
-        { targetUserId },
+        { targetUserId, category },
         req
       );
-      res.json({ success: true, message: 'Active system session revoked successfully' });
+      res.json({ success: true, message: 'User session terminated successfully' });
     } catch (err: any) {
       console.error('Revoke session error:', err);
       res.status(500).json({ success: false, message: 'Failed to revoke session: ' + err.message });
