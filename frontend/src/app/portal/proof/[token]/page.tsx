@@ -372,17 +372,17 @@ export default function ClientProofingPortalPage() {
               </div>
             )}
 
-            {/* Watermark Overlay for Client Portal Proofing Viewers */}
+            {/* Simple, Non-Intrusive Professional Watermark */}
             <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden select-none">
-              <div className="w-[160%] h-[160%] grid grid-cols-3 grid-rows-3 gap-6 sm:gap-10 p-4 transform -rotate-12 pointer-events-none select-none">
+              <div className="w-[140%] h-[140%] grid grid-cols-3 grid-rows-3 gap-8 transform -rotate-12 pointer-events-none select-none">
                 {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center justify-center text-center select-none">
-                    <div className="text-xs sm:text-base font-black tracking-widest uppercase text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] border border-white/40 bg-black/60 px-3 py-1 rounded-xl backdrop-blur-xs">
+                  <div key={i} className="flex flex-col items-center justify-center text-center select-none opacity-20">
+                    <span className="text-xs sm:text-sm font-black tracking-[0.25em] uppercase text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none">
                       OPTIVIR PROOF
-                    </div>
-                    <div className="text-[9px] sm:text-[10px] font-bold text-slate-200 tracking-widest mt-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] bg-black/50 px-2 py-0.5 rounded-md">
-                      PREVIEW ONLY • CONFIDENTIAL
-                    </div>
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none mt-0.5">
+                      PREVIEW ONLY
+                    </span>
                   </div>
                 ))}
               </div>
