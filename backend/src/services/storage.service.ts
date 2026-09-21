@@ -10,6 +10,7 @@ import {
   HeadObjectCommand
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -98,6 +99,24 @@ export class StorageService {
       expiresInSeconds,
       bucket: R2_BUCKET_NAME,
     };
+  }
+
+  /**
+   * Directly uploads a local file stream to Cloudflare R2
+   */
+  public static async uploadLocalFile(
+    localFilePath: string,
+    storageKey: string,
+    mimeType = 'application/octet-stream'
+  ): Promise<void> {
+    const fileStream = fs.createReadStream(localFilePath);
+    const command = new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: storageKey,
+      Body: fileStream,
+      ContentType: mimeType,
+    });
+    await r2Client.send(command);
   }
 
   /**

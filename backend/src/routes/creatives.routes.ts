@@ -5,6 +5,8 @@ import { db } from '../config/db';
 import { requireAuth } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { StorageService } from '../services/storage.service';
+import { WatermarkService } from '../services/watermark.service';
+import fs from 'fs';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -246,10 +248,24 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     const result = await db.query(query, params);
 
     // Fetch primary asset previews for each creative to construct signed viewing URLs
+    const user = req.user!;
+    const userRole = (user.role || '').toLowerCase();
+    const isGlobalOwner = Boolean(user.isOwner || userRole === 'owner' || userRole === 'super_admin');
+    const isGlobalAM = userRole === 'account_manager';
+
     const creativesWithAssets = await Promise.all(
       result.rows.map(async (row) => {
         let previewUrl = null;
         let assets: any[] = [];
+
+        const isCreativeCreator = Boolean(
+          (row.created_by && user.id === row.created_by) ||
+          (row.designer_id && user.id === row.designer_id)
+        );
+        const isClientAM = Boolean(
+          isGlobalAM || (row.client_account_manager_id && row.client_account_manager_id === user.id)
+        );
+        const canAccessClean = isGlobalOwner || isClientAM || isCreativeCreator;
 
         if (row.active_proof_id) {
           const assetsRes = await db.query(
@@ -259,7 +275,11 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
 
           assets = await Promise.all(
             assetsRes.rows.map(async (asset) => {
-              const signedUrl = await StorageService.generateViewingSignedUrl(asset.storage_key);
+              const deliverableKey = canAccessClean
+                ? asset.storage_key
+                : await WatermarkService.getOrGenerateWatermarkedKey(asset);
+
+              const signedUrl = await StorageService.generateViewingSignedUrl(deliverableKey);
               const thumbUrl = asset.thumbnail_storage_key
                 ? await StorageService.generateViewingSignedUrl(asset.thumbnail_storage_key)
                 : signedUrl;
@@ -451,12 +471,13 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       if (initialProof.assets && Array.isArray(initialProof.assets)) {
         for (let i = 0; i < initialProof.assets.length; i++) {
           const asset = initialProof.assets[i];
-          await client.query(
+          const insertedRes = await client.query(
             `INSERT INTO creative_proof_assets (
               organization_id, proof_id, asset_type, slide_order, storage_key,
               file_name, file_size_bytes, mime_type, width_px, height_px,
               duration_seconds, video_codec, thumbnail_storage_key
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING *`,
             [
               orgId,
               proof.id,
@@ -472,6 +493,12 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
               asset.videoCodec || null,
               asset.thumbnailStorageKey || null
             ]
+          );
+
+          // Asynchronously pre-generate server-side watermarked deliverable in R2
+          const newAsset = insertedRes.rows[0];
+          WatermarkService.getOrGenerateWatermarkedKey(newAsset).catch((err) =>
+            console.error('[Creative Asset Pre-Watermark Error]:', err)
           );
         }
       }
@@ -515,7 +542,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 // 4. GET CREATIVE DETAILS (Scoped)
 // ---------------------------------------------------------------------------
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const orgId = req.user!.organizationId;
+  const user = req.user!;
+  const orgId = user.organizationId;
   const { id } = req.params;
 
   try {
@@ -564,9 +592,24 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       [id]
     );
 
+    const userRole = (user.role || '').toLowerCase();
+    const isOwner = Boolean(user.isOwner || userRole === 'owner' || userRole === 'super_admin');
+    const isAccountManager = Boolean(
+      userRole === 'account_manager' ||
+      (creative.client_account_manager_id && creative.client_account_manager_id === user.id)
+    );
+    const isCreator = Boolean(
+      (creative.created_by && user.id === creative.created_by) ||
+      (creative.designer_id && user.id === creative.designer_id)
+    );
+    const canAccessClean = isOwner || isAccountManager || isCreator;
+
     // Load assets, comments, and approvals for each proof
     const proofs = await Promise.all(
       proofsRes.rows.map(async (proof) => {
+        const isProofUploader = Boolean(proof.uploaded_by && user.id === proof.uploaded_by);
+        const canAccessProofClean = canAccessClean || isProofUploader;
+
         const assetsRes = await db.query(
           `SELECT * FROM creative_proof_assets WHERE proof_id = $1 ORDER BY slide_order ASC`,
           [proof.id]
@@ -574,7 +617,11 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 
         const assets = await Promise.all(
           assetsRes.rows.map(async (asset) => {
-            const viewingUrl = await StorageService.generateViewingSignedUrl(asset.storage_key);
+            const deliverableKey = canAccessProofClean
+              ? asset.storage_key
+              : await WatermarkService.getOrGenerateWatermarkedKey(asset);
+
+            const viewingUrl = await StorageService.generateViewingSignedUrl(deliverableKey);
             const thumbnailUrl = asset.thumbnail_storage_key
               ? await StorageService.generateViewingSignedUrl(asset.thumbnail_storage_key)
               : viewingUrl;
@@ -948,12 +995,13 @@ router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: R
     if (assets && Array.isArray(assets)) {
       for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
-        await client.query(
+        const insertedRes = await client.query(
           `INSERT INTO creative_proof_assets (
             organization_id, proof_id, asset_type, slide_order, storage_key,
             file_name, file_size_bytes, mime_type, width_px, height_px,
             duration_seconds, video_codec, thumbnail_storage_key
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          RETURNING *`,
           [
             orgId,
             proof.id,
@@ -969,6 +1017,12 @@ router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: R
             asset.videoCodec || null,
             asset.thumbnailStorageKey || null
           ]
+        );
+
+        // Asynchronously pre-generate server-side watermarked deliverable in R2
+        const newAsset = insertedRes.rows[0];
+        WatermarkService.getOrGenerateWatermarkedKey(newAsset).catch((err) =>
+          console.error('[Proof Version Asset Pre-Watermark Error]:', err)
         );
       }
     }
@@ -1296,6 +1350,92 @@ router.post('/share-links/:linkId/revoke', requireAuth, async (req: Authenticate
 });
 
 // ---------------------------------------------------------------------------
+// 9.5. ASSET DOWNLOAD WITH STRICT WATERMARK ENFORCEMENT
+// Rule: Nobody other than Account Manager, Creator, and Owner can download clean creatives.
+// Everybody else receives the watermarked version only.
+// ---------------------------------------------------------------------------
+router.get('/:id/proofs/:proofId/assets/:assetId/download', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const user = req.user!;
+  const { id, proofId, assetId } = req.params;
+  const requestedMode = req.query.mode === 'original' ? 'original' : 'watermarked';
+
+  try {
+    const creativeRes = await db.query(
+      `SELECT c.*, cl.account_manager_id as client_account_manager_id
+       FROM creatives c
+       LEFT JOIN clients cl ON c.client_id = cl.id
+       WHERE c.id = $1 AND c.organization_id = $2`,
+      [id, orgId]
+    );
+
+    if (creativeRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Creative not found' });
+      return;
+    }
+
+    const creative = creativeRes.rows[0];
+
+    const assetRes = await db.query(
+      `SELECT a.*, p.uploaded_by as proof_uploaded_by
+       FROM creative_proof_assets a
+       JOIN creative_proofs p ON a.proof_id = p.id
+       WHERE a.id = $1 AND a.proof_id = $2 AND p.creative_id = $3`,
+      [assetId, proofId, id]
+    );
+
+    if (assetRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Asset not found' });
+      return;
+    }
+
+    const asset = assetRes.rows[0];
+
+    const role = (user.role || '').toLowerCase();
+    const isOwner = Boolean(user.isOwner || role === 'owner' || role === 'super_admin');
+    const isAccountManager = Boolean(
+      role === 'account_manager' ||
+      (creative.client_account_manager_id && creative.client_account_manager_id === user.id)
+    );
+    const isCreator = Boolean(
+      (creative.created_by && user.id === creative.created_by) ||
+      (creative.designer_id && user.id === creative.designer_id) ||
+      (asset.proof_uploaded_by && user.id === asset.proof_uploaded_by)
+    );
+
+    const canDownloadOriginal = isOwner || isAccountManager || isCreator;
+
+    if (requestedMode === 'original' && canDownloadOriginal) {
+      const signedUrl = await StorageService.generateViewingSignedUrl(asset.storage_key, 300);
+      res.redirect(signedUrl);
+      return;
+    }
+
+    // Force watermark for everyone else or if watermarked requested
+    const watermarked = await WatermarkService.createWatermarkedAsset({
+      storageKey: asset.storage_key,
+      fileName: asset.file_name,
+      assetType: asset.asset_type,
+      mimeType: asset.mime_type
+    });
+
+    res.setHeader('Content-Type', watermarked.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${watermarked.fileName}"`);
+
+    const readStream = fs.createReadStream(watermarked.filePath);
+    readStream.pipe(res);
+    readStream.on('close', () => watermarked.cleanup());
+    readStream.on('error', (err) => {
+      console.error('[Watermark Stream Error]:', err);
+      watermarked.cleanup();
+    });
+  } catch (err: any) {
+    console.error('[Download API Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to process asset download', error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // 10. INTERNAL COMMENTS & ANNOTATIONS
 // ---------------------------------------------------------------------------
 router.post('/:id/proofs/:proofId/comments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -1576,7 +1716,9 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
 
     const assets = await Promise.all(
       assetsRes.rows.map(async (asset) => {
-        const viewingUrl = await StorageService.generateViewingSignedUrl(asset.storage_key, 7200); // 2 hours
+        // Clients strictly receive server-side watermarked deliverables directly from R2
+        const deliverableKey = await WatermarkService.getOrGenerateWatermarkedKey(asset);
+        const viewingUrl = await StorageService.generateViewingSignedUrl(deliverableKey, 7200); // 2 hours
         const thumbnailUrl = asset.thumbnail_storage_key
           ? await StorageService.generateViewingSignedUrl(asset.thumbnail_storage_key, 7200)
           : viewingUrl;
@@ -1642,6 +1784,68 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
   } catch (err: any) {
     console.error('[Public Proof API] Error:', err);
     res.status(500).json({ success: false, message: 'Failed to load client proof', error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 12.5. PUBLIC CLIENT PROOF DOWNLOAD (STRICTLY WATERMARKED)
+// ---------------------------------------------------------------------------
+router.get('/public/proofs/:token/assets/:assetId/download', async (req: Request, res: Response): Promise<void> => {
+  const { token, assetId } = req.params;
+
+  try {
+    const tokenHash = hashProofToken(token);
+
+    const linkRes = await db.query(
+      `SELECT sl.* FROM creative_share_links sl
+       WHERE sl.token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invalid or expired proof link' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+    if (shareLink.revoked_at || (shareLink.expires_at && new Date(shareLink.expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'This proof link is inactive or expired' });
+      return;
+    }
+
+    const assetRes = await db.query(
+      `SELECT * FROM creative_proof_assets WHERE id = $1 AND proof_id = $2`,
+      [assetId, shareLink.proof_id]
+    );
+
+    if (assetRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Proof asset not found' });
+      return;
+    }
+
+    const asset = assetRes.rows[0];
+
+    // Clients downloading proofs ALWAYS receive the watermarked file (video or image)
+    const watermarked = await WatermarkService.createWatermarkedAsset({
+      storageKey: asset.storage_key,
+      fileName: asset.file_name,
+      assetType: asset.asset_type,
+      mimeType: asset.mime_type
+    });
+
+    res.setHeader('Content-Type', watermarked.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${watermarked.fileName}"`);
+
+    const readStream = fs.createReadStream(watermarked.filePath);
+    readStream.pipe(res);
+    readStream.on('close', () => watermarked.cleanup());
+    readStream.on('error', (err) => {
+      console.error('[Public Download Stream Error]:', err);
+      watermarked.cleanup();
+    });
+  } catch (err: any) {
+    console.error('[Public Download API Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate watermarked proof download', error: err.message });
   }
 });
 

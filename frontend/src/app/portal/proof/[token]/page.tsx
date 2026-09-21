@@ -57,6 +57,7 @@ export default function ClientProofingPortalPage() {
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [submittingDecision, setSubmittingDecision] = useState(false);
   const [decisionSuccessMessage, setDecisionSuccessMessage] = useState<string | null>(null);
+  const [isDownloadingWatermarked, setIsDownloadingWatermarked] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -160,69 +161,35 @@ export default function ClientProofingPortalPage() {
   };
 
   const handleDownloadWatermarked = async (asset: any) => {
-    if (!asset?.viewingUrl) return;
-    const fileName = asset.fileName || 'client_proof_preview';
-
-    if (asset.assetType === 'VIDEO') {
-      const a = document.createElement('a');
-      a.href = asset.viewingUrl;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return;
-    }
+    if (!asset?.id || !token) return;
+    const baseName = asset.fileName || 'client_proof_preview';
 
     try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = asset.viewingUrl;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+      setIsDownloadingWatermarked(true);
+      const downloadEndpoint = `/api/creatives/public/proofs/${token}/assets/${asset.id}/download`;
 
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.drawImage(img, 0, 0);
-
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((-25 * Math.PI) / 180);
-      ctx.translate(-canvas.width / 2, -canvas.height / 2);
-
-      const fontSize = Math.max(20, Math.round(canvas.width / 22));
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.lineWidth = Math.max(1, Math.round(fontSize / 12));
-      ctx.textAlign = 'center';
-
-      const stepX = Math.round(canvas.width / 2.5);
-      const stepY = Math.round(canvas.height / 3.5);
-
-      for (let x = -canvas.width; x < canvas.width * 2; x += stepX) {
-        for (let y = -canvas.height; y < canvas.height * 2; y += stepY) {
-          ctx.strokeText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
-          ctx.fillText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
-        }
+      const response = await fetch(downloadEndpoint);
+      if (!response.ok) {
+        throw new Error(`Failed to generate watermarked proof (${response.status})`);
       }
-      ctx.restore();
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `WATERMARKED_${fileName}`;
+      a.href = blobUrl;
+      const isVideo = asset.assetType === 'VIDEO';
+      const ext = isVideo ? '.mp4' : (asset.mimeType?.includes('png') ? '.png' : '.jpg');
+      const safeName = baseName.replace(/\.[^/.]+$/, '');
+      a.download = `WATERMARKED_${safeName}${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } catch {
-      window.open(asset.viewingUrl, '_blank');
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      console.error('Watermark download error:', err);
+      alert('Unable to generate watermarked proof at this moment. Please try again.');
+    } finally {
+      setIsDownloadingWatermarked(false);
     }
   };
 
@@ -325,11 +292,16 @@ export default function ClientProofingPortalPage() {
               {currentAsset?.viewingUrl && (
                 <button
                   onClick={() => handleDownloadWatermarked(currentAsset)}
-                  title="Download Watermarked Proof"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition shadow-xs"
+                  disabled={isDownloadingWatermarked}
+                  title="Download Watermark-Protected Proof"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition shadow-xs disabled:opacity-50 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Proof</span>
+                  {isDownloadingWatermarked ? (
+                    <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                  <span>{isDownloadingWatermarked ? 'Watermarking Proof...' : 'Download Proof (Watermarked)'}</span>
                 </button>
               )}
 
@@ -350,13 +322,17 @@ export default function ClientProofingPortalPage() {
           <div
             ref={mediaContainerRef}
             onClick={handleCanvasClick}
-            className={`relative max-w-full max-h-[65vh] rounded-2xl overflow-hidden shadow-2xl ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+            className={`relative max-w-full max-h-[65vh] rounded-2xl overflow-hidden shadow-2xl select-none ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
           >
             {currentAsset?.assetType === 'VIDEO' ? (
               <video
                 ref={videoRef}
                 src={currentAsset.viewingUrl}
-                className="max-h-[65vh] object-contain rounded-2xl"
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
+                className="max-h-[65vh] object-contain rounded-2xl select-none pointer-events-auto"
                 onTimeUpdate={() => setVideoCurrentTime(videoRef.current?.currentTime || 0)}
                 onLoadedMetadata={() => setVideoDuration(videoRef.current?.duration || 0)}
               />
@@ -364,7 +340,9 @@ export default function ClientProofingPortalPage() {
               <img
                 src={currentAsset.viewingUrl}
                 alt="Proof"
-                className="max-h-[65vh] object-contain rounded-2xl select-none"
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
+                className="max-h-[65vh] object-contain rounded-2xl select-none pointer-events-none"
               />
             ) : (
               <div className="p-16 text-center text-slate-500">

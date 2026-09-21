@@ -1409,7 +1409,9 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                                         >
                                           <video
                                             src={previewSrc}
-                                            className="w-full h-full object-cover"
+                                            controlsList="nodownload"
+                                            onContextMenu={(e) => e.preventDefault()}
+                                            className="w-full h-full object-cover pointer-events-none"
                                             muted
                                             playsInline
                                           />
@@ -2318,6 +2320,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
               <video
                 src={previewingVideo.url}
                 controls
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
                 autoPlay
                 playsInline
                 className="w-full h-full object-contain"

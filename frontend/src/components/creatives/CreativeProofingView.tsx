@@ -61,6 +61,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const { user } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
   const [showWatermark, setShowWatermark] = useState(true);
+  const [isDownloadingAsset, setIsDownloadingAsset] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -451,86 +452,79 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     }
   };
 
-  // Watermark exemption rule: Only COO, Owner, or the user who uploaded/created the creative are exempt from watermark
-  const isWatermarkExempt = (creative?: any, proof?: any) => {
+  // User Permission Rule:
+  // "nobody other than account manager, the one created the creative and owner should be able to download creatives. everybody else should get the version with watermark only"
+  const canDownloadOriginal = (creative?: any, proof?: any) => {
     if (!user) return false;
     const role = (user.role || '').toLowerCase();
-    if (role === 'owner' || role === 'coo') return true;
-    if (creative?.created_by && user.id === creative.created_by) return true;
-    if (proof?.uploaded_by && user.id === proof.uploaded_by) return true;
-    return false;
+    const isOwner = Boolean(user.isOwner || role === 'owner' || role === 'super_admin');
+    const isAccountManager = Boolean(
+      role === 'account_manager' ||
+      (activeCreativeDetails?.creative?.client_account_manager_id && activeCreativeDetails.creative.client_account_manager_id === user.id) ||
+      (creative?.account_manager_id && creative.account_manager_id === user.id)
+    );
+    const isCreator = Boolean(
+      (creative?.created_by && user.id === creative.created_by) ||
+      (creative?.designer_id && user.id === creative.designer_id) ||
+      (proof?.uploaded_by && user.id === proof.uploaded_by) ||
+      (proof?.created_by && user.id === proof.created_by)
+    );
+    return isOwner || isAccountManager || isCreator;
   };
 
-  // Download asset (applying watermark if user is non-exempt)
-  const handleDownloadAsset = async (asset: any) => {
-    if (!asset?.viewingUrl) return;
+  // Download asset (strictly enforcing watermarking for non-exempt users)
+  const handleDownloadAsset = async (asset: any, forceWatermark = false) => {
+    if (!asset?.id || !activeCreativeId || !currentProof?.id) return;
 
-    const exempt = isWatermarkExempt(activeCreativeDetails?.creative, currentProof);
+    const exempt = canDownloadOriginal(activeCreativeDetails?.creative, currentProof);
+    const mode = (exempt && !forceWatermark) ? 'original' : 'watermarked';
     const fileName = asset.fileName || 'proof_asset';
 
-    if (exempt || asset.asset_type === 'VIDEO') {
-      const a = document.createElement('a');
-      a.href = asset.viewingUrl;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return;
-    }
-
-    // For non-exempt users downloading an image, stamp watermark onto canvas
     try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = asset.viewingUrl;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+      setIsDownloadingAsset(true);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Draw original image
-      ctx.drawImage(img, 0, 0);
-
-      // Draw repeating diagonal watermark
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((-25 * Math.PI) / 180);
-      ctx.translate(-canvas.width / 2, -canvas.height / 2);
-
-      const fontSize = Math.max(20, Math.round(canvas.width / 22));
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.lineWidth = Math.max(1, Math.round(fontSize / 12));
-      ctx.textAlign = 'center';
-
-      const stepX = Math.round(canvas.width / 2.5);
-      const stepY = Math.round(canvas.height / 3.5);
-
-      for (let x = -canvas.width; x < canvas.width * 2; x += stepX) {
-        for (let y = -canvas.height; y < canvas.height * 2; y += stepY) {
-          ctx.strokeText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
-          ctx.fillText('OPTIVIR PROOF • CONFIDENTIAL', x, y);
-        }
+      if (mode === 'original') {
+        const a = document.createElement('a');
+        a.href = asset.viewingUrl;
+        a.download = fileName;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
       }
-      ctx.restore();
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      // Non-exempt users (everybody else) or if watermarked requested:
+      // Request watermarked stream generated by backend watermark engine
+      const token = localStorage.getItem('optivir_token');
+      const res = await fetch(
+        `/api/creatives/${activeCreativeId}/proofs/${currentProof.id}/assets/${asset.id}/download?mode=watermarked`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Failed to generate watermarked file (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `WATERMARKED_${fileName}`;
+      a.href = url;
+      const isVideo = asset.asset_type === 'VIDEO' || asset.assetType === 'VIDEO';
+      const ext = isVideo ? '.mp4' : (asset.mimeType?.includes('png') ? '.png' : '.jpg');
+      const safeName = fileName.replace(/\.[^/.]+$/, '');
+      a.download = `WATERMARKED_${safeName}${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } catch {
-      window.open(asset.viewingUrl, '_blank');
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('Unable to generate watermarked proof file. Please try again.');
+    } finally {
+      setIsDownloadingAsset(false);
     }
   };
 
@@ -889,7 +883,12 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-slate-900">
                               {c.ad_format === 'VIDEO' ? (
                                 <div className="w-full h-full flex items-center justify-center bg-slate-950 text-white relative">
-                                  <video src={c.previewUrl} className="w-full h-full object-cover" />
+                                  <video
+                                    src={c.previewUrl}
+                                    controlsList="nodownload"
+                                    onContextMenu={(e) => e.preventDefault()}
+                                    className="w-full h-full object-cover pointer-events-none"
+                                  />
                                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:scale-110 transition">
                                     <Play className="w-6 h-6 text-white drop-shadow-md" />
                                   </div>
@@ -989,7 +988,12 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     {c.previewUrl ? (
                       c.ad_format === 'VIDEO' ? (
                         <div className="w-full h-full flex items-center justify-center bg-slate-950 text-white relative">
-                          <video src={c.previewUrl} className="w-full h-full object-cover" />
+                          <video
+                            src={c.previewUrl}
+                            controlsList="nodownload"
+                            onContextMenu={(e) => e.preventDefault()}
+                            className="w-full h-full object-cover pointer-events-none"
+                          />
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:scale-110 transition">
                             <Play className="w-8 h-8 text-white drop-shadow-md" />
                           </div>
@@ -1116,7 +1120,9 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                                   <div className="w-full h-full flex items-center justify-center bg-slate-950 relative">
                                     <video
                                       src={c.previewUrl}
-                                      className="w-full h-full object-cover"
+                                      controlsList="nodownload"
+                                      onContextMenu={(e) => e.preventDefault()}
+                                      className="w-full h-full object-cover pointer-events-none"
                                       muted
                                       playsInline
                                     />
@@ -1273,14 +1279,42 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   </button>
                 )}
                 {currentAsset?.viewingUrl && (
-                  <button
-                    onClick={() => handleDownloadAsset(currentAsset)}
-                    title={isWatermarkExempt(activeCreativeDetails.creative, currentProof) ? "Download Original Asset" : "Download Watermarked Proof"}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition shadow-xs cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
-                  </button>
+                  canDownloadOriginal(activeCreativeDetails.creative, currentProof) ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDownloadAsset(currentAsset, false)}
+                        disabled={isDownloadingAsset}
+                        title="Download Original Clean File (Owner, Account Manager & Creator Only)"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Original</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownloadAsset(currentAsset, true)}
+                        disabled={isDownloadingAsset}
+                        title="Download Watermarked Proof Version"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Watermarked</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleDownloadAsset(currentAsset, true)}
+                      disabled={isDownloadingAsset}
+                      title="Download Proof (Watermark Protected)"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {isDownloadingAsset ? (
+                        <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                      )}
+                      <span>{isDownloadingAsset ? 'Watermarking Proof...' : 'Download Proof (Watermarked)'}</span>
+                    </button>
+                  )
                 )}
                 <button
                   onClick={handleGenerateShareLink}
@@ -1375,14 +1409,18 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   <div
                     ref={mediaContainerRef}
                     onClick={handleCanvasClick}
-                    className={`relative max-w-full max-h-[60vh] rounded-xl overflow-hidden shadow-2xl bg-black flex items-center justify-center ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDragStart={(e) => e.preventDefault()}
+                    className={`relative max-w-full max-h-[60vh] rounded-xl overflow-hidden shadow-2xl bg-black flex items-center justify-center select-none ${isPlacingPin ? 'cursor-crosshair ring-2 ring-red-500' : ''}`}
                   >
                     {/* Render Image or Video */}
                     {currentAsset?.asset_type === 'VIDEO' ? (
                       <video
                         ref={videoRef}
                         src={currentAsset.viewingUrl}
-                        className="max-h-[60vh] max-w-full object-contain rounded-xl"
+                        controlsList="nodownload"
+                        onContextMenu={(e) => e.preventDefault()}
+                        className="max-h-[60vh] max-w-full object-contain rounded-xl select-none"
                         onTimeUpdate={() => setVideoCurrentTime(videoRef.current?.currentTime || 0)}
                         onLoadedMetadata={() => setVideoDuration(videoRef.current?.duration || 0)}
                       />
@@ -1390,7 +1428,9 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                       <img
                         src={currentAsset.viewingUrl}
                         alt="Proof version"
-                        className="max-h-[60vh] max-w-full object-contain rounded-xl select-none"
+                        onContextMenu={(e) => e.preventDefault()}
+                        onDragStart={(e) => e.preventDefault()}
+                        className="max-h-[60vh] max-w-full object-contain rounded-xl select-none pointer-events-none"
                       />
                     ) : (
                       <div className="p-16 text-center text-slate-400 space-y-2">
