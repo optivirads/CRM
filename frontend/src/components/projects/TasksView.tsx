@@ -43,6 +43,7 @@ import {
   Sparkles,
   LayoutGrid
 } from 'lucide-react';
+import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 interface TasksViewProps {
   onNavigate?: (tab: any, ...args: any[]) => void;
@@ -114,6 +115,14 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [loadingAvailableCreatives, setLoadingAvailableCreatives] = useState(false);
   const [creativeSearchQuery, setCreativeSearchQuery] = useState('');
   const [linkingCreativeId, setLinkingCreativeId] = useState<string | null>(null);
+
+  // Video Deliverable Quick Player Modal State
+  const [previewingVideo, setPreviewingVideo] = useState<{
+    url: string;
+    title: string;
+    format?: string;
+    platform?: string;
+  } | null>(null);
 
   // New Creative Modal Form States
   const [newCreativeName, setNewCreativeName] = useState('');
@@ -1381,27 +1390,67 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                             <div>
                               {/* Thumbnail / Visual Box */}
                               <div className="relative w-full h-36 bg-gradient-to-br from-slate-800 to-slate-950 overflow-hidden flex items-center justify-center">
-                                {creative.previewUrl ? (
-                                  <img
-                                    src={creative.previewUrl}
-                                    alt={creative.name}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                  />
-                                ) : (
-                                  <div className="flex flex-col items-center gap-1.5 text-slate-400 p-4 text-center">
-                                    {creative.ad_format === 'VIDEO' ? (
-                                      <Film className="w-8 h-8 text-rose-500/80" />
-                                    ) : (
-                                      <ImageIcon className="w-8 h-8 text-purple-500/80" />
-                                    )}
-                                    <span className="text-[11px] font-semibold tracking-wide text-slate-300">
-                                      {creative.ad_format || 'IMAGE'} • {creative.aspect_ratio || '1:1'}
-                                    </span>
-                                  </div>
-                                )}
+                                {(() => {
+                                  const previewSrc = creative.previewUrl || creative.preview_url || creative.thumbnailUrl || creative.thumbnail_url || (creative.assets && creative.assets[0]?.viewingUrl);
+                                  const isVideo = creative.ad_format === 'VIDEO' || creative.ad_format?.toUpperCase() === 'VIDEO' || (typeof previewSrc === 'string' && previewSrc.match(/\.(mp4|mov|webm|avi|mkv)($|\?)/i));
+
+                                  if (previewSrc) {
+                                    if (isVideo) {
+                                      return (
+                                        <div
+                                          onClick={() => setPreviewingVideo({
+                                            url: previewSrc,
+                                            title: creative.name,
+                                            format: creative.ad_format,
+                                            platform: creative.target_platform
+                                          })}
+                                          className="w-full h-full flex items-center justify-center bg-slate-950 text-white relative cursor-pointer group/video"
+                                          title="Click to preview video deliverable"
+                                        >
+                                          <video
+                                            src={previewSrc}
+                                            className="w-full h-full object-cover"
+                                            muted
+                                            playsInline
+                                          />
+                                          <div className="absolute inset-0 bg-black/30 group-hover/video:bg-black/50 flex items-center justify-center transition">
+                                            <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-xs flex items-center justify-center group-hover/video:scale-110 transition shadow-lg border border-white/30">
+                                              <Play className="w-5 h-5 text-white fill-white ml-0.5 drop-shadow-md" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <img
+                                        src={previewSrc}
+                                        alt={creative.name}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="flex flex-col items-center gap-1.5 text-slate-400 p-4 text-center">
+                                      {creative.ad_format === 'VIDEO' ? (
+                                        <Film className="w-8 h-8 text-rose-500/80" />
+                                      ) : (
+                                        <ImageIcon className="w-8 h-8 text-purple-500/80" />
+                                      )}
+                                      <span className="text-[11px] font-semibold tracking-wide text-slate-300">
+                                        {creative.ad_format || 'IMAGE'} • {creative.aspect_ratio || '1:1'}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
+                                <WatermarkOverlay size="sm" />
 
                                 {/* Overlay Badges */}
-                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-20">
                                   <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold tracking-wide uppercase shadow-xs ${platformBg}`}>
                                     {creative.target_platform || 'ALL'}
                                   </span>
@@ -1410,7 +1459,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                                   </span>
                                 </div>
 
-                                <div className="absolute top-2.5 right-2.5">
+                                <div className="absolute top-2.5 right-2.5 z-20">
                                   <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs border border-white/10">
                                     v{creative.active_version || 1}
                                   </span>
@@ -2013,12 +2062,41 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                       className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-900/60 bg-white dark:bg-slate-900/60 flex items-center justify-between gap-3 transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 text-white font-bold text-xs">
-                          {creative.previewUrl ? (
-                            <img src={creative.previewUrl} alt={creative.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Palette className="w-4 h-4 text-purple-400" />
-                          )}
+                        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 text-white font-bold text-xs relative">
+                          {(() => {
+                            const modalPreviewSrc = creative.previewUrl || creative.preview_url || creative.thumbnailUrl || creative.thumbnail_url || (creative.assets && creative.assets[0]?.viewingUrl);
+                            const isModalVideo = creative.ad_format === 'VIDEO' || creative.ad_format?.toUpperCase() === 'VIDEO' || (typeof modalPreviewSrc === 'string' && modalPreviewSrc.match(/\.(mp4|mov|webm|avi|mkv)($|\?)/i));
+
+                            if (modalPreviewSrc) {
+                              if (isModalVideo) {
+                                return (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-950 relative">
+                                    <video
+                                      src={modalPreviewSrc}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                      <Play className="w-3.5 h-3.5 text-white fill-white" />
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <img
+                                  src={modalPreviewSrc}
+                                  alt={creative.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              );
+                            }
+                            return <Palette className="w-4 h-4 text-purple-400" />;
+                          })()}
+                          <WatermarkOverlay size="xs" />
                         </div>
                         <div className="min-w-0 space-y-0.5">
                           <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{creative.name}</h5>
@@ -2211,6 +2289,59 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Video Deliverable Quick Preview Modal */}
+      {previewingVideo && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl overflow-hidden max-w-3xl w-full shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold tracking-wider uppercase">
+                  {previewingVideo.platform || 'VIDEO'}
+                </span>
+                <h3 className="text-sm font-bold text-white truncate max-w-md">
+                  {previewingVideo.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewingVideo(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="aspect-video bg-black flex items-center justify-center relative overflow-hidden">
+              <video
+                src={previewingVideo.url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+              />
+              <WatermarkOverlay size="lg" className="z-20" />
+            </div>
+            <div className="p-3.5 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-400">
+                Cloudflare R2 High-Resolution Deliverable Asset
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewingVideo(null);
+                    if (onNavigate) onNavigate('creatives');
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <span>Open in Creative Studio</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -23,6 +23,7 @@ import {
   Download
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 export default function ClientProofingPortalPage() {
   const params = useParams();
@@ -373,20 +374,7 @@ export default function ClientProofingPortalPage() {
             )}
 
             {/* Simple, Non-Intrusive Professional Watermark */}
-            <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden select-none">
-              <div className="w-[140%] h-[140%] grid grid-cols-3 grid-rows-3 gap-8 transform -rotate-12 pointer-events-none select-none">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center justify-center text-center select-none opacity-20">
-                    <span className="text-xs sm:text-sm font-black tracking-[0.25em] uppercase text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none">
-                      OPTIVIR PROOF
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none mt-0.5">
-                      PREVIEW ONLY
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <WatermarkOverlay size="lg" className="z-20" />
 
             {/* Pins */}
             {proof.comments

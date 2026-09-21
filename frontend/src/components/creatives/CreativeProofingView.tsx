@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 interface CreativeProofingViewProps {
   onNavigate?: (tab: any, clientId?: string, clientName?: string) => void;
@@ -900,7 +901,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                                   className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                                 />
                               )}
-                              <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold">
+                              <WatermarkOverlay size="sm" />
+                              <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold z-20">
                                 {c.active_version ? `v${c.active_version}` : 'v1'}
                               </span>
                             </div>
@@ -1005,7 +1007,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         <span className="text-xs font-medium">No media uploaded</span>
                       </div>
                     )}
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                    {c.previewUrl && <WatermarkOverlay size="sm" />}
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5 z-20">
                       <span className="px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-white text-[10px] font-bold">
                         {c.target_platform}
                       </span>
@@ -1106,9 +1109,26 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition cursor-pointer"
                       >
                         <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0 relative">
                             {c.previewUrl ? (
-                              <img src={c.previewUrl} alt={c.name} className="w-full h-full object-cover" />
+                              <>
+                                {c.ad_format === 'VIDEO' || c.previewUrl.match(/\.(mp4|mov|webm|avi|mkv)($|\?)/i) ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-950 relative">
+                                    <video
+                                      src={c.previewUrl}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                      <Play className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <img src={c.previewUrl} alt={c.name} className="w-full h-full object-cover" />
+                                )}
+                                <WatermarkOverlay size="xs" />
+                              </>
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-slate-500">
                                 <ImageIcon className="w-4 h-4" />
@@ -1380,22 +1400,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     )}
 
                     {/* Simple, Non-Intrusive Professional Watermark */}
-                    {showWatermark && (
-                      <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden select-none">
-                        <div className="w-[140%] h-[140%] grid grid-cols-3 grid-rows-3 gap-8 transform -rotate-12 pointer-events-none select-none">
-                          {Array.from({ length: 9 }).map((_, i) => (
-                            <div key={i} className="flex flex-col items-center justify-center text-center select-none opacity-20">
-                              <span className="text-xs sm:text-sm font-black tracking-[0.25em] uppercase text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none">
-                                OPTIVIR PROOF
-                              </span>
-                              <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none mt-0.5">
-                                PREVIEW ONLY
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {showWatermark && <WatermarkOverlay size="lg" className="z-20" />}
 
                     {/* Render Existing Spatial Pin Markers */}
                     {currentProof?.comments

@@ -28,8 +28,10 @@ import {
   ExternalLink,
   Image,
   Film,
-  Palette
+  Palette,
+  Play
 } from 'lucide-react';
+import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 interface ProjectDetailsModalProps {
   projectId: string;
@@ -791,12 +793,26 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                             {/* Thumbnail / Preview */}
                             <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 overflow-hidden">
                               {hasThumb ? (
-                                <img
-                                  src={hasThumb}
-                                  alt={creative.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
+                                isVideo || hasThumb.match(/\.(mp4|mov|webm|avi|mkv)($|\?)/i) ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-950 text-white relative">
+                                    <video
+                                      src={hasThumb}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:scale-110 transition">
+                                      <Play className="w-6 h-6 text-white drop-shadow-md" />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={hasThumb}
+                                    alt={creative.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                )
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
                                   {isVideo
@@ -804,14 +820,15 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                                     : <Image className="w-10 h-10 text-slate-400 dark:text-slate-600" />}
                                 </div>
                               )}
+                              {hasThumb && <WatermarkOverlay size="sm" />}
                               {/* Version badge */}
                               {creative.version_count > 0 && (
-                                <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded-md">
+                                <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded-md z-20">
                                   v{creative.active_version || 1}
                                 </div>
                               )}
                               {/* Status badge */}
-                              <div className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-md ${statusClass}`}>
+                              <div className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-md z-20 ${statusClass}`}>
                                 {statusLabel[creative.status] || creative.status}
                               </div>
                             </div>
