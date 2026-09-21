@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users2,
@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { api } from '@/lib/api';
 
 export type NavItem =
   | 'dashboard'
@@ -54,6 +55,36 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpen = false, onClose }) => {
   const { canAccessTab } = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('optivir_master_logo') || '/images/optivir-logo.png';
+    }
+    return '/images/optivir-logo.png';
+  });
+
+  useEffect(() => {
+    const handleLogoUpdate = () => {
+      const saved = localStorage.getItem('optivir_master_logo');
+      if (saved) setLogoUrl(saved);
+    };
+    window.addEventListener('optivir_logo_updated', handleLogoUpdate);
+    window.addEventListener('storage', handleLogoUpdate);
+
+    // Initial check from backend organization settings
+    api.getOrganizationSettings().then(res => {
+      if (res.success && res.data?.logo_url) {
+        setLogoUrl(res.data.logo_url);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('optivir_master_logo', res.data.logo_url);
+        }
+      }
+    }).catch(() => {});
+
+    return () => {
+      window.removeEventListener('optivir_logo_updated', handleLogoUpdate);
+      window.removeEventListener('storage', handleLogoUpdate);
+    };
+  }, []);
 
   const navSections = [
     {
@@ -127,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onTabChange, isOpe
             title="OptiVir CRM Overview"
           >
             <img
-              src="/images/optivir-logo.png"
+              src={logoUrl}
               alt="OptiVir CRM"
               className="h-8 w-auto max-w-full object-contain"
             />

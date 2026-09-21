@@ -208,6 +208,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
     fetchFinanceData();
   }, []);
 
+  useEffect(() => {
+    if (initialInvoiceData) {
+      if (initialInvoiceData.clientName) setNewInvClient(initialInvoiceData.clientName);
+      if (initialInvoiceData.invoiceNumber) setNewInvNumber(initialInvoiceData.invoiceNumber);
+      if (initialInvoiceData.amount) setNewInvAmount(String(initialInvoiceData.amount));
+      setShowCreateInvoiceModal(true);
+    } else if (openCreateModal) {
+      setShowCreateInvoiceModal(true);
+    }
+  }, [initialInvoiceData, openCreateModal]);
+
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInvClient.trim()) {
@@ -215,13 +226,16 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialInvoiceData, op
       return;
     }
     const amt = parseFloat(newInvAmount.replace(/[^0-9.]/g, '')) || 50000;
+    const taxableSubtotal = Math.round(amt / 1.18);
+    const taxAmt = amt - taxableSubtotal;
     try {
       setIsCreatingInvoice(true);
       const res = await api.createInvoice({
         client_name: newInvClient.trim(),
         invoice_number: newInvNumber.trim() || undefined,
         total: amt,
-        subtotal: amt,
+        subtotal: taxableSubtotal,
+        tax: taxAmt,
         due_date: newInvDueDate || undefined,
         notes: newInvNotes.trim() || undefined
       });

@@ -10,12 +10,16 @@ const nextConfig: NextConfig = {
     const baseUrl = rawBackendUrl.replace(/\/api\/:path\*$/, '').replace(/\/+$/, '');
     const destination = baseUrl.endsWith('/api') ? `${baseUrl}/:path*` : `${baseUrl}/api/:path*`;
 
-    return [
-      {
-        source: '/api/:path*',
-        destination,
-      },
-    ];
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        {
+          source: '/api/:path*',
+          destination,
+        },
+      ],
+      fallback: [],
+    };
   },
 };
 

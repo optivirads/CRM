@@ -675,12 +675,21 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                                 <span className={`text-xs font-semibold block truncate ${isCompleted ? 'line-through text-slate-400' : ''}`}>
                                   {task.title}
                                 </span>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
                                   <span>{task.assignee_name || 'Unassigned'}</span>
                                   {task.due_date && (
                                     <>
                                       <span>•</span>
                                       <span>Due {new Date(task.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                                    </>
+                                  )}
+                                  {parseInt(task.linked_creatives_count || '0', 10) > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="inline-flex items-center gap-1 font-bold text-purple-600 dark:text-purple-400">
+                                        <Palette className="w-3 h-3" />
+                                        <span>{task.linked_creatives_count} {parseInt(task.linked_creatives_count, 10) === 1 ? 'Creative' : 'Creatives'}</span>
+                                      </span>
                                     </>
                                   )}
                                 </div>
@@ -771,7 +780,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                           LIVE: 'Live',
                         };
                         const statusClass = statusColors[creative.status] || statusColors.DRAFT;
-                        const hasThumb = creative.thumbnail_url || creative.preview_url;
+                        const hasThumb = creative.thumbnail_url || creative.preview_url || creative.previewUrl;
                         const isVideo = creative.ad_format === 'VIDEO' || creative.target_platform === 'YOUTUBE';
 
                         return (
@@ -812,7 +821,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                               <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
                                 {creative.name}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
                                 {creative.target_platform && (
                                   <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-medium">
                                     {creative.target_platform}
@@ -823,9 +832,14 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                                     {creative.ad_format}
                                   </span>
                                 )}
+                                {creative.task_title && (
+                                  <span className="px-1.5 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded font-semibold truncate max-w-[140px]">
+                                    Task: {creative.task_title}
+                                  </span>
+                                )}
                                 {creative.unresolved_comments_count > 0 && (
                                   <span className="ml-auto px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 rounded font-bold">
-                                    {creative.unresolved_comments_count} comment{creative.unresolved_comments_count > 1 ? 's' : ''}
+                                    {creative.unresolved_comments_count} pin{creative.unresolved_comments_count > 1 ? 's' : ''}
                                   </span>
                                 )}
                               </div>

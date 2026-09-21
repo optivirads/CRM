@@ -1,8 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 
+const router = Router();
+
+// Logo path on backend or frontend
 const POSSIBLE_LOGO_PATHS = [
   path.join(process.cwd(), 'public/images/optivir-logo-green.png'),
   path.join(process.cwd(), 'public/images/optivir-logo.png'),
@@ -28,9 +31,6 @@ const COLORS = {
   amber: '#D97706'
 };
 
-/**
- * Generate PDF buffer from a PDFKit document
- */
 function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -40,9 +40,7 @@ function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   });
 }
 
-// -------------------------------------------------------------
-// 1. TAX INVOICE PDF GENERATOR
-// -------------------------------------------------------------
+// 1. INVOICE
 async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
   const promise = streamToBuffer(doc);
@@ -72,11 +70,9 @@ async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
   const orgPhone = orgData?.switchboard_phone || '+919995037109';
   const orgGstin = orgData?.tax_gstin || '27AABCO1234F1Z5';
 
-  // Top Accent Bar
   doc.rect(40, 40, 515, 6).fill(COLORS.crimson);
-
-  // Header Box
   doc.rect(40, 46, 515, 74).fill(COLORS.navyDark);
+
   if (fs.existsSync(LOGO_PATH)) {
     doc.roundedRect(52, 54, 130, 42, 4).fill('#FFFFFF');
     doc.image(LOGO_PATH, 57, 59, { width: 120 });
@@ -88,15 +84,11 @@ async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
     doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text(`${orgName} • ${orgEmail} • ${orgWebsite}`, 55, 87);
   }
 
-  // Invoice Title Right
   doc.fillColor('#FFFFFF').fontSize(18).font('Helvetica-Bold').text('TAX INVOICE', 380, 56, { align: 'right', width: 160 });
   doc.fillColor(COLORS.crimsonLight).fontSize(9).font('Helvetica-Bold').text(invNumber, 380, 78, { align: 'right', width: 160 });
 
-  // Status & Metadata Bar
   let y = 130;
   doc.roundedRect(40, y, 515, 48, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
-  
-  // Columns in metadata
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('INVOICE DATE', 52, y + 8);
   doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(invoiceDateStr, 52, y + 20);
 
@@ -110,7 +102,6 @@ async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
   doc.roundedRect(420, y + 18, 60, 16, 3).fill(isPaid ? COLORS.greenBg : '#FEF3C7');
   doc.fillColor(isPaid ? COLORS.green : COLORS.amber).fontSize(8).font('Helvetica-Bold').text(rawStatus, 426, y + 22);
 
-  // Billed By & Billed To Boxes
   y += 58;
   const boxW = 252;
   doc.roundedRect(40, y, boxW, 70, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
@@ -198,9 +189,7 @@ async function generateInvoicePDF(params: any, orgData?: any): Promise<Buffer> {
   return promise;
 }
 
-// -------------------------------------------------------------
-// 2. MODEL PROPOSAL PDF GENERATOR (OptiVir Ads Model Layout)
-// -------------------------------------------------------------
+// 2. PROPOSAL (2 Pages matching model)
 async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> {
   const doc = new PDFDocument({
     size: 'A4',
@@ -215,23 +204,7 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
 
   const proposalTitle = params.title || params.name || 'Kerala Launch — Social Media & Meta Ads';
   const clientName = params.client || params.client_name || 'Hayras Coconut Oil';
-  let brandName = params.brand || params.brand_name || 'Chakkil Aattiya Velichenna';
-  
-  // Clean brand name to avoid repetitive "SOW for Client — Client" artifacts
-  let displayBrand = brandName;
-  if (displayBrand.toLowerCase().startsWith('sow for')) {
-    displayBrand = displayBrand.replace(/^sow\s+for\s+/i, '').trim();
-  }
-  if (displayBrand.includes('—')) {
-    const parts = displayBrand.split('—').map((s: string) => s.trim());
-    if (parts.length > 1 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
-      displayBrand = parts[0];
-    }
-  }
-  if (displayBrand.toLowerCase() === clientName.toLowerCase()) {
-    displayBrand = '';
-  }
-
+  const brandName = params.brand || params.brand_name || 'Chakkil Aattiya Velichenna (Wood-Pressed Coconut Oil)';
   const contactPerson = params.contact_person || params.contact || 'Shanavas';
   const validTill = params.valid_until || params.valid_till || '17/09/2026';
   const regionNiche = params.target_market || params.region || 'Kerala food & wellness';
@@ -273,7 +246,7 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.fillColor(FONT_DARK).fontSize(14).font('Helvetica-Bold').text(proposalTitle, 45, topY, { width: 405 });
   topY += doc.heightOfString(proposalTitle, { width: 405 }) + 4;
 
-  const prepSubtitle = `Prepared for ${clientName}${displayBrand ? ` — ${displayBrand}` : ''}`;
+  const prepSubtitle = `Prepared for ${clientName}${brandName && brandName !== clientName ? ` — ${brandName}` : ''}`;
   doc.fillColor(FONT_MUTED).fontSize(9).font('Helvetica-Oblique').text(prepSubtitle, 45, topY, { width: 405 });
   topY += doc.heightOfString(prepSubtitle, { width: 405 }) + 3;
 
@@ -284,23 +257,23 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica').text(`Valid till ${validTill}`, 45, topY);
   topY += 18;
 
-  // Salutation & Intro (Paragraph text size increased)
+  // Salutation & Intro
   let y = Math.max(topY, 122);
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text(`Dear ${contactPerson},`, 45, y);
+  doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica-Bold').text(`Dear ${contactPerson},`, 45, y);
   y += 16;
 
   const introText = `Below is a plan built specifically around what you shared — your stock, your order process, and your ${regionNiche.split(' ')[0]} launch goal of ${month1Goal} in Month 1, scaling toward ${month3Goal} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`;
-  doc.fillColor(FONT_DARK).fontSize(10.2).font('Helvetica').text(introText, 45, y, { width: 505, lineGap: 4 });
-  y += doc.heightOfString(introText, { width: 505, lineGap: 4 }) + 20;
+  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica').text(introText, 45, y, { width: 505, lineGap: 3.5 });
+  y += doc.heightOfString(introText, { width: 505, lineGap: 3.5 }) + 18;
 
   // Section 1: The Plan
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text('1. The Plan', 45, y);
-  y += 16;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('1. The Plan', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 10;
   const planIntro = "You're not starting from zero — past traction proves the product works. The focus is visibility, high-converting creative messaging, and a consistent lead flow into direct communication channels. The growth roadmap:";
-  doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica').text(planIntro, 45, y, { width: 505, lineGap: 3.5 });
-  y += doc.heightOfString(planIntro, { width: 505, lineGap: 3.5 }) + 14;
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(planIntro, 45, y, { width: 505, lineGap: 3 });
+  y += doc.heightOfString(planIntro, { width: 505, lineGap: 3 }) + 12;
 
   const planBullets = [
     '5-8 reels/month — process, purity & craft story, product usage, and real customer reviews, tuned to peak audience engagement. Reel script and creative direction provided.',
@@ -310,21 +283,21 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   ];
 
   planBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(10.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(9.8).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 3.5 });
-    const h = doc.heightOfString(pt, { width: 485, lineGap: 3.5 });
-    y += h + 10;
+    doc.fillColor(FONT_DARK).fontSize(9.5).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 3 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 3 });
+    y += h + 8;
   });
 
   // Section 2: What's Included / Not Included
-  y += 16;
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text("2. What's Included / Not Included", 45, y);
-  y += 16;
+  y += 14;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text("2. What's Included / Not Included", 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 10;
   const scopeIntro = 'Keeping scope clear upfront ensures full transparency and aligned expectations:';
-  doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica').text(scopeIntro, 45, y, { width: 505, lineGap: 3.5 });
-  y += doc.heightOfString(scopeIntro, { width: 505, lineGap: 3.5 }) + 14;
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(scopeIntro, 45, y, { width: 505 });
+  y += doc.heightOfString(scopeIntro, { width: 505 }) + 12;
 
   const scopeBullets = [
     'Included: full content strategy, reel scripting & video editing, Meta ad setup & optimization, direct funnel workflow, weekly telemetry reporting, up to 2 revision rounds per asset.',
@@ -332,10 +305,10 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
     'Additional scope items or custom shoots can be quoted separately whenever needed.'
   ];
   scopeBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(10.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(9.8).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 3.5 });
-    const h = doc.heightOfString(pt, { width: 485, lineGap: 3.5 });
-    y += h + 10;
+    doc.fillColor(FONT_DARK).fontSize(9.5).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 3 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 3 });
+    y += h + 8;
   });
 
   // Page 1 Running Footer
@@ -350,50 +323,50 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   }
 
   y = 44;
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text('Investment', 45, y);
-  y += 16;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Investment', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
   const invIntro = 'One straightforward number, split so you always know where the money goes:';
-  doc.fillColor(FONT_DARK).fontSize(9.8).font('Helvetica').text(invIntro, 45, y, { width: 505 });
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica').text(invIntro, 45, y, { width: 505 });
   y += 14;
 
   const invCol1W = 320;
   const invCol2W = 185;
   doc.rect(45, y, 505, 20).fill(HEADER_GREEN);
-  doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text('Item', 55, y + 5);
+  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('Item', 55, y + 5);
   doc.text('Amount', 45 + invCol1W + 10, y + 5, { width: invCol2W - 20, align: 'center' });
   y += 20;
 
   // Row 1
   doc.rect(45, y, 505, 26).stroke(BORDER_COLOR);
   doc.rect(45 + invCol1W, y, 0.5, 26).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text('Management fee (strategy, content, ads, funnel, reporting)', 55, y + 7, { width: invCol1W - 20 });
-  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica-Bold').text(managementFee, 45 + invCol1W + 10, y + 7, { width: invCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica-Bold').text('Management fee (strategy, content, ads, funnel, reporting)', 55, y + 7, { width: invCol1W - 20 });
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text(managementFee, 45 + invCol1W + 10, y + 7, { width: invCol2W - 20, align: 'center' });
   y += 26;
 
   // Row 2
   doc.rect(45, y, 505, 24).stroke(BORDER_COLOR);
   doc.rect(45 + invCol1W, y, 0.5, 24).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text('Meta ad spend (paid directly by you to Meta)', 55, y + 6, { width: invCol1W - 20 });
-  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(metaAdSpend, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica-Bold').text('Meta ad spend (paid directly by you to Meta)', 55, y + 6, { width: invCol1W - 20 });
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica').text(metaAdSpend, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
   y += 24;
 
   // Row 3 (Total)
   doc.rect(45, y, 505, 24).fillAndStroke(HIGHLIGHT_GREEN, HEADER_GREEN);
   doc.rect(45 + invCol1W, y, 0.5, 24).stroke(HEADER_GREEN);
-  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica-Bold').text('Total investment this month', 55, y + 6);
-  doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica-Bold').text(totalInvestment, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text('Total investment this month', 55, y + 6);
+  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica-Bold').text(totalInvestment, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
   y += 24;
 
   y += 8;
   const invNote = "We start ad spend at Rs. 12,000 in Week 1. Based on real performance data by Day 10, we'll recommend whether to hold or scale to Rs. 15,000 for Weeks 3-4 — you approve any increase before it happens. This fits inside your Rs. 25,000-30,000 budget, and ad spend stays in your Meta account, fully visible and in your control at all times. Management fee is inclusive of tax (inclusive of GST).";
-  doc.fillColor(FONT_MUTED).fontSize(8.8).font('Helvetica-Oblique').text(invNote, 45, y, { width: 505, lineGap: 2.5 });
-  y += doc.heightOfString(invNote, { width: 505, lineGap: 2.5 }) + 14;
+  doc.fillColor(FONT_MUTED).fontSize(8.2).font('Helvetica-Oblique').text(invNote, 45, y, { width: 505, lineGap: 2.2 });
+  y += doc.heightOfString(invNote, { width: 505, lineGap: 2.2 }) + 14;
 
   // Section 5: Engagement Terms
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text('Engagement Terms', 45, y);
-  y += 16;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Engagement Terms', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
@@ -407,16 +380,16 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
     "If either side needs to exit mid-month, 7 days' written notice on WhatsApp/email is enough — work is billed pro-rata for days completed, rest refunded"
   ];
   termsBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(9.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2.2 });
-    const h = doc.heightOfString(pt, { width: 485, lineGap: 2.2 });
+    doc.fillColor(FONT_DARK).fontSize(9).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 2 });
     y += h + 4;
   });
 
   // Section 6: Timeline
   y += 10;
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text('Timeline', 45, y);
-  y += 16;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Timeline', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
@@ -426,33 +399,33 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
     'Week 4: Full report + clear go/no-go recommendation for Month 2 scale-up the selling volume.'
   ];
   timelineBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(9.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2.2 });
-    const h = doc.heightOfString(pt, { width: 485, lineGap: 2.2 });
+    doc.fillColor(FONT_DARK).fontSize(9).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 2 });
     y += h + 4;
   });
 
   // Section 7: Next Step
   y += 10;
-  doc.fillColor(FONT_DARK).fontSize(12).font('Helvetica-Bold').text('Next Step', 45, y);
-  y += 16;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Next Step', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
   const nextStep1 = "If this works for you, reply 'yes' and send the advance — we'll have the content calendar with you within 24 hours.";
-  doc.fillColor(FONT_DARK).fontSize(9.8).font('Helvetica').text(nextStep1, 45, y, { width: 505 });
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica').text(nextStep1, 45, y, { width: 505 });
   y += doc.heightOfString(nextStep1, { width: 505 }) + 4;
 
-  const nextStep2 = `Looking forward to taking ${displayBrand || clientName}'s ${regionNiche.split(' ')[0]} launch as seriously as its UAE success.`;
-  doc.fillColor(FONT_DARK).fontSize(9.8).font('Helvetica-Oblique').text(nextStep2, 45, y, { width: 505 });
+  const nextStep2 = `Looking forward to taking ${brandName}'s ${regionNiche.split(' ')[0]} launch as seriously as its UAE success.`;
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Oblique').text(nextStep2, 45, y, { width: 505 });
   y += doc.heightOfString(nextStep2, { width: 505 }) + 14;
 
   // Sign-off Block
   if (fs.existsSync(LOGO_PATH)) {
     doc.image(LOGO_PATH, 45, y, { width: 60 });
   }
-  doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica-Bold').text(signerName, 115, y + 2);
-  doc.fillColor(FONT_MUTED).fontSize(9).font('Helvetica').text('On behalf of OptiVirAds', 115, y + 14);
-  doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica').text(`${signerPhone}  |  ${signerEmail}  |  ${signerWebsite}`, 115, y + 26);
+  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica-Bold').text(signerName, 115, y + 2);
+  doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica').text('On behalf of OptiVirAds', 115, y + 14);
+  doc.fillColor(FONT_MUTED).fontSize(8).font('Helvetica').text(`${signerPhone}  |  ${signerEmail}  |  ${signerWebsite}`, 115, y + 26);
 
   // Page 2 Running Footer
   doc.fillColor(FONT_MUTED).fontSize(7.5).font('Helvetica')
@@ -463,9 +436,7 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   return promise;
 }
 
-// -------------------------------------------------------------
-// 3. QUOTATION PDF GENERATOR
-// -------------------------------------------------------------
+// 3. QUOTATION
 async function generateQuotationPDF(params: any): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
   const promise = streamToBuffer(doc);
@@ -473,7 +444,6 @@ async function generateQuotationPDF(params: any): Promise<Buffer> {
   const quoteNum = params.number || 'QUO-2026-015';
   const clientName = params.client || 'Client Organization';
 
-  // Top Accent Bar
   doc.rect(40, 40, 515, 6).fill(COLORS.blue);
   doc.rect(40, 46, 515, 74).fill(COLORS.navyDark);
 
@@ -500,79 +470,79 @@ async function generateQuotationPDF(params: any): Promise<Buffer> {
   doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text('Nov 10, 2026 (30 Days)', 180, y + 20);
 
   doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('CLIENT ENTITY', 320, y + 8);
-  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(clientName, 320, y + 20);
+  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(clientName, 320, y + 20, { width: 225 });
 
-  // Line items
-  y += 60;
+  y += 58;
   doc.rect(40, y, 515, 20).fill(COLORS.navyDark);
-  doc.fillColor('#FFFFFF').fontSize(7.5).font('Helvetica-Bold');
-  doc.text('ITEMIZED SERVICE / PRODUCT', 50, y + 6);
-  doc.text('ESTIMATED DELIVERABLE', 280, y + 6);
-  doc.text('UNIT PRICE', 440, y + 6, { width: 100, align: 'right' });
+  doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold');
+  doc.text('LINE ITEM / DESCRIPTION', 50, y + 6);
+  doc.text('SAC', 290, y + 6);
+  doc.text('QTY', 340, y + 6);
+  doc.text('RATE', 380, y + 6);
+  doc.text('AMOUNT (INR)', 460, y + 6, { width: 85, align: 'right' });
 
-  const qItems = [
-    { name: 'Google Ads & Meta Ads Full Funnel Architecture', spec: 'Campaign setup, audience matrix & tracking', price: 'INR 65,000' },
-    { name: 'Technical Conversion API & GA4 Server Infrastructure', spec: 'AWS/GCP Cloud Run setup + GTM Server', price: 'INR 45,000' },
-    { name: 'Creative Design Pack (Banners, Carousels, Short Videos)', spec: '12 Static Banners + 4 Motion Reels', price: 'INR 35,000' },
-    { name: 'Executive Looker Studio Attribution Dashboard', spec: 'Live client telemetry & automated dispatch', price: 'INR 25,000' }
+  const items = [
+    { desc: 'Comprehensive Performance Marketing — Meta Ads & Content Strategy Sprint', sac: '998361', qty: 1, rate: '20,000', amount: '20,000' }
   ];
 
   y += 20;
-  qItems.forEach((it, idx) => {
-    doc.rect(40, y, 515, 25).fillAndStroke(idx % 2 === 1 ? '#F8FAFC' : '#FFFFFF', COLORS.border);
-    doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica-Bold').text(it.name, 50, y + 8);
-    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text(it.spec, 280, y + 8);
-    doc.fillColor(COLORS.navyDark).fontSize(7.5).font('Helvetica-Bold').text(it.price, 440, y + 8, { width: 100, align: 'right' });
-    y += 25;
+  items.forEach((it, idx) => {
+    doc.rect(40, y, 515, 24).fillAndStroke(idx % 2 === 1 ? '#F8FAFC' : '#FFFFFF', COLORS.border);
+    doc.fillColor(COLORS.textDark).fontSize(8).font('Helvetica-Bold').text(it.desc, 50, y + 7, { width: 230 });
+    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text(it.sac, 290, y + 7);
+    doc.text(String(it.qty), 340, y + 7);
+    doc.text(`INR ${it.rate}`, 380, y + 7);
+    doc.fillColor(COLORS.textDark).font('Helvetica-Bold').text(`INR ${it.amount}`, 460, y + 7, { width: 85, align: 'right' });
+    y += 24;
   });
 
-  y += 15;
-  doc.roundedRect(320, y, 235, 60, 4).fillAndStroke(COLORS.navyDark, COLORS.border);
-  doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text('Estimated Subtotal:', 335, y + 12);
-  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('INR 1,70,000', 440, y + 12, { width: 100, align: 'right' });
-
-  doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text('Applicable GST (18%):', 335, y + 26);
-  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('INR 30,600', 440, y + 26, { width: 100, align: 'right' });
-
-  doc.fillColor(COLORS.crimsonLight).fontSize(9).font('Helvetica-Bold').text('Estimated Total:', 335, y + 42);
-  doc.fillColor(COLORS.crimsonLight).fontSize(10).font('Helvetica-Bold').text('INR 2,00,600', 440, y + 41, { width: 100, align: 'right' });
+  y += 20;
+  doc.roundedRect(40, y, 515, 55, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
+  doc.fillColor(COLORS.navyDark).fontSize(8).font('Helvetica-Bold').text('TERMS & CONDITIONS', 50, y + 8);
+  doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica')
+     .text('1. 40% advance payment required to commence campaign initialization & creative production.\n2. Milestone 2 (30%) due on Day 15; Milestone 3 (30%) due on Day 30.\n3. Quote valid for 30 calendar days from issue date.', 50, y + 20, { lineGap: 3 });
 
   doc.end();
   return promise;
 }
 
-// -------------------------------------------------------------
-// 4. EXECUTIVE QBR / PERFORMANCE REPORT PDF GENERATOR
-// -------------------------------------------------------------
+// 4. EXECUTIVE REPORT
 async function generateReportPDF(params: any): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
   const promise = streamToBuffer(doc);
 
-  const clientName = params.client || 'Client Organization';
-  const reportTitle = params.title || 'Quarterly Business Review & Performance Attribution Dossier';
+  const clientName = params.client || 'Enterprise Client';
+  const period = params.period || 'Q3 2026 Executive Performance Review';
 
-  doc.rect(40, 40, 515, 6).fill(COLORS.crimson);
-  doc.rect(40, 46, 515, 65).fill(COLORS.navyDark);
+  doc.rect(40, 40, 515, 6).fill(COLORS.green);
+  doc.rect(40, 46, 515, 74).fill(COLORS.navyDark);
 
   if (fs.existsSync(LOGO_PATH)) {
-    doc.roundedRect(52, 52, 115, 38, 4).fill('#FFFFFF');
-    doc.image(LOGO_PATH, 56, 56, { width: 107 });
-    doc.fillColor('#FFFFFF').fontSize(12).font('Helvetica-Bold').text('EXECUTIVE INTELLIGENCE', 180, 58);
-    doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text(`${reportTitle} • Client: ${clientName}`, 180, 75);
-  } else {
-    doc.fillColor('#FFFFFF').fontSize(14).font('Helvetica-Bold').text('OPTIVIR CRM • EXECUTIVE INTELLIGENCE', 55, 58);
-    doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text(`${reportTitle} • Client: ${clientName}`, 55, 78);
+    doc.roundedRect(52, 54, 130, 42, 4).fill('#FFFFFF');
+    doc.image(LOGO_PATH, 57, 59, { width: 120 });
+    doc.fillColor('#34D399').fontSize(7.5).font('Helvetica-Bold').text('PERFORMANCE ANALYTICS REPORT', 195, 68);
+    doc.fillColor('#94A3B8').fontSize(7).font('Helvetica').text('OptiVir Growth Pod Intelligence Report', 195, 80);
   }
 
-  // 4 Top KPI Cards
-  let y = 120;
-  const cardW = 122;
+  doc.fillColor('#FFFFFF').fontSize(16).font('Helvetica-Bold').text('GROWTH REPORT', 370, 56, { align: 'right', width: 175 });
+  doc.fillColor('#34D399').fontSize(8.5).font('Helvetica-Bold').text(period, 370, 78, { align: 'right', width: 175 });
+
+  let y = 130;
+  doc.roundedRect(40, y, 515, 48, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
+  doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('CLIENT ACCOUNT', 52, y + 8);
+  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text(clientName, 52, y + 20);
+
+  doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica-Bold').text('REPORTING TIMEFRAME', 220, y + 8);
+  doc.fillColor(COLORS.textDark).fontSize(8.5).font('Helvetica-Bold').text('Last 90 Days Performance Cycle', 220, y + 20);
+
+  y += 60;
   const kpis = [
-    { label: 'TOTAL AD SPEND', val: 'INR 64.80L', change: '+18.4% YoY', color: COLORS.navyDark },
-    { label: 'ATTRIBUTED REVENUE', val: 'INR 2.48 Cr', change: '+44.2% YoY', color: COLORS.green },
-    { label: 'BLENDED ROAS', val: '3.83x', change: '+0.65x Target', color: COLORS.crimson },
-    { label: 'TOTAL LEADS (SQL)', val: '1,482', change: '+24.8% Conv', color: COLORS.blue }
+    { label: 'TOTAL MEDIA SPEND', val: 'INR 64.8L', change: '+18.4% MoM', color: COLORS.navyDark },
+    { label: 'QUALIFIED LEADS / SALES', val: '1,482', change: '+34.2% MoM', color: COLORS.green },
+    { label: 'BLENDED ROAS', val: '4.06x', change: '+0.56x target beat', color: COLORS.green },
+    { label: 'COST PER ACQUISITION', val: 'INR 4,372', change: '-14.2% savings', color: COLORS.crimson }
   ];
+  const cardW = (515 - 27) / 4;
 
   kpis.forEach((k, idx) => {
     const kx = 40 + idx * (cardW + 9);
@@ -582,7 +552,6 @@ async function generateReportPDF(params: any): Promise<Buffer> {
     doc.fillColor(COLORS.green).fontSize(7).font('Helvetica-Bold').text(k.change, kx + 8, y + 40);
   });
 
-  // Channel Performance Breakdown Table
   y += 75;
   doc.fillColor(COLORS.navyDark).fontSize(10).font('Helvetica-Bold').text('Omnichannel Platform Performance Breakdown', 40, y);
   y += 16;
@@ -612,7 +581,6 @@ async function generateReportPDF(params: any): Promise<Buffer> {
     y += 22;
   });
 
-  // Key Strategic Insights Box
   y += 20;
   doc.roundedRect(40, y, 515, 100, 4).fillAndStroke(COLORS.bgLight, COLORS.border);
   doc.rect(40, y, 3, 100).fill(COLORS.crimson);
@@ -630,15 +598,18 @@ async function generateReportPDF(params: any): Promise<Buffer> {
   return promise;
 }
 
-// -------------------------------------------------------------
-// 5. CONFIRMATION OF ENGAGEMENT / AGREEMENT PDF GENERATOR
-// -------------------------------------------------------------
+// 5. AGREEMENT (Confirmation of Engagement 2 Pages)
 async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer> {
   const doc = new PDFDocument({
     size: 'A4',
     margins: { top: 38, bottom: 15, left: 45, right: 45 }
   });
   const promise = streamToBuffer(doc);
+
+  const cleanCurrency = (val: any): string => {
+    if (!val) return '';
+    return String(val).replace(/₹/g, 'Rs. ');
+  };
 
   const confirmationNumber = params.number || params.code || params.id || 'OVA-2026-001';
   const confirmationDate = params.date || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
@@ -647,13 +618,13 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   const brandName = params.brand || params.brand_name || 'Chakkinal Aattiya Velichenna';
   const targetRegion = params.target_market || params.region || 'Kerala';
 
-  const managementFee = params.management_fee || (params.subtotal ? `₹${Number(params.subtotal).toLocaleString('en-IN')}` : '₹15,000');
-  const metaAdSpend = params.meta_ad_spend || '₹12,000 to start, up to ₹15,000';
-  const totalInvestment = params.total_investment || params.contractValue || '₹27,000 - 30,000';
+  const managementFee = cleanCurrency(params.management_fee || (params.subtotal ? `Rs. ${Number(params.subtotal).toLocaleString('en-IN')}` : 'Rs. 15,000'));
+  const metaAdSpend = cleanCurrency(params.meta_ad_spend || 'Rs. 12,000 to start, up to Rs. 15,000');
+  const totalInvestment = cleanCurrency(params.total_investment || params.contractValue || 'Rs. 27,000 - 30,000');
 
-  const advanceAmt = params.advance_amount || '₹6,000';
-  const m2Amt = params.milestone2_amount || '₹4,500';
-  const m3Amt = params.milestone3_amount || '₹4,500';
+  const advanceAmt = cleanCurrency(params.advance_amount || 'Rs. 6,000');
+  const m2Amt = cleanCurrency(params.milestone2_amount || 'Rs. 4,500');
+  const m3Amt = cleanCurrency(params.milestone3_amount || 'Rs. 4,500');
 
   const upiId = params.upi_id || 'optivirads@icici';
   const bankDetails = params.bank_details || 'OptiVir Ads / ICICI A/C 000205029481 / IFSC ICIC0000002';
@@ -667,68 +638,76 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   const BORDER_COLOR = '#D1D5DB';
 
   // --- PAGE 1 ---
+  // Top Right: Logo (decreased to paper-proportional width 85)
   if (fs.existsSync(LOGO_PATH)) {
-    doc.image(LOGO_PATH, 420, 36, { width: 130 });
+    doc.image(LOGO_PATH, 465, 38, { width: 85 });
   } else {
-    doc.fillColor(HEADER_GREEN).fontSize(13).font('Helvetica-Bold').text('OptiVirAds', 440, 42);
+    doc.fillColor(HEADER_GREEN).fontSize(12).font('Helvetica-Bold').text('OptiVirAds', 475, 42);
   }
 
-  doc.fillColor(FONT_MUTED).fontSize(8).font('Helvetica-Bold').text('WRITTEN CONFIRMATION', 45, 40);
-  doc.fillColor(FONT_DARK).fontSize(16).font('Helvetica-Bold').text('Confirmation of Engagement', 45, 52);
-  doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica-Oblique').text(`This confirms both sides' agreement to proceed, based on the proposal sent on ${proposalDate}.`, 45, 72);
+  // Header Left (Dynamically calculated Y offsets to prevent text collision/overlap)
+  let topY = 38;
+  doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica-Bold').text('WRITTEN CONFIRMATION', 45, topY);
+  topY += 13;
+  doc.fillColor(FONT_DARK).fontSize(16).font('Helvetica-Bold').text('Confirmation of Engagement', 45, topY);
+  topY += 20;
+
+  const subDesc = `This confirms both sides' agreement to proceed, based on the proposal sent on ${proposalDate}.`;
+  doc.fillColor(FONT_MUTED).fontSize(9).font('Helvetica-Oblique').text(subDesc, 45, topY, { width: 405 });
+  topY += doc.heightOfString(subDesc, { width: 405 }) + 8;
 
   // Metadata Grid Box
-  let y = 92;
+  let y = Math.max(topY, 86);
   const gridW = 505;
-  const gridH = 46;
+  const gridH = 50;
   doc.rect(45, y, gridW, gridH).stroke(BORDER_COLOR);
   doc.rect(45 + 252, y, 0.5, gridH).stroke(BORDER_COLOR);
-  doc.rect(45, y + 23, gridW, 0.5).stroke(BORDER_COLOR);
+  doc.rect(45, y + 25, gridW, 0.5).stroke(BORDER_COLOR);
 
   // Cell 1: Confirmation #
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text('Confirmation #', 55, y + 7);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text(`[${confirmationNumber}]`, 140, y + 7);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica-Bold').text('Confirmation #', 55, y + 8);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text(`[${confirmationNumber}]`, 145, y + 8);
 
   // Cell 2: Date
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text('Date', 310, y + 7);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text(`[${confirmationDate}]`, 380, y + 7);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica-Bold').text('Date', 310, y + 8);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text(`[${confirmationDate}]`, 380, y + 8);
 
   // Cell 3: Client
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text('Client', 55, y + 30);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text(`[${clientName}]`, 140, y + 30);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica-Bold').text('Client', 55, y + 32);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text(`[${clientName}]`, 145, y + 32);
 
   // Cell 4: Brand
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text('Brand', 310, y + 30);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text(brandName, 380, y + 30, { width: 165 });
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica-Bold').text('Brand', 310, y + 32);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text(brandName, 380, y + 32, { width: 165 });
 
   // Section 1: What This Confirms
-  y += 58;
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('What This Confirms', 45, y);
-  y += 14;
-  doc.rect(45, y, 505, 0.75).fill('#374151');
-  y += 6;
-  const confIntro = "This document is a simple written record of what both sides agreed on WhatsApp/call — not a replacement for the full proposal, but a one-page reference so there's no confusion later about scope, price, or dates. Both sides keep a copy.";
-  doc.fillColor(FONT_DARK).fontSize(7.8).font('Helvetica').text(confIntro, 45, y, { width: 505, lineGap: 2 });
-  y += doc.heightOfString(confIntro, { width: 505, lineGap: 2 }) + 4;
-
-  const confNote = 'If anything here differs from an earlier casual chat or quote, this confirmation is the final version both sides go by.';
-  doc.fillColor(FONT_DARK).fontSize(7.8).font('Helvetica-Oblique').text(confNote, 45, y, { width: 505 });
-  y += doc.heightOfString(confNote, { width: 505 }) + 14;
-
-  // Section 2: Month 1 Target
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Month 1 Target', 45, y);
-  y += 14;
-  doc.rect(45, y, 505, 0.75).fill('#374151');
-  y += 6;
-  const targetIntro = "This is the validation phase of the 3-month roadmap toward 2,500 customers. Based on the ad budget below, the realistic target for Month 1 is 60-100 customers — not the full 2,500. Month 2-3 scale-up depends on Month 1 data and a fresh budget conversation, as outlined in the proposal.";
-  doc.fillColor(FONT_DARK).fontSize(7.8).font('Helvetica').text(targetIntro, 45, y, { width: 505, lineGap: 2.5 });
-  y += doc.heightOfString(targetIntro, { width: 505, lineGap: 2.5 }) + 14;
-
-  // Section 3: Scope — Month 1
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Scope — Month 1', 45, y);
-  y += 14;
+  y += 64;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('What This Confirms', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
+  const confIntro = "This document is a simple written record of what both sides agreed on WhatsApp/call — not a replacement for the full proposal, but a one-page reference so there's no confusion later about scope, price, or dates. Both sides keep a copy.";
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(confIntro, 45, y, { width: 505, lineGap: 3 });
+  y += doc.heightOfString(confIntro, { width: 505, lineGap: 3 }) + 6;
+
+  const confNote = 'If anything here differs from an earlier casual chat or quote, this confirmation is the final version both sides go by.';
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Oblique').text(confNote, 45, y, { width: 505, lineGap: 2.5 });
+  y += doc.heightOfString(confNote, { width: 505, lineGap: 2.5 }) + 16;
+
+  // Section 2: Month 1 Target
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Month 1 Target', 45, y);
+  y += 15;
+  doc.rect(45, y, 505, 0.75).fill('#374151');
+  y += 8;
+  const targetIntro = "This is the validation phase of the 3-month roadmap toward 2,500 customers. Based on the ad budget below, the realistic target for Month 1 is 60-100 customers — not the full 2,500. Month 2-3 scale-up depends on Month 1 data and a fresh budget conversation, as outlined in the proposal.";
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(targetIntro, 45, y, { width: 505, lineGap: 3 });
+  y += doc.heightOfString(targetIntro, { width: 505, lineGap: 3 }) + 16;
+
+  // Section 3: Scope — Month 1
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Scope — Month 1', 45, y);
+  y += 15;
+  doc.rect(45, y, 505, 0.75).fill('#374151');
+  y += 10;
   const scopeBullets = [
     '5-8 reels/month — process, purity story, usage, customer testimonials',
     `Meta ads on best-performing reels, targeted to ${targetRegion} health-conscious buyers`,
@@ -737,10 +716,10 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
     'Not included: WhatsApp auto-reply/funnel setup (optional add-on, only if needed — client currently handles leads directly), photography/videography shoots, website work, influencer collabs (all quoted separately if needed)'
   ];
   scopeBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(7.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text(pt, 64, y, { width: 486, lineGap: 1.5 });
-    const h = doc.heightOfString(pt, { width: 486, lineGap: 1.5 });
-    y += h + 4;
+    doc.fillColor(FONT_DARK).fontSize(9.5).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2.5 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 2.5 });
+    y += h + 6;
   });
 
   // Page 1 Running Footer
@@ -751,98 +730,98 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   // --- PAGE 2 ---
   doc.addPage();
   if (fs.existsSync(LOGO_PATH)) {
-    doc.image(LOGO_PATH, 420, 36, { width: 130 });
+    doc.image(LOGO_PATH, 465, 38, { width: 85 });
   }
 
-  y = 45;
+  y = 44;
   // Section 4: Investment
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Investment', 45, y);
-  y += 14;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Investment', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
   const invCol1W = 320;
   const invCol2W = 185;
-  doc.rect(45, y, 505, 18).fill(HEADER_GREEN);
-  doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text('Item', 55, y + 5);
+  doc.rect(45, y, 505, 20).fill(HEADER_GREEN);
+  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('Item', 55, y + 5);
   doc.text('Amount', 45 + invCol1W + 10, y + 5, { width: invCol2W - 20, align: 'center' });
-  y += 18;
+  y += 20;
 
   // Row 1
-  doc.rect(45, y, 505, 24).stroke(BORDER_COLOR);
-  doc.rect(45 + invCol1W, y, 0.5, 24).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica-Bold').text('Management fee (strategy, content, ads, funnel, reporting)', 55, y + 6, { width: invCol1W - 20 });
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text(managementFee, 45 + invCol1W + 10, y + 7, { width: invCol2W - 20, align: 'center' });
-  y += 24;
+  doc.rect(45, y, 505, 26).stroke(BORDER_COLOR);
+  doc.rect(45 + invCol1W, y, 0.5, 26).stroke(BORDER_COLOR);
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica-Bold').text('Management fee (strategy, content, ads, funnel, reporting)', 55, y + 7, { width: invCol1W - 20 });
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text(managementFee, 45 + invCol1W + 10, y + 7, { width: invCol2W - 20, align: 'center' });
+  y += 26;
 
   // Row 2
   doc.rect(45, y, 505, 24).stroke(BORDER_COLOR);
   doc.rect(45 + invCol1W, y, 0.5, 24).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica-Bold').text('Meta ad spend (billed separately, paid by client to Meta)', 55, y + 6, { width: invCol1W - 20 });
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text(metaAdSpend, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica-Bold').text('Meta ad spend (billed separately, paid by client to Meta)', 55, y + 6, { width: invCol1W - 20 });
+  doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica').text(metaAdSpend, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
   y += 24;
 
   // Row 3 (Total)
-  doc.rect(45, y, 505, 20).fillAndStroke(HIGHLIGHT_GREEN, HEADER_GREEN);
-  doc.rect(45 + invCol1W, y, 0.5, 20).stroke(HEADER_GREEN);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text('Total investment — Month 1', 55, y + 5);
-  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica-Bold').text(totalInvestment, 45 + invCol1W + 10, y + 5, { width: invCol2W - 20, align: 'center' });
-  y += 20;
+  doc.rect(45, y, 505, 24).fillAndStroke(HIGHLIGHT_GREEN, HEADER_GREEN);
+  doc.rect(45 + invCol1W, y, 0.5, 24).stroke(HEADER_GREEN);
+  doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica-Bold').text('Total investment — Month 1', 55, y + 6);
+  doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica-Bold').text(totalInvestment, 45 + invCol1W + 10, y + 6, { width: invCol2W - 20, align: 'center' });
+  y += 24;
 
-  y += 6;
-  const spendNote = "Ad spend starts at ₹12,000. Scaling to ₹14,000 happens only after a Day 10 performance review, with your approval — never automatic.";
-  doc.fillColor(FONT_MUTED).fontSize(7.2).font('Helvetica-Oblique').text(spendNote, 45, y, { width: 505 });
-  y += doc.heightOfString(spendNote, { width: 505 }) + 10;
+  y += 8;
+  const spendNote = "Ad spend starts at Rs. 12,000. Scaling to Rs. 14,000 happens only after a Day 10 performance review, with your approval — never automatic.";
+  doc.fillColor(FONT_MUTED).fontSize(8.2).font('Helvetica-Oblique').text(spendNote, 45, y, { width: 505 });
+  y += doc.heightOfString(spendNote, { width: 505 }) + 14;
 
   // Section 5: Payment Schedule
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Payment Schedule', 45, y);
-  y += 14;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Payment Schedule', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
   const payCol1W = 190;
   const payCol2W = 135;
   const payCol3W = 180;
-  doc.rect(45, y, 505, 18).fill(HEADER_GREEN);
-  doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text('Milestone', 55, y + 5);
+  doc.rect(45, y, 505, 20).fill(HEADER_GREEN);
+  doc.fillColor('#FFFFFF').fontSize(8.5).font('Helvetica-Bold').text('Milestone', 55, y + 5);
   doc.text('Amount', 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
   doc.text('Due', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
-  y += 18;
+  y += 20;
 
   // Row 1
-  doc.rect(45, y, 505, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('Advance (40%) — begins work', 55, y + 5);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text(advanceAmt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('On confirmation', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
-  y += 20;
+  doc.rect(45, y, 505, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('Advance (40%) — begins work', 55, y + 5);
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Bold').text(advanceAmt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('On confirmation', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
+  y += 22;
 
   // Row 2
-  doc.rect(45, y, 505, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('Milestone 2 (30%) — content + ads live', 55, y + 5);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text(m2Amt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('Day 15', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
-  y += 20;
+  doc.rect(45, y, 505, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('Milestone 2 (30%) — content + ads live', 55, y + 5);
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Bold').text(m2Amt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('Day 15', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
+  y += 22;
 
   // Row 3
-  doc.rect(45, y, 505, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 20).stroke(BORDER_COLOR);
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('Milestone 3 (30%) — final report', 55, y + 5);
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica-Bold').text(m3Amt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
-  doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text('Day 30', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
-  y += 24;
+  doc.rect(45, y, 505, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.rect(45 + payCol1W + payCol2W, y, 0.5, 22).stroke(BORDER_COLOR);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('Milestone 3 (30%) — final report', 55, y + 5);
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Bold').text(m3Amt, 45 + payCol1W + 10, y + 5, { width: payCol2W - 20, align: 'center' });
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('Day 30', 45 + payCol1W + payCol2W + 10, y + 5, { width: payCol3W - 20, align: 'center' });
+  y += 26;
 
   const payInstruct = `Pay via UPI: ${upiId} or bank transfer: ${bankDetails}. Send a screenshot after each payment for the record.`;
-  doc.fillColor(FONT_MUTED).fontSize(7.5).font('Helvetica-Oblique').text(payInstruct, 45, y, { width: 505 });
+  doc.fillColor(FONT_MUTED).fontSize(8.2).font('Helvetica-Oblique').text(payInstruct, 45, y, { width: 505 });
   y += doc.heightOfString(payInstruct, { width: 505 }) + 14;
 
   // Section 6: Key Terms (from the proposal)
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Key Terms (from the proposal)', 45, y);
-  y += 14;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Key Terms (from the proposal)', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
@@ -856,30 +835,30 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
     'Management fee is inclusive of tax (inclusive of GST)'
   ];
   keyTermsBullets.forEach(pt => {
-    doc.fillColor(FONT_DARK).fontSize(7.5).text('•', 52, y);
-    doc.fillColor(FONT_DARK).fontSize(7.5).font('Helvetica').text(pt, 64, y, { width: 486, lineGap: 1.8 });
-    const h = doc.heightOfString(pt, { width: 486, lineGap: 1.8 });
+    doc.fillColor(FONT_DARK).fontSize(9).text('•', 52, y);
+    doc.fillColor(FONT_DARK).fontSize(8.8).font('Helvetica').text(pt, 65, y, { width: 485, lineGap: 2 });
+    const h = doc.heightOfString(pt, { width: 485, lineGap: 2 });
     y += h + 4;
   });
 
   // Section 7: Start Date
-  y += 6;
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Start Date', 45, y);
-  y += 14;
+  y += 8;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Start Date', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
   const startText = `Work begins within 24 hours of advance payment (${advanceAmt}). First content calendar shared by ${startDate}.`;
-  doc.fillColor(FONT_DARK).fontSize(7.8).font('Helvetica').text(startText, 45, y, { width: 505 });
+  doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica').text(startText, 45, y, { width: 505 });
   y += doc.heightOfString(startText, { width: 505 }) + 14;
 
   // Section 8: Acknowledged By
-  doc.fillColor(FONT_DARK).fontSize(10.5).font('Helvetica-Bold').text('Acknowledged By', 45, y);
-  y += 14;
+  doc.fillColor(FONT_DARK).fontSize(11.5).font('Helvetica-Bold').text('Acknowledged By', 45, y);
+  y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
   const ackText = "By replying 'Confirmed' on WhatsApp/email, or signing below, both sides agree this reflects what was discussed.";
-  doc.fillColor(FONT_MUTED).fontSize(7.8).font('Helvetica-Oblique').text(ackText, 45, y, { width: 505 });
-  y += doc.heightOfString(ackText, { width: 505 }) + 20;
+  doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica-Oblique').text(ackText, 45, y, { width: 505 });
+  y += doc.heightOfString(ackText, { width: 505 }) + 18;
 
   // Dual Signature Blocks (Side by Side)
   const col1X = 45;
@@ -887,14 +866,14 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   const sigLineW = 230;
 
   // Client Block
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text('____________________________________', col1X, y);
-  doc.fontSize(8.5).font('Helvetica-Bold').text(`[${clientName}]  |  ${brandName}`, col1X, y + 14, { width: sigLineW });
-  doc.fontSize(8).font('Helvetica').text('Date: ____________________', col1X, y + 30);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('____________________________________', col1X, y);
+  doc.fontSize(9).font('Helvetica-Bold').text(`[${clientName}]  |  ${brandName}`, col1X, y + 14, { width: sigLineW });
+  doc.fontSize(8.5).font('Helvetica').text('Date: ____________________', col1X, y + 30);
 
   // OptiVir Block
-  doc.fillColor(FONT_DARK).fontSize(8).font('Helvetica').text('____________________________________', col2X, y);
-  doc.fontSize(8.5).font('Helvetica-Bold').text(`[${signerName}]  |  On behalf of OptiVirAds`, col2X, y + 14, { width: sigLineW });
-  doc.fontSize(8).font('Helvetica').text('Date: ____________________', col2X, y + 30);
+  doc.fillColor(FONT_DARK).fontSize(8.5).font('Helvetica').text('____________________________________', col2X, y);
+  doc.fontSize(9).font('Helvetica-Bold').text(`[${signerName}]  |  On behalf of OptiVirAds`, col2X, y + 14, { width: sigLineW });
+  doc.fontSize(8.5).font('Helvetica').text('Date: ____________________', col2X, y + 30);
 
   // Page 2 Running Footer
   doc.fillColor(FONT_MUTED).fontSize(7.5).font('Helvetica')
@@ -905,74 +884,22 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   return promise;
 }
 
-// -------------------------------------------------------------
-// API ROUTE HANDLER (GET /api/pdf/[type])
-// -------------------------------------------------------------
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ type: string }> }
-) {
+// Router handler for /api/pdf/:type
+router.get('/:type', async (req: Request, res: Response) => {
   try {
-    const { type } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const queryData = Object.fromEntries(searchParams.entries());
-
-    // 1. Authentication check — optional Authorization header or signed token query param
-    const authHeader = request.headers.get('authorization') ||
-      (searchParams.get('token') ? `Bearer ${searchParams.get('token')}` : null);
-
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
-
-    let invoiceData: any = queryData;
-    let orgData: any = null;
-
-    if (authHeader) {
-      if (type.toLowerCase() === 'invoice') {
-        const targetId = queryData.id || queryData.invoice_id || queryData.number;
-        if (targetId) {
-          try {
-            const invRes = await fetch(`${backendUrl}/api/finance/invoices/${encodeURIComponent(targetId)}`, {
-              headers: { Authorization: authHeader }
-            });
-            if (invRes.ok) {
-              const json = await invRes.json();
-              if (json.success && json.data) {
-                invoiceData = json.data;
-              }
-            }
-          } catch (e) {
-            console.warn('Backend fetch for invoice failed, using query data:', e);
-          }
-        }
-      }
-
-      // Try fetching org branding info for document header/footer
-      try {
-        const orgRes = await fetch(`${backendUrl}/api/settings/organization`, {
-          headers: { Authorization: authHeader }
-        });
-        if (orgRes.ok) {
-          const orgJson = await orgRes.json();
-          if (orgJson.success && orgJson.data) {
-            orgData = orgJson.data;
-          }
-        }
-      } catch {
-        // Non-fatal
-      }
-    }
-
+    const { type } = req.params;
+    const queryData = req.query as Record<string, any>;
     let pdfBuffer: Buffer;
     let filename = 'document.pdf';
 
     switch (type.toLowerCase()) {
       case 'invoice':
-        pdfBuffer = await generateInvoicePDF(invoiceData, orgData);
-        filename = `Invoice-${invoiceData.invoice_number || invoiceData.number || 'INV-2026-089'}.pdf`;
+        pdfBuffer = await generateInvoicePDF(queryData);
+        filename = `Invoice-${queryData.invoice_number || queryData.number || 'INV-2026-089'}.pdf`;
         break;
 
       case 'proposal':
-        pdfBuffer = await generateProposalPDF(queryData, orgData);
+        pdfBuffer = await generateProposalPDF(queryData);
         filename = `Proposal-${queryData.number || queryData.code || 'PROP-2026-042'}.pdf`;
         break;
 
@@ -983,31 +910,31 @@ export async function GET(
 
       case 'report':
         pdfBuffer = await generateReportPDF(queryData);
-        filename = `Executive-Report-${queryData.client ? queryData.client.replace(/\s+/g, '-') : 'QBR'}.pdf`;
+        filename = `Executive-Report-${queryData.client ? String(queryData.client).replace(/\\s+/g, '-') : 'QBR'}.pdf`;
         break;
 
       case 'contract':
       case 'agreement':
       case 'confirmation':
-        pdfBuffer = await generateAgreementPDF(queryData, orgData);
+        pdfBuffer = await generateAgreementPDF(queryData);
         filename = `Confirmation-of-Engagement-${queryData.number || queryData.code || 'OVA-2026-001'}.pdf`;
         break;
 
       default:
-        return NextResponse.json({ error: `Unknown document type: ${type}` }, { status: 400 });
+        res.status(400).json({ error: `Unknown document type: ${type}` });
+        return;
     }
 
-    return new NextResponse(new Uint8Array(pdfBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': pdfBuffer.length.toString(),
-        'Cache-Control': 'no-cache'
-      }
-    });
-  } catch (error: any) {
-    console.error('PDF Generation Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to generate PDF' }, { status: 500 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.status(200).send(pdfBuffer);
+  } catch (err: any) {
+    console.error('Backend PDF generation error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to generate PDF' });
   }
-}
+});
+
+export { generateProposalPDF, generateAgreementPDF, generateInvoicePDF, generateQuotationPDF, generateReportPDF };
+export default router;

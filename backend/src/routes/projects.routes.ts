@@ -174,7 +174,8 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
         comp.name as client_name,
         COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
         COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
-        u.first_name as assignee_first, u.last_name as assignee_last
+        u.first_name as assignee_first, u.last_name as assignee_last,
+        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN clients c ON t.client_id = c.id
@@ -247,7 +248,8 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         t.*,
         COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
         COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
-        u.first_name as assignee_first, u.last_name as assignee_last
+        u.first_name as assignee_first, u.last_name as assignee_last,
+        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN organization_users ou ON ou.user_id = u.id AND ou.organization_id = t.organization_id

@@ -184,6 +184,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
         cl.company_id,
         co.name as client_name,
         p.name as project_name,
+        t.title as task_title,
+        t.priority as task_priority,
+        t.status as task_status,
+        t.due_date as task_due_date,
         u.first_name || ' ' || u.last_name as designer_name,
         cp.version_number as active_version,
         cp.title as active_proof_title,
@@ -193,6 +197,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       LEFT JOIN clients cl ON c.client_id = cl.id
       LEFT JOIN companies co ON cl.company_id = co.id
       LEFT JOIN projects p ON c.project_id = p.id
+      LEFT JOIN tasks t ON c.task_id = t.id
       LEFT JOIN users u ON c.designer_id = u.id
       LEFT JOIN creative_proofs cp ON c.active_proof_id = cp.id
       WHERE c.organization_id = $1
@@ -299,6 +304,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
   const {
     clientId,
     projectId,
+    taskId,
     name,
     description,
     campaignName,
@@ -367,6 +373,18 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     }
   }
 
+  // Verify Task if specified
+  if (taskId) {
+    const taskCheck = await db.query(
+      `SELECT id FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [taskId, orgId]
+    );
+    if (taskCheck.rows.length === 0) {
+      res.status(400).json({ success: false, message: 'Selected task not found in organization.' });
+      return;
+    }
+  }
+
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -374,16 +392,17 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     // 1. Insert Creative Record
     const creativeRes = await client.query(
       `INSERT INTO creatives (
-        organization_id, client_id, project_id, name, description, campaign_name,
+        organization_id, client_id, project_id, task_id, name, description, campaign_name,
         target_platform, ad_format, aspect_ratio, status, primary_ad_copy,
         headline, call_to_action, destination_url, designer_id, approval_due_at,
         tags, created_by, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'DRAFT', $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'DRAFT', $11, $12, $13, $14, $15, $16, $17, $18, NOW())
       RETURNING *`,
       [
         orgId,
         clientId || null,
         projectId || null,
+        taskId || null,
         name,
         description || null,
         campaignName || null,
@@ -469,7 +488,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
         proof?.id || null,
         userId,
         `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email,
-        JSON.stringify({ name, adFormat, targetPlatform, clientId, projectId })
+        JSON.stringify({ name, adFormat, targetPlatform, clientId, projectId, taskId })
       ]
     );
 
@@ -510,12 +529,17 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         co.name as client_name,
         co.email as client_email,
         p.name as project_name,
+        t.title as task_title,
+        t.priority as task_priority,
+        t.status as task_status,
+        t.due_date as task_due_date,
         u.first_name || ' ' || u.last_name as designer_name,
         u.email as designer_email
       FROM creatives c
       LEFT JOIN clients cl ON c.client_id = cl.id
       LEFT JOIN companies co ON cl.company_id = co.id
       LEFT JOIN projects p ON c.project_id = p.id
+      LEFT JOIN tasks t ON c.task_id = t.id
       LEFT JOIN users u ON c.designer_id = u.id
       WHERE c.id = $1 AND c.organization_id = $2 ${scopeClause}`,
       params
@@ -661,8 +685,8 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     const current = existing.rows[0];
 
     // Validate project belongs to client if updated
-    const targetClientId = clientId || current.client_id;
-    const targetProjectId = projectId || current.project_id;
+    const targetClientId = clientId !== undefined ? clientId : current.client_id;
+    const targetProjectId = projectId !== undefined ? projectId : current.project_id;
     if (targetClientId && targetProjectId) {
       const pCheck = await db.query(
         `SELECT id FROM projects WHERE id = $1 AND client_id = $2 AND organization_id = $3`,
@@ -674,12 +698,26 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       }
     }
 
+    // Validate task if provided
+    if (taskId) {
+      const tCheck = await db.query(
+        `SELECT id FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+        [taskId, orgId]
+      );
+      if (tCheck.rows.length === 0) {
+        res.status(400).json({ success: false, message: 'Selected task not found in organization.' });
+        return;
+      }
+    }
+
+    const effectiveTaskId = taskId !== undefined ? (taskId || null) : current.task_id;
+
     const updateRes = await db.query(
       `UPDATE creatives SET
         name = COALESCE($1, name),
         client_id = COALESCE($2, client_id),
         project_id = COALESCE($3, project_id),
-        task_id = COALESCE($4, task_id),
+        task_id = $4,
         description = COALESCE($5, description),
         campaign_name = COALESCE($6, campaign_name),
         target_platform = COALESCE($7, target_platform),
@@ -701,7 +739,7 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         name,
         clientId,
         projectId,
-        taskId,
+        effectiveTaskId,
         description,
         campaignName,
         targetPlatform,
@@ -751,16 +789,14 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 });
 
 // ---------------------------------------------------------------------------
-// 5b. LINK / UNLINK CREATIVE TO A TASK (Lightweight PATCH)
+// 5b. LINK / UNLINK CREATIVE TO A TASK (Dedicated Lightweight Endpoint)
 // ---------------------------------------------------------------------------
 router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const { id } = req.params;
-  // taskId: a valid task UUID to link, or null/empty string to unlink
   const { taskId } = req.body;
 
   try {
-    // Verify creative exists and belongs to this org
     const check = await db.query(
       `SELECT id, project_id, task_id FROM creatives WHERE id = $1 AND organization_id = $2`,
       [id, orgId]
@@ -770,7 +806,6 @@ router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, re
       return;
     }
 
-    // If linking a task, verify the task belongs to the same organization (and optionally the same project)
     if (taskId) {
       const taskCheck = await db.query(
         `SELECT id, project_id FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
@@ -787,7 +822,11 @@ router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, re
       [taskId || null, id, orgId]
     );
 
-    res.json({ success: true, message: taskId ? 'Creative linked to task' : 'Creative unlinked from task', creative: result.rows[0] });
+    res.json({
+      success: true,
+      message: taskId ? 'Creative linked to task' : 'Creative unlinked from task',
+      creative: result.rows[0]
+    });
   } catch (err: any) {
     console.error('[Creatives API] Link Task Error:', err);
     res.status(500).json({ success: false, message: 'Failed to link creative to task', error: err.message });

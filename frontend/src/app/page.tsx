@@ -326,7 +326,7 @@ export default function Home() {
                 />
               )}
               {currentTab === 'projects' && <ProjectsView />}
-              {currentTab === 'tasks' && <TasksView />}
+              {currentTab === 'tasks' && <TasksView onNavigate={(tab: any, ...args: any[]) => navigateTo(tab, ...args)} />}
               {currentTab === 'creatives' && <CreativeProofingView onNavigate={(tab) => navigateTo(tab)} />}
               {currentTab === 'sales' && <PipelineView onNavigate={(tab: any) => navigateTo(tab)} />}
               {currentTab === 'marketing' && <MarketingView />}

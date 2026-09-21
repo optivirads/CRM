@@ -35,10 +35,20 @@ import {
   ChevronLeft,
   ChevronsRight,
   Check,
-  UserPlus
+  UserPlus,
+  Palette,
+  Image as ImageIcon,
+  Film,
+  Link as LinkIcon,
+  Sparkles,
+  LayoutGrid
 } from 'lucide-react';
 
-export const TasksView: React.FC = () => {
+interface TasksViewProps {
+  onNavigate?: (tab: any, ...args: any[]) => void;
+}
+
+export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -94,6 +104,147 @@ export const TasksView: React.FC = () => {
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [isAddingMember, setIsAddingMember] = useState(false);
+
+  // Linked Creatives State for Active Task
+  const [taskCreatives, setTaskCreatives] = useState<any[]>([]);
+  const [loadingCreatives, setLoadingCreatives] = useState(false);
+  const [showLinkCreativeModal, setShowLinkCreativeModal] = useState(false);
+  const [showCreateCreativeModal, setShowCreateCreativeModal] = useState(false);
+  const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
+  const [loadingAvailableCreatives, setLoadingAvailableCreatives] = useState(false);
+  const [creativeSearchQuery, setCreativeSearchQuery] = useState('');
+  const [linkingCreativeId, setLinkingCreativeId] = useState<string | null>(null);
+
+  // New Creative Modal Form States
+  const [newCreativeName, setNewCreativeName] = useState('');
+  const [newCreativePlatform, setNewCreativePlatform] = useState('META');
+  const [newCreativeFormat, setNewCreativeFormat] = useState('IMAGE');
+  const [newCreativeAspectRatio, setNewCreativeAspectRatio] = useState('1:1');
+  const [newCreativeHeadline, setNewCreativeHeadline] = useState('');
+  const [newCreativeCopy, setNewCreativeCopy] = useState('');
+  const [newCreativeCta, setNewCreativeCta] = useState('Learn More');
+  const [isCreatingCreative, setIsCreatingCreative] = useState(false);
+
+  const fetchTaskCreatives = async (taskId: string) => {
+    if (!taskId) return;
+    try {
+      setLoadingCreatives(true);
+      const res = await api.getCreatives({ taskId });
+      if (res.success && Array.isArray(res.creatives)) {
+        setTaskCreatives(res.creatives);
+      } else {
+        setTaskCreatives([]);
+      }
+    } catch (err) {
+      console.warn('Failed to load creatives for task:', err);
+      setTaskCreatives([]);
+    } finally {
+      setLoadingCreatives(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTask?.id) {
+      fetchTaskCreatives(activeTask.id);
+    } else {
+      setTaskCreatives([]);
+    }
+  }, [activeTask?.id]);
+
+  const fetchAvailableCreatives = async () => {
+    try {
+      setLoadingAvailableCreatives(true);
+      const res = await api.getCreatives();
+      if (res.success && Array.isArray(res.creatives)) {
+        // Exclude creatives already linked to this task
+        const unlinked = res.creatives.filter((c: any) => c.task_id !== activeTask?.id);
+        setAvailableCreatives(unlinked);
+      }
+    } catch (err) {
+      console.warn('Failed to load available creatives:', err);
+    } finally {
+      setLoadingAvailableCreatives(false);
+    }
+  };
+
+  const handleOpenLinkModal = () => {
+    fetchAvailableCreatives();
+    setCreativeSearchQuery('');
+    setShowLinkCreativeModal(true);
+  };
+
+  const handleLinkCreative = async (creativeId: string) => {
+    if (!activeTask?.id) return;
+    try {
+      setLinkingCreativeId(creativeId);
+      const res = await api.linkCreativeToTask(creativeId, activeTask.id);
+      if (res.success) {
+        showToast('Creative linked to task successfully!', 'success');
+        fetchTaskCreatives(activeTask.id);
+        fetchTasks();
+        setShowLinkCreativeModal(false);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to link creative', 'error');
+    } finally {
+      setLinkingCreativeId(null);
+    }
+  };
+
+  const handleUnlinkCreative = async (creativeId: string, creativeName: string) => {
+    if (!confirm(`Unlink creative "${creativeName}" from this task?`)) return;
+    try {
+      const res = await api.linkCreativeToTask(creativeId, null);
+      if (res.success) {
+        showToast('Creative unlinked from task', 'success');
+        if (activeTask?.id) {
+          fetchTaskCreatives(activeTask.id);
+          fetchTasks();
+        }
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to unlink creative', 'error');
+    }
+  };
+
+  const handleCreateCreativeForTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCreativeName.trim()) {
+      showToast('Creative name is required', 'error');
+      return;
+    }
+    if (!activeTask?.id) return;
+
+    try {
+      setIsCreatingCreative(true);
+      const res = await api.createCreative({
+        name: newCreativeName.trim(),
+        clientId: activeTask.client_id || undefined,
+        projectId: activeTask.project_id || undefined,
+        taskId: activeTask.id,
+        targetPlatform: newCreativePlatform,
+        adFormat: newCreativeFormat,
+        aspectRatio: newCreativeAspectRatio,
+        headline: newCreativeHeadline.trim() || undefined,
+        primaryAdCopy: newCreativeCopy.trim() || undefined,
+        callToAction: newCreativeCta || 'Learn More'
+      });
+
+      if (res.success) {
+        showToast(`Creative "${newCreativeName}" created and linked to task!`, 'success');
+        setShowCreateCreativeModal(false);
+        setNewCreativeName('');
+        setNewCreativeHeadline('');
+        setNewCreativeCopy('');
+        fetchTaskCreatives(activeTask.id);
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to create creative', 'error');
+    } finally {
+      setIsCreatingCreative(false);
+    }
+  };
 
   const fetchTeamMembers = async () => {
     try {
@@ -175,6 +326,9 @@ export const TasksView: React.FC = () => {
         const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const mapped = res.data.map((t: any) => ({
           id: t.id,
+          client_id: t.client_id,
+          project_id: t.project_id,
+          linked_creatives_count: parseInt(t.linked_creatives_count || '0', 10),
           code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
           title: t.title || 'Untitled Deliverable',
           description: t.description || '',
@@ -779,12 +933,21 @@ export const TasksView: React.FC = () => {
                                   {task.code}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
                                 <span>{task.subtasksCount}</span>
                                 <span>•</span>
                                 <span className="text-emerald-600 font-medium">
                                   {task.subtasksBadge}
                                 </span>
+                                {task.linked_creatives_count > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                      <Palette className="w-2.5 h-2.5" />
+                                      <span>{task.linked_creatives_count} {task.linked_creatives_count === 1 ? 'Creative' : 'Creatives'}</span>
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1140,21 +1303,219 @@ export const TasksView: React.FC = () => {
                   )}
                 </div>
 
-                {/* 3. Attachments & Creative Assets */}
+                {/* 3. Linked Creative Assets & Proofing */}
                 <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <h3 className="font-bold uppercase tracking-wider text-slate-500">Attachments &amp; Creative Assets</h3>
-                    <button
-                      onClick={() => showToast('Asset upload dialog opened. Select poster or video export to attach.', 'info')}
-                      className="text-rose-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Upload className="w-3 h-3" />
-                      <span>Upload Asset</span>
-                    </button>
+                  <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <Palette className="w-3.5 h-3.5" />
+                      </div>
+                      <h3 className="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Linked Creative Assets &amp; Proofing
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                        {taskCreatives.length} Linked
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenLinkModal}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <LinkIcon className="w-3 h-3 text-slate-500" />
+                        <span>Link Existing</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewCreativeName(activeTask?.title || '');
+                          setNewCreativeHeadline('');
+                          setNewCreativeCopy(activeTask?.description || '');
+                          setShowCreateCreativeModal(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Create Creative</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-                    No files or creative drafts attached to this deliverable yet. Use &quot;Upload Asset&quot; to attach poster graphics, video files, or design links.
-                  </div>
+
+                  {loadingCreatives ? (
+                    <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading linked creatives...</span>
+                    </div>
+                  ) : taskCreatives.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {taskCreatives.map((creative) => {
+                        const platformBg =
+                          creative.target_platform === 'META'
+                            ? 'bg-blue-600 text-white'
+                            : creative.target_platform === 'TIKTOK'
+                            ? 'bg-black text-white dark:bg-slate-800'
+                            : creative.target_platform === 'GOOGLE_ADS'
+                            ? 'bg-amber-600 text-white'
+                            : creative.target_platform === 'LINKEDIN'
+                            ? 'bg-sky-700 text-white'
+                            : creative.target_platform === 'YOUTUBE'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-purple-600 text-white';
+
+                        const statusStyle =
+                          creative.status === 'APPROVED' || creative.status === 'LIVE'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : creative.status === 'PENDING_CLIENT_APPROVAL'
+                            ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                            : creative.status === 'CHANGES_REQUESTED'
+                            ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+
+                        return (
+                          <div
+                            key={creative.id}
+                            className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition flex flex-col justify-between"
+                          >
+                            <div>
+                              {/* Thumbnail / Visual Box */}
+                              <div className="relative w-full h-36 bg-gradient-to-br from-slate-800 to-slate-950 overflow-hidden flex items-center justify-center">
+                                {creative.previewUrl ? (
+                                  <img
+                                    src={creative.previewUrl}
+                                    alt={creative.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1.5 text-slate-400 p-4 text-center">
+                                    {creative.ad_format === 'VIDEO' ? (
+                                      <Film className="w-8 h-8 text-rose-500/80" />
+                                    ) : (
+                                      <ImageIcon className="w-8 h-8 text-purple-500/80" />
+                                    )}
+                                    <span className="text-[11px] font-semibold tracking-wide text-slate-300">
+                                      {creative.ad_format || 'IMAGE'} • {creative.aspect_ratio || '1:1'}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Overlay Badges */}
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold tracking-wide uppercase shadow-xs ${platformBg}`}>
+                                    {creative.target_platform || 'ALL'}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-black/60 text-white backdrop-blur-xs">
+                                    {creative.ad_format || 'IMAGE'}
+                                  </span>
+                                </div>
+
+                                <div className="absolute top-2.5 right-2.5">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs border border-white/10">
+                                    v{creative.active_version || 1}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Creative Content Details */}
+                              <div className="p-3.5 space-y-2 text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1 text-sm group-hover:text-rose-600 transition">
+                                      {creative.name}
+                                    </h4>
+                                    {creative.headline && (
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 italic mt-0.5">
+                                        &ldquo;{creative.headline}&rdquo;
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap pt-1">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusStyle}`}>
+                                    {String(creative.status || 'DRAFT').replace(/_/g, ' ')}
+                                  </span>
+
+                                  {parseInt(creative.unresolved_comments_count || '0', 10) > 0 ? (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                                      💬 {creative.unresolved_comments_count} Feedback Pins
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                      ✓ Ready
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Actions Footer */}
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onNavigate) {
+                                    onNavigate('creatives');
+                                  } else {
+                                    showToast(`Opening Creative Studio for ${creative.name}`, 'info');
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-[#0A1628] hover:bg-slate-800 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                              >
+                                <span>Open in Creative Studio</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUnlinkCreative(creative.id, creative.name)}
+                                title="Unlink creative from this task"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto shadow-inner">
+                        <Palette className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200">No Creative Drafts Linked</h4>
+                        <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                          Link existing multi-platform ad creative proofs to this task or generate a new creative brief directly linked to this deliverable.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleOpenLinkModal}
+                          className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                        >
+                          <LinkIcon className="w-3.5 h-3.5" />
+                          <span>Link Existing Creative</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewCreativeName(activeTask?.title || '');
+                            setNewCreativeHeadline('');
+                            setNewCreativeCopy(activeTask?.description || '');
+                            setShowCreateCreativeModal(true);
+                          }}
+                          className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Create Creative for Task</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 4. Activity & Discussion */}
@@ -1579,35 +1940,277 @@ export const TasksView: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deletingTask && (
+      {/* Link Existing Creative Modal */}
+      {showLinkCreativeModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-600">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="font-bold text-base text-[#0B1727] dark:text-white">Delete Task</h3>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Are you sure you want to delete task <span className="font-bold text-slate-900 dark:text-white">{deletingTask.title}</span> ({deletingTask.code})? This action will remove the task record from the database.
-            </p>
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <LinkIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Link Creative to Deliverable</h3>
+                  <p className="text-[11px] text-slate-500">Attach an existing creative proof to this task</p>
+                </div>
+              </div>
               <button
-                type="button"
-                onClick={() => setDeletingTask(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 border border-slate-200 dark:border-[#152238] text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-[#111E34]"
+                onClick={() => setShowLinkCreativeModal(false)}
+                className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteTask}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
-              >
-                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Target Task Banner */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Target Task</span>
+                <span className="font-bold text-slate-900 dark:text-white">{activeTask?.title}</span>
+              </div>
+              <span className="font-mono text-xs font-bold text-rose-600">{activeTask?.code}</span>
+            </div>
+
+            {/* Search filter */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={creativeSearchQuery}
+                onChange={(e) => setCreativeSearchQuery(e.target.value)}
+                placeholder="Search creatives by title, platform, or format..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            {/* Available Creatives List */}
+            <div className="overflow-y-auto flex-1 space-y-2 max-h-72 pr-1 custom-scrollbar">
+              {loadingAvailableCreatives ? (
+                <div className="py-12 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading available creatives...</span>
+                </div>
+              ) : availableCreatives.filter((c: any) =>
+                  c.name.toLowerCase().includes(creativeSearchQuery.toLowerCase()) ||
+                  (c.target_platform || '').toLowerCase().includes(creativeSearchQuery.toLowerCase()) ||
+                  (c.ad_format || '').toLowerCase().includes(creativeSearchQuery.toLowerCase())
+                ).length === 0 ? (
+                <div className="py-10 text-center text-slate-400 text-xs space-y-2">
+                  <Palette className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">No unlinked creatives found</p>
+                  <p className="text-[11px] text-slate-400">All creatives may already be linked, or try a different search term.</p>
+                </div>
+              ) : (
+                availableCreatives
+                  .filter((c: any) =>
+                    c.name.toLowerCase().includes(creativeSearchQuery.toLowerCase()) ||
+                    (c.target_platform || '').toLowerCase().includes(creativeSearchQuery.toLowerCase()) ||
+                    (c.ad_format || '').toLowerCase().includes(creativeSearchQuery.toLowerCase())
+                  )
+                  .map((creative) => (
+                    <div
+                      key={creative.id}
+                      className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-900/60 bg-white dark:bg-slate-900/60 flex items-center justify-between gap-3 transition"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 text-white font-bold text-xs">
+                          {creative.previewUrl ? (
+                            <img src={creative.previewUrl} alt={creative.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Palette className="w-4 h-4 text-purple-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 space-y-0.5">
+                          <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{creative.name}</h5>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap">
+                            <span className="font-semibold text-slate-600 dark:text-slate-300">{creative.target_platform || 'ALL'}</span>
+                            <span>•</span>
+                            <span>{creative.ad_format || 'IMAGE'} ({creative.aspect_ratio || '1:1'})</span>
+                            <span>•</span>
+                            <span className="text-emerald-600 font-semibold">{creative.status || 'DRAFT'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={linkingCreativeId === creative.id}
+                        onClick={() => handleLinkCreative(creative.id)}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1 shrink-0 disabled:opacity-50 cursor-pointer"
+                      >
+                        <LinkIcon className="w-3 h-3" />
+                        <span>{linkingCreativeId === creative.id ? 'Linking...' : 'Link to Task'}</span>
+                      </button>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t border-[#E2E6EC] dark:border-[#152238] text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLinkCreativeModal(false);
+                  setNewCreativeName(activeTask?.title || '');
+                  setShowCreateCreativeModal(true);
+                }}
+                className="text-rose-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create new creative instead</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLinkCreativeModal(false)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Creative for Task Modal */}
+      {showCreateCreativeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                  <Palette className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Create Creative for Task</h3>
+                  <p className="text-[11px] text-slate-500">Creates creative proof linked to {activeTask?.code}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateCreativeModal(false)}
+                className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCreativeForTask} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Creative Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newCreativeName}
+                  onChange={(e) => setNewCreativeName(e.target.value)}
+                  placeholder="e.g. DM series - Intro High Impact Reel"
+                  className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Target Platform</label>
+                  <select
+                    value={newCreativePlatform}
+                    onChange={(e) => setNewCreativePlatform(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none"
+                  >
+                    <option value="META">Meta (FB / IG)</option>
+                    <option value="TIKTOK">TikTok</option>
+                    <option value="GOOGLE_ADS">Google Ads</option>
+                    <option value="LINKEDIN">LinkedIn</option>
+                    <option value="YOUTUBE">YouTube</option>
+                    <option value="ALL">All Platforms</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">Ad Format</label>
+                  <select
+                    value={newCreativeFormat}
+                    onChange={(e) => setNewCreativeFormat(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none"
+                  >
+                    <option value="IMAGE">Image / Graphic</option>
+                    <option value="VIDEO">Video / Reel</option>
+                    <option value="CAROUSEL">Carousel</option>
+                    <option value="BANNER">Banner</option>
+                    <option value="DOCUMENT">Document</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">Aspect Ratio</label>
+                  <select
+                    value={newCreativeAspectRatio}
+                    onChange={(e) => setNewCreativeAspectRatio(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none"
+                  >
+                    <option value="1:1">1:1 Square</option>
+                    <option value="9:16">9:16 Story / Reel</option>
+                    <option value="16:9">16:9 Landscape</option>
+                    <option value="4:5">4:5 Feed Portrait</option>
+                    <option value="1.91:1">1.91:1 Landscape</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Headline (Optional)</label>
+                <input
+                  type="text"
+                  value={newCreativeHeadline}
+                  onChange={(e) => setNewCreativeHeadline(e.target.value)}
+                  placeholder="e.g. Master Digital Marketing in 30 Days"
+                  className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Primary Ad Copy / Brief (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={newCreativeCopy}
+                  onChange={(e) => setNewCreativeCopy(e.target.value)}
+                  placeholder="Key messaging points, creative direction, or copy brief..."
+                  className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Call To Action</label>
+                <select
+                  value={newCreativeCta}
+                  onChange={(e) => setNewCreativeCta(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none"
+                >
+                  <option value="Learn More">Learn More</option>
+                  <option value="Sign Up">Sign Up</option>
+                  <option value="Shop Now">Shop Now</option>
+                  <option value="Contact Us">Contact Us</option>
+                  <option value="Apply Now">Apply Now</option>
+                  <option value="Book Now">Book Now</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E6EC] dark:border-[#152238]">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCreativeModal(false)}
+                  className="px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-[#111E34] text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingCreative}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{isCreatingCreative ? 'Creating...' : 'Create & Link Creative'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

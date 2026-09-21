@@ -18,6 +18,7 @@ import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
 import settingsRoutes from './routes/settings.routes';
 import creativesRoutes from './routes/creatives.routes';
+import pdfRoutes from './routes/pdf.routes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -170,6 +171,7 @@ app.use('/api/integrations', integrationsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/creatives', creativesRoutes);
 app.use('/api', creativesRoutes);
+app.use('/api/pdf', pdfRoutes);
 
 // ---------------------------------------------------------------------------
 // 404 Catch-All Handler
@@ -216,7 +218,7 @@ if (process.env.NODE_ENV !== 'test') {
       setInterval(async () => {
         try {
           const orgs = await db.query(
-            "SELECT DISTINCT organization_id FROM organization_integrations WHERE id = 'int-meta' AND is_active = true;"
+            "SELECT DISTINCT organization_id FROM organization_integrations WHERE id = 'int-meta' AND connected = true;"
           );
           for (const row of orgs.rows) {
             await syncCampaignTelemetryInternal({ orgId: row.organization_id });

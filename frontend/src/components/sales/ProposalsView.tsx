@@ -84,6 +84,8 @@ export interface ProposalItem {
   packageId?: string;
   packageName?: string;
   clientName: string;
+  brandName?: string;
+  targetRegion?: string;
   contactPerson: string;
   contactEmail: string;
   opportunityName: string;
@@ -106,10 +108,100 @@ export interface ProposalItem {
   executiveSummary: string;
   solutionArchitecture: string;
   slaAssurance: string;
+  salutationIntro?: string;
+  month1Goal?: string;
+  month3Goal?: string;
+  planIntro?: string;
+  planBullets?: string[];
+  scopeIntro?: string;
+  includedScope?: string[];
+  excludedScope?: string[];
+  metaAdSpendText?: string;
+  investmentNote?: string;
+  paymentSchedule?: { milestone: string; amount: string; due: string }[];
+  upiId?: string;
+  bankDetails?: string;
+  engagementTerms?: string[];
+  timelineBullets?: string[];
+  nextStepText?: string;
+  startDateText?: string;
+  signerName?: string;
+  signerRole?: string;
+  signerPhone?: string;
+  signerEmail?: string;
+  signerWebsite?: string;
 }
 
-// 1. Pre-configured OptiVir Agency Packages (All adhering to CBIC SAC 998361)
+const DEFAULT_PLAN_INTRO = "You're not starting from zero — past traction proves the product works. The focus is visibility, high-converting creative messaging, and a consistent lead flow into direct communication channels. The growth roadmap:";
+
+const DEFAULT_PLAN_BULLETS = [
+  '5-8 reels/month — process, purity & craft story, product usage, and real customer reviews, tuned to peak audience engagement. Reel script and creative direction provided.',
+  'Meta ads built on top-performing creative angles, targeted to Kerala health-conscious buyers, with product variants tested separately to maximize conversions',
+  'Direct messaging conversion funnel — every ad and reel routes to dedicated WhatsApp/DM channels with structured response templates, so no lead sits unanswered',
+  'Weekly Monday report: reach, leads generated, and feedback conversion data — so we optimize on real performance metrics, not guesses'
+];
+
+const DEFAULT_SCOPE_INTRO = 'Keeping scope clear upfront ensures full transparency and aligned expectations:';
+
+const DEFAULT_INCLUDED_SCOPE = [
+  'Full content strategy, reel scripting & video editing, Meta ad setup & optimization',
+  'Direct funnel workflow to WhatsApp / DM channels with response templates',
+  'Weekly telemetry reporting & performance reviews',
+  'Up to 2 revision rounds per creative asset'
+];
+
+const DEFAULT_EXCLUDED_SCOPE = [
+  'On-site videography shoots (client provides raw footage/photos)',
+  'Meta media ad spend (billed directly by Meta to client ad account)',
+  'Third-party influencer sponsorship fees & commissions',
+  'Custom website redevelopment or complex backend integrations'
+];
+
+const DEFAULT_TIMELINE_BULLETS = [
+  'Week 1: Content calendar, first reels, WhatsApp funnel + ad account setup',
+  'Week 2-3: Ads live, daily posting, lead flow into WhatsApp, mid-point optimization',
+  'Week 4: Full report + clear go/no-go recommendation for Month 2 scale-up the selling volume'
+];
+
+const DEFAULT_INVESTMENT_NOTE = "We start ad spend at ₹12,000 in Week 1. Based on real performance data by Day 10, we'll recommend whether to hold or scale to ₹15,000 for Weeks 3-4 — you approve any increase before it happens. This fits inside your ₹25,000-30,000 budget, and ad spend stays in your Meta account, fully visible and in your control at all times. Management fee includes all applicable taxes (inclusive of GST).";
+
+const DEFAULT_ENGAGEMENT_TERMS = [
+  '40% advance to begin content calendar and ad account setup',
+  '30% on day 15, once first batch of content and ads are live',
+  '30% on day 30, on delivery of the final report',
+  'Ad spend billed separately, paid directly to Meta by you',
+  'All reels and ad creatives become your property once fully paid; raw/unused drafts stay with us',
+  'This is a 1-month engagement. Either side can choose not to continue after Month 1 with no further obligation',
+  "If either side needs to exit mid-month, 7 days' written notice on WhatsApp/email is enough — work is billed pro-rata for days completed, rest refunded",
+  'No fixed sale number is guaranteed — marketing drives reach and lead volume; final sales also depend on price, stock, delivery, and closing speed',
+  'Management fee includes all applicable taxes (inclusive of GST)'
+];
+
+const DEFAULT_NEXT_STEP = "If this works for you, reply 'yes' and send the advance — we'll have the content calendar with you within 24 hours.";
+const DEFAULT_START_DATE = "Work begins within 24 hours of advance payment. First content calendar shared in 24 hours.";
+
+// 1. Pre-configured OptiVir Agency Packages (Clean Retainer Fees, No Arbitrary GST)
 const DEFAULT_PACKAGES: AgencyPackage[] = [
+  {
+    id: 'pkg-social-mgmt',
+    name: 'Social Media Management & Performance',
+    tagline: 'Content Engine • Reels, Static Posts & Targeted Meta Ad Execution',
+    category: 'Performance Marketing',
+    monthlyFee: 20000,
+    billingType: 'Monthly Retainer',
+    sacCode: '998361',
+    scopeItems: [
+      'Weekly high-impact creative posters & branded visual content',
+      'Video reel conceptualization, scripts, hooks & professional editing',
+      'Targeted ad campaign setup, localized targeting & A/B creative testing',
+      'Engaging direct-response ad copy, captions & call-to-actions',
+      'Continuous KPI tracking, lead response metrics & bi-weekly reporting'
+    ],
+    sla: '24h emergency turnaround, 48h new creative iteration',
+    recommendedFor: 'Growing brands looking to scale consistent social media presence and high-intent customer inquiries',
+    accentBg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800',
+    accentText: 'text-emerald-600 dark:text-emerald-400'
+  },
   {
     id: 'pkg-perf-growth',
     name: 'Performance Marketing Growth Retainer',
@@ -297,6 +389,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   const [showAddPackageModal, setShowAddPackageModal] = useState(false);
   const [showCreateProposalModal, setShowCreateProposalModal] = useState(false);
   const [showSwitchPackageModal, setShowSwitchPackageModal] = useState(false);
+  const [showDocumentReviewModal, setShowDocumentReviewModal] = useState(false);
+  const [reviewDocType, setReviewDocType] = useState<'proposal' | 'agreement'>('proposal');
 
   // Package Edit State
   const [editingPkgId, setEditingPkgId] = useState<string | null>(null);
@@ -364,14 +458,75 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   const loadProposalsData = async () => {
     try {
       setIsLoading(true);
-      const [propsRes, clientsRes] = await Promise.all([
+      const [propsRes, clientsRes, leadsRes, companiesRes] = await Promise.all([
         api.getProposals().catch(() => ({ success: false, data: [] })),
         api.getClients().catch(() => ({ success: false, data: [] })),
+        api.getLeads().catch(() => ({ success: false, data: [] })),
+        api.getCompanies().catch(() => ({ success: false, data: [] }))
       ]);
 
+      const allClients: Array<{ id: string; name: string; contactPerson: string; contactEmail: string; source: string }> = [];
+
+      // 1. From Clients
       if (clientsRes?.data && Array.isArray(clientsRes.data)) {
-        setClientsList(clientsRes.data);
+        clientsRes.data.forEach((c: any) => {
+          const compName = c.company_name || c.name || c.client_name;
+          const contact = [c.contact_first, c.contact_last].filter(Boolean).join(' ') || c.contact_person || c.contact_name || '';
+          if (compName && !allClients.some(existing => existing.name.toLowerCase() === compName.toLowerCase())) {
+            allClients.push({
+              id: c.id || `client-${compName}`,
+              name: compName,
+              contactPerson: contact,
+              contactEmail: c.contact_email || c.email || '',
+              source: 'Client'
+            });
+          }
+        });
       }
+
+      // 2. From Leads
+      if (leadsRes?.data && Array.isArray(leadsRes.data)) {
+        leadsRes.data.forEach((l: any) => {
+          const compName = l.company_name || `${l.first_name || ''} ${l.last_name || ''}`.trim();
+          const contact = `${l.first_name || ''} ${l.last_name || ''}`.trim();
+          if (compName && !allClients.some(existing => existing.name.toLowerCase() === compName.toLowerCase())) {
+            allClients.push({
+              id: l.id || `lead-${compName}`,
+              name: compName,
+              contactPerson: contact,
+              contactEmail: l.email || '',
+              source: 'Lead'
+            });
+          }
+        });
+      }
+
+      // 3. From Companies
+      if (companiesRes?.data && Array.isArray(companiesRes.data)) {
+        companiesRes.data.forEach((comp: any) => {
+          const compName = comp.name || comp.company_name;
+          if (compName && !allClients.some(existing => existing.name.toLowerCase() === compName.toLowerCase())) {
+            allClients.push({
+              id: comp.id || `comp-${compName}`,
+              name: compName,
+              contactPerson: comp.primary_contact || '',
+              contactEmail: comp.email || '',
+              source: 'Company'
+            });
+          }
+        });
+      }
+
+      // If still empty (new workspace), supply default demo entries for instant usability
+      if (allClients.length === 0) {
+        allClients.push(
+          { id: 'client-demo-1', name: 'Hijabi Ladies Beauty Salon', contactPerson: 'Fatima Al-Zahra', contactEmail: 'fatima@hijabibeauty.ae', source: 'Client' },
+          { id: 'client-demo-2', name: 'Aura Lifestyle & Apparel', contactPerson: 'Karan Mehra', contactEmail: 'karan@auralifestyle.com', source: 'Lead' },
+          { id: 'client-demo-3', name: 'Zentra FinTech Solutions', contactPerson: 'Priya Sharma', contactEmail: 'priya@zentra.io', source: 'Lead' }
+        );
+      }
+
+      setClientsList(allClients);
 
       if (propsRes?.data && Array.isArray(propsRes.data)) {
         const mapped: ProposalItem[] = propsRes.data.map((p: any) => {
@@ -441,10 +596,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
     const code = `PROP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const client = (customClientName || newPropClient || 'Client Organization').trim();
     const contact = (customContactName || newPropContact || 'Commercial Stakeholder').trim();
-    const subtotal = pkg.monthlyFee;
+    const totalAmount = pkg.monthlyFee;
+    const subtotal = Math.round(totalAmount / 1.18);
     const gstRate = 18;
-    const gstAmount = Math.round((subtotal * gstRate) / 100);
-    const totalAmount = subtotal + gstAmount;
+    const gstAmount = totalAmount - subtotal;
 
     const lineItems: ProposalLineItem[] = pkg.scopeItems.map((item, idx) => {
       const priceShare = Math.round(subtotal / Math.max(1, pkg.scopeItems.length));
@@ -469,11 +624,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       slaTag: pkg.sla,
       sacCode: pkg.sacCode || '998361',
       subtotal: subtotal,
-      gstRate: gstRate,
+      gstRate: 18,
       gstAmount: gstAmount,
+      totalAmount: totalAmount,
       lineItems: lineItems,
-      executiveSummary: `OptiVir CRM Solutions presents this authoritative commercial Statement of Work (SOW) to ${client}. Configured under our specialized "${pkg.name}" offering, this engagement directly resolves operational bottlenecks with rigorous performance accountability.`,
-      solutionArchitecture: `Delivery is structured across ${pkg.scopeItems.length} core workstreams: ${pkg.scopeItems.join('; ')}. All billing is governed under CBIC SAC 998361 (Advertising & Digital Marketing Services) at 18% GST.`,
+      executiveSummary: `OptiVir CRM Solutions presents this commercial Statement of Work (SOW) to ${client}. Configured under our specialized "${pkg.name}" offering, this engagement establishes structured marketing operations, consistent creative output, and performance accountability.`,
+      solutionArchitecture: `Delivery is structured across ${pkg.scopeItems.length} core workstreams: ${pkg.scopeItems.join('; ')}. All deliverables are managed under our dedicated performance workflow.`,
       slaAssurance: pkg.sla
     };
 
@@ -505,7 +661,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
         ownerBg: 'bg-[#DC2626]',
         contractValue: `₹${totalAmount.toLocaleString('en-IN')}`,
         subtotal: subtotal,
-        gstRate: gstRate,
+        gstRate: 18,
         gstAmount: gstAmount,
         totalAmount: totalAmount,
         contractType: pkg.billingType,
@@ -609,10 +765,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   // Switch package on currently open proposal
   const handleSwitchPackage = (pkg: AgencyPackage) => {
     if (!selectedProposal) return;
-    const subtotal = pkg.monthlyFee;
+    const totalAmount = pkg.monthlyFee;
+    const subtotal = Math.round(totalAmount / 1.18);
     const gstRate = 18;
-    const gstAmount = Math.round((subtotal * gstRate) / 100);
-    const totalAmount = subtotal + gstAmount;
+    const gstAmount = totalAmount - subtotal;
 
     const updatedLineItems: ProposalLineItem[] = pkg.scopeItems.map((item, idx) => {
       const priceShare = Math.round(subtotal / Math.max(1, pkg.scopeItems.length));
@@ -630,7 +786,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       ...selectedProposal,
       packageId: pkg.id,
       packageName: pkg.name,
-      contractValue: `₹${subtotal.toLocaleString('en-IN')}`,
+      contractValue: `₹${totalAmount.toLocaleString('en-IN')}`,
       subtotal: subtotal,
       gstAmount: gstAmount,
       totalAmount: totalAmount,
@@ -695,7 +851,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       onNavigateToInvoice({
         clientName: prop.clientName,
         invoiceNumber: `INV-2026-${Math.floor(100 + Math.random() * 900)}`,
-        amount: prop.subtotal,
+        amount: prop.totalAmount || prop.subtotal,
         sacCode: prop.sacCode || '998361',
         proposalCode: prop.code,
         items: prop.lineItems.map(li => ({
@@ -839,16 +995,44 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                       number: selectedProposal.code,
                       title: selectedProposal.name,
                       client: selectedProposal.clientName,
+                      brand: selectedProposal.clientName,
                       amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
+                      management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
                       packageName: selectedProposal.packageName || 'Growth SOW',
-                      sacCode: selectedProposal.sacCode || '998361'
+                      valid_until: selectedProposal.validUntil
                     });
                   }
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition cursor-pointer"
+                title="Download 2-Page Model Proposal PDF"
               >
-                <Download className="w-3.5 h-3.5 text-[#B91C1C]" />
-                <span>Download SOW PDF</span>
+                <Download className="w-3.5 h-3.5 text-[#1E442B]" />
+                <span>Proposal PDF</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (selectedProposal) {
+                    downloadClientPdf('agreement', {
+                      number: selectedProposal.code,
+                      title: selectedProposal.name,
+                      client: selectedProposal.clientName,
+                      brand: selectedProposal.clientName,
+                      contact_person: selectedProposal.contactPerson,
+                      management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                      meta_ad_spend: '₹12,000 to ₹14,000',
+                      total_investment: `₹${((selectedProposal.subtotal || 25000) + 12000).toLocaleString('en-IN')}`,
+                      advance_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.4).toLocaleString('en-IN')}`,
+                      milestone2_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`,
+                      milestone3_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`
+                    });
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 shadow-xs transition cursor-pointer"
+                title="Download 2-Page Confirmation of Engagement Agreement PDF"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#1E442B]" />
+                <span>Agreement PDF</span>
               </button>
 
               <button
@@ -1048,8 +1232,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <td className="p-3.5">
                           <div>
                             <div className="font-bold text-rose-600 dark:text-rose-400 text-sm">{p.contractValue}</div>
-                            <div className="text-[10px] text-slate-500">
-                              +18% GST (Total: ₹{p.totalAmount.toLocaleString('en-IN')})
+                            <div className="text-[10px] text-emerald-600 font-medium">
+                              Retainer (Includes GST)
                             </div>
                           </div>
                         </td>
@@ -1092,6 +1276,18 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                             <button
                               onClick={() => {
                                 setSelectedProposal(p);
+                                setReviewDocType('proposal');
+                                setShowDocumentReviewModal(true);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-600 transition"
+                              title="Review Document (Live Preview)"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSelectedProposal(p);
                                 setCurrentView('detail');
                               }}
                               className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition"
@@ -1105,14 +1301,36 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                                 number: p.code,
                                 title: p.name,
                                 client: p.clientName,
+                                brand: p.clientName,
                                 amount: p.contractValue || `₹${p.subtotal?.toLocaleString('en-IN')}`,
+                                management_fee: `₹${(p.subtotal || 25000).toLocaleString('en-IN')}`,
                                 packageName: p.packageName || 'Growth SOW',
-                                sacCode: p.sacCode || '998361'
+                                valid_until: p.validUntil
                               })}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 transition"
-                              title="Download PDF"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-[#1E442B] transition"
+                              title="Download Proposal PDF (Model Format)"
                             >
                               <Download className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => downloadClientPdf('agreement', {
+                                number: p.code,
+                                title: p.name,
+                                client: p.clientName,
+                                brand: p.clientName,
+                                contact_person: p.contactPerson,
+                                management_fee: `₹${(p.subtotal || 25000).toLocaleString('en-IN')}`,
+                                meta_ad_spend: '₹12,000 to ₹14,000',
+                                total_investment: `₹${((p.subtotal || 25000) + 12000).toLocaleString('en-IN')}`,
+                                advance_amount: `₹${Math.round((p.subtotal || 25000) * 0.4).toLocaleString('en-IN')}`,
+                                milestone2_amount: `₹${Math.round((p.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`,
+                                milestone3_amount: `₹${Math.round((p.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`
+                              })}
+                              className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-700 transition"
+                              title="Download Confirmation Agreement PDF (Model Format)"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
                             </button>
 
                             <button
@@ -1402,19 +1620,54 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </button>
 
                 <button
+                  onClick={() => {
+                    setReviewDocType('proposal');
+                    setShowDocumentReviewModal(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-slate-900 dark:bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-sm border border-slate-700 transition active:scale-95 cursor-pointer"
+                  title="View Full Document Review / Live Print Preview"
+                >
+                  <Eye className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Review Document</span>
+                </button>
+
+                <button
                   onClick={() => downloadClientPdf('proposal', {
                     number: selectedProposal.code,
                     title: selectedProposal.name,
                     client: selectedProposal.clientName,
+                    brand: selectedProposal.clientName,
                     amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
+                    management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
                     packageName: selectedProposal.packageName || 'Growth SOW',
-                    sacCode: selectedProposal.sacCode || '998361'
+                    valid_until: selectedProposal.validUntil
                   })}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 transition cursor-pointer"
-                  title="Download Client Proposal PDF"
+                  title="Download Model Proposal PDF"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#B91C1C]" />
-                  <span>Download PDF</span>
+                  <Download className="w-3.5 h-3.5 text-[#1E442B]" />
+                  <span>Proposal PDF</span>
+                </button>
+
+                <button
+                  onClick={() => downloadClientPdf('agreement', {
+                    number: selectedProposal.code,
+                    title: selectedProposal.name,
+                    client: selectedProposal.clientName,
+                    brand: selectedProposal.clientName,
+                    contact_person: selectedProposal.contactPerson,
+                    management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    meta_ad_spend: '₹12,000 to ₹14,000',
+                    total_investment: `₹${((selectedProposal.subtotal || 25000) + 12000).toLocaleString('en-IN')}`,
+                    advance_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.4).toLocaleString('en-IN')}`,
+                    milestone2_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`,
+                    milestone3_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`
+                  })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                  title="Download Confirmation of Engagement Agreement PDF"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#1E442B]" />
+                  <span>Agreement PDF</span>
                 </button>
 
                 <button
@@ -1445,13 +1698,14 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <button
                     key={tab}
                     onClick={() => setActiveDetailTab(tab as any)}
-                    className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
+                    className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       activeDetailTab === tab
                         ? 'bg-[#0A1628] text-white shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    {tab}
+                    {tab === '2. Document Preview' && <Eye className="w-3 h-3 text-rose-400" />}
+                    <span>{tab}</span>
                   </button>
                 ))}
               </div>
@@ -1459,7 +1713,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
               <div className="flex items-center gap-3 text-slate-500 shrink-0 text-xs">
                 <span>Contract Total:</span>
                 <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
-                  ₹{selectedProposal.totalAmount.toLocaleString('en-IN')} (incl. 18% GST)
+                  ₹{selectedProposal.totalAmount.toLocaleString('en-IN')}
                 </span>
                 <button
                   onClick={() => setShowSwitchPackageModal(true)}
@@ -1472,7 +1726,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           </div>
 
           {/* ===================================================================== */}
-          {/* TAB 1: 3-COLUMN WORKSPACE                                             */}
+          {/* TAB 1: 3-COLUMN WORKSPACE (FULLY INTERACTIVE MULTI-SECTION EDITOR)    */}
           {/* ===================================================================== */}
           {activeDetailTab === '1. 3-Column Workspace' && (
             <div className="w-full px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1483,37 +1737,37 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     <div className="font-bold text-xs text-slate-900 dark:text-white">
                       Document Outline
                     </div>
-                    <button
-                      onClick={() => {
-                        const newSec = { id: `s${outlineSections.length + 1}`, title: `${outlineSections.length + 1}. Additional Terms`, done: true, active: false };
-                        setOutlineSections(prev => [...prev, newSec]);
-                        showToast('Section added to outline', 'success');
-                      }}
-                      className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Section</span>
-                    </button>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {selectedProposal.status === 'Accepted' ? '9 Sections' : '8 Sections'}
+                    </span>
                   </div>
 
                   <div className="space-y-1 text-xs">
-                    {outlineSections.map((sec) => (
+                    {[
+                      { id: 's1', title: '1. Cover Page & Meta' },
+                      { id: 's2', title: '2. Executive Summary & Goals' },
+                      { id: 's3', title: '3. The Plan & Roadmaps' },
+                      { id: 's4', title: '4. Scopes (Included / Excluded)' },
+                      { id: 's5', title: '5. Deliverables & SLA Timeline' },
+                      { id: 's6', title: '6. Commercials & Milestones' },
+                      { id: 's7', title: '7. Key Engagement Terms' },
+                      { id: 's8', title: '8. Digital Signoff & Authority' },
+                      ...(selectedProposal.status === 'Accepted'
+                        ? [{ id: 's_audit', title: '✓ Post-Acceptance Audit Matrix' }]
+                        : [])
+                    ].map((sec) => (
                       <div
                         key={sec.id}
                         onClick={() => setActiveSectionId(sec.id)}
-                        className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${
+                        className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition ${
                           sec.id === activeSectionId
-                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border-l-3 border-[#B91C1C]'
+                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border-l-4 border-[#DC2626] shadow-xs'
                             : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          {sec.done ? (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          ) : (
-                            <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
-                          )}
-                          <span className="truncate">{sec.title}</span>
+                          <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${sec.id === activeSectionId ? 'text-rose-600' : 'text-emerald-500'}`} />
+                          <span className="truncate text-xs">{sec.title}</span>
                         </div>
                       </div>
                     ))}
@@ -1529,8 +1783,8 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <span>{selectedProposal.packageName || 'Custom SOW'}</span>
                         <Package className="w-3.5 h-3.5 text-rose-500" />
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        Fixed rate: {selectedProposal.contractValue}
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        Retainer: ₹{selectedProposal.totalAmount.toLocaleString('en-IN')} (No GST)
                       </div>
                       <button
                         onClick={() => setShowSwitchPackageModal(true)}
@@ -1543,167 +1797,834 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </div>
               </div>
 
-              {/* Center Canvas Column */}
+              {/* Center Canvas Column: Dynamic Active Section Editor */}
               <div className="lg:col-span-6 space-y-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-md space-y-6 text-xs">
-                  {/* Header Meta on Page */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-md space-y-6 text-xs">
+                  {/* Header Meta */}
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 text-[10px] text-slate-400">
-                    <span>STATEMENT OF WORK • REF {selectedProposal.code}</span>
-                    <span className="uppercase tracking-wider font-bold text-rose-600">CBIC SAC 998361</span>
+                    <span className="font-mono">STATEMENT OF WORK • REF {selectedProposal.code}</span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300">
+                      EDITING SECTION: {activeSectionId.toUpperCase()}
+                    </span>
                   </div>
 
-                  {/* Company & Client Header */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded bg-[#0A1628] p-1 text-white flex items-center justify-center font-bold text-xs">
-                        <img src="/icon.png" alt="OV" className="w-full h-full object-contain" />
+                  {/* SECTION 1: COVER PAGE & METADATA */}
+                  {activeSectionId === 's1' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">1. Cover Page &amp; Document Metadata</h3>
+                        <p className="text-[11px] text-slate-500">Configure client names, brand identity, region, and document header specifics.</p>
                       </div>
-                      <div>
-                        <div className="font-black text-slate-900 dark:text-white">OPTIVIR CRM SOLUTIONS</div>
-                        <div className="text-[10px] text-slate-500">Advertising &amp; Performance Marketing Practice</div>
-                      </div>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="text-[10px] text-slate-400">Prepared exclusively for</div>
-                      <div className="font-bold text-slate-900 dark:text-white">
-                        {selectedProposal.clientName}
-                      </div>
-                      <div className="text-[11px] text-slate-500">{selectedProposal.contactPerson}</div>
-                    </div>
-                  </div>
+                      <div className="space-y-3.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Proposal SOW Title</label>
+                          <input
+                            type="text"
+                            value={selectedProposal.name}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, name: e.target.value })}
+                            className="w-full font-bold text-sm text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 outline-none focus:border-rose-500"
+                          />
+                        </div>
 
-                  {/* Proposal Title (Editable) */}
-                  <div className="space-y-1 pt-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      PROPOSAL TITLE
-                    </label>
-                    <input
-                      type="text"
-                      value={selectedProposal.name}
-                      onChange={(e) => setSelectedProposal({ ...selectedProposal, name: e.target.value })}
-                      className="w-full text-lg font-black text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 outline-none focus:border-rose-500"
-                    />
-                  </div>
-
-                  {/* Executive Summary */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      EXECUTIVE SUMMARY
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={selectedProposal.executiveSummary}
-                      onChange={(e) => setSelectedProposal({ ...selectedProposal, executiveSummary: e.target.value })}
-                      className="w-full text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-rose-500 leading-relaxed"
-                    />
-                  </div>
-
-                  {/* Scope of Work Deliverables Matrix */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-900 dark:text-white">
-                        Scope of Work Deliverables (SAC 998361)
-                      </h4>
-                      <button
-                        onClick={() => {
-                          const newItem: ProposalLineItem = {
-                            id: `li-${Date.now()}`,
-                            description: 'Additional Custom Performance Deliverable',
-                            sacCode: '998361',
-                            quantity: 1,
-                            unitPrice: 25000,
-                            amount: 25000
-                          };
-                          const newItems = [...selectedProposal.lineItems, newItem];
-                          const newSub = newItems.reduce((a, b) => a + b.amount, 0);
-                          const newGst = Math.round((newSub * 18) / 100);
-                          setSelectedProposal({
-                            ...selectedProposal,
-                            lineItems: newItems,
-                            subtotal: newSub,
-                            gstAmount: newGst,
-                            totalAmount: newSub + newGst,
-                            contractValue: `₹${newSub.toLocaleString('en-IN')}`
-                          });
-                          showToast('Deliverable line item added', 'success');
-                        }}
-                        className="text-[11px] font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Add Deliverable</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {selectedProposal.lineItems.map((li, idx) => (
-                        <div
-                          key={li.id}
-                          className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs"
-                        >
-                          <div className="flex items-center gap-2 flex-1">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Client Company Name</label>
                             <input
                               type="text"
-                              value={li.description}
-                              onChange={(e) => {
-                                const updated = [...selectedProposal.lineItems];
-                                updated[idx].description = e.target.value;
-                                setSelectedProposal({ ...selectedProposal, lineItems: updated });
-                              }}
-                              className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-200 outline-none"
+                              value={selectedProposal.clientName}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, clientName: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold"
                             />
                           </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Brand / Product Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Chakkil Aattiya Velichenna"
+                              value={selectedProposal.brandName || ''}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, brandName: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
 
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="font-mono text-[10px] text-slate-400">SAC {li.sacCode}</span>
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              ₹{li.amount.toLocaleString('en-IN')}
-                            </span>
-                            {selectedProposal.lineItems.length > 1 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Primary Stakeholder / Contact</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.contactPerson}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, contactPerson: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Contact Email</label>
+                            <input
+                              type="email"
+                              value={selectedProposal.contactEmail}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, contactEmail: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Target Market / Region Niche</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Kerala food &amp; wellness"
+                              value={selectedProposal.targetRegion || 'Kerala food & wellness'}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, targetRegion: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Validity Date</label>
+                            <input
+                              type="date"
+                              value={selectedProposal.validUntil}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, validUntil: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 2: EXECUTIVE SUMMARY & GOALS */}
+                  {activeSectionId === 's2' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">2. Executive Summary &amp; Goals</h3>
+                        <p className="text-[11px] text-slate-500">Personalized salutation narrative, launch targets, and growth roadmap goals.</p>
+                      </div>
+
+                      <div className="space-y-3.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Personalized Intro Narrative (Dear {selectedProposal.contactPerson || 'Client'})</label>
+                          <textarea
+                            rows={3}
+                            value={selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, executiveSummary: e.target.value, salutationIntro: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 outline-none focus:border-rose-500 leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Month 1 Target (e.g. 250-400L / 60-100 clients)</label>
+                            <input
+                              type="text"
+                              placeholder="250-400L"
+                              value={selectedProposal.month1Goal || '250-400L'}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, month1Goal: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Month 3 Target (Scale Goal)</label>
+                            <input
+                              type="text"
+                              placeholder="2,500L"
+                              value={selectedProposal.month3Goal || '2,500L'}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, month3Goal: e.target.value })}
+                              className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Strategic Focus &amp; Validation Objective</label>
+                          <textarea
+                            rows={3}
+                            placeholder="This is the validation phase of the 3-month roadmap toward scaling customer volume..."
+                            value={selectedProposal.solutionArchitecture}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, solutionArchitecture: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 outline-none focus:border-rose-500 leading-relaxed"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 3: THE PLAN & ROADMAPS */}
+                  {activeSectionId === 's3' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">3. The Plan &amp; Growth Roadmaps</h3>
+                          <p className="text-[11px] text-slate-500">Customize the plan introductory paragraph and growth roadmap action points.</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const current = selectedProposal.planBullets || DEFAULT_PLAN_BULLETS;
+                            setSelectedProposal({
+                              ...selectedProposal,
+                              planBullets: [...current, 'New growth action point — describe reel strategy, Meta ads targeting, or direct funnel workflow.']
+                            });
+                            showToast('Plan action point added', 'success');
+                          }}
+                          className="text-xs font-bold text-[#1E442B] hover:underline flex items-center gap-1 cursor-pointer bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add Action Point</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Plan Section Introduction</label>
+                          <textarea
+                            rows={2}
+                            value={selectedProposal.planIntro || DEFAULT_PLAN_INTRO}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, planIntro: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-rose-500 leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Roadmap Action Points (Editable Bullets)</label>
+                          {(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).map((bullet, idx) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3 text-xs"
+                            >
+                              <div className="flex items-start gap-2.5 flex-1 pt-0.5">
+                                <span className="font-bold text-[#1E442B] text-sm shrink-0">•</span>
+                                <textarea
+                                  rows={2}
+                                  value={bullet}
+                                  onChange={(e) => {
+                                    const current = [...(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS)];
+                                    current[idx] = e.target.value;
+                                    setSelectedProposal({ ...selectedProposal, planBullets: current });
+                                  }}
+                                  className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-200 outline-none text-xs leading-relaxed resize-none"
+                                />
+                              </div>
+
+                              {(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).length > 1 && (
+                                <button
+                                  onClick={() => {
+                                    const current = (selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).filter((_, i) => i !== idx);
+                                    setSelectedProposal({ ...selectedProposal, planBullets: current });
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 cursor-pointer p-1 shrink-0"
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 4: SCOPES (WHAT'S INCLUDED / EXCLUDED) */}
+                  {activeSectionId === 's4' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">4. Scope of Work — Inclusions &amp; Exclusions</h3>
+                        <p className="text-[11px] text-slate-500">Edit scope introduction, included items, and clearly defined excluded items.</p>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Scope Intro Header Note</label>
+                        <input
+                          type="text"
+                          value={selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO}
+                          onChange={(e) => setSelectedProposal({ ...selectedProposal, scopeIntro: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                        {/* Included Scope */}
+                        <div className="p-4 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 space-y-3">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-emerald-200/50">
+                            <div className="font-bold text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>What's Included</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const current = selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE;
+                                setSelectedProposal({
+                                  ...selectedProposal,
+                                  includedScope: [...current, 'New included deliverable or service scope item']
+                                });
+                              }}
+                              className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"
+                            >
+                              <Plus className="w-3 h-3" /> Add
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/50 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                                <span className="text-emerald-600 font-bold shrink-0">•</span>
+                                <input
+                                  type="text"
+                                  value={item}
+                                  onChange={(e) => {
+                                    const current = [...(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE)];
+                                    current[idx] = e.target.value;
+                                    setSelectedProposal({ ...selectedProposal, includedScope: current });
+                                  }}
+                                  className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 outline-none"
+                                />
+                                {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const current = (selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).filter((_, i) => i !== idx);
+                                      setSelectedProposal({ ...selectedProposal, includedScope: current });
+                                    }}
+                                    className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Excluded Scope */}
+                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/50">
+                            <div className="font-bold text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                              <X className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span>What's Not Included</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const current = selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE;
+                                setSelectedProposal({
+                                  ...selectedProposal,
+                                  excludedScope: [...current, 'New excluded item (e.g. photoshoot, media ad spend, influencer fees)']
+                                });
+                              }}
+                              className="text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:underline cursor-pointer flex items-center gap-0.5"
+                            >
+                              <Plus className="w-3 h-3" /> Add
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <span className="text-slate-400 font-bold shrink-0">•</span>
+                                <input
+                                  type="text"
+                                  value={item}
+                                  onChange={(e) => {
+                                    const current = [...(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE)];
+                                    current[idx] = e.target.value;
+                                    setSelectedProposal({ ...selectedProposal, excludedScope: current });
+                                  }}
+                                  className="w-full bg-transparent text-xs text-slate-700 dark:text-slate-300 outline-none"
+                                />
+                                {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const current = (selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).filter((_, i) => i !== idx);
+                                      setSelectedProposal({ ...selectedProposal, excludedScope: current });
+                                    }}
+                                    className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 5: DELIVERABLES & SLA TIMELINE */}
+                  {activeSectionId === 's5' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">5. Deliverables &amp; SLA Timeline</h3>
+                          <p className="text-[11px] text-slate-500">Manage deliverable line items, turnaround SLA, and week-by-week timeline milestones.</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newItem: ProposalLineItem = {
+                              id: `li-${Date.now()}`,
+                              description: 'New Deliverable Task',
+                              sacCode: '998361',
+                              quantity: 1,
+                              unitPrice: 0,
+                              amount: 0
+                            };
+                            setSelectedProposal({
+                              ...selectedProposal,
+                              lineItems: [...selectedProposal.lineItems, newItem]
+                            });
+                            showToast('Deliverable added', 'success');
+                          }}
+                          className="text-xs font-bold text-[#1E442B] hover:underline flex items-center gap-1 cursor-pointer bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add Deliverable</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Deliverables Checklist</label>
+                        <div className="space-y-2">
+                          {selectedProposal.lineItems.map((li, idx) => (
+                            <div
+                              key={li.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 flex-1">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <input
+                                  type="text"
+                                  value={li.description}
+                                  onChange={(e) => {
+                                    const updated = [...selectedProposal.lineItems];
+                                    updated[idx].description = e.target.value;
+                                    setSelectedProposal({ ...selectedProposal, lineItems: updated });
+                                  }}
+                                  className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-200 outline-none"
+                                />
+                              </div>
+
+                              {selectedProposal.lineItems.length > 1 && (
+                                <button
+                                  onClick={() => {
+                                    const updated = selectedProposal.lineItems.filter((_, i) => i !== idx);
+                                    setSelectedProposal({ ...selectedProposal, lineItems: updated });
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 cursor-pointer p-1"
+                                  title="Remove deliverable"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="pt-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Service Level Turnaround (SLA)</label>
+                          <input
+                            type="text"
+                            value={selectedProposal.slaAssurance}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, slaAssurance: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5"
+                          />
+                        </div>
+
+                        {/* Timeline Milestones */}
+                        <div className="pt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Execution Roadmap Milestones (Timeline)</label>
+                            <button
+                              onClick={() => {
+                                const current = selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS;
+                                setSelectedProposal({
+                                  ...selectedProposal,
+                                  timelineBullets: [...current, 'Week X: New milestone step description']
+                                });
+                              }}
+                              className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"
+                            >
+                              <Plus className="w-3 h-3" /> Add Timeline Step
+                            </button>
+                          </div>
+                          {(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).map((tBullet, idx) => (
+                            <div key={idx} className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <span className="text-[#1E442B] font-bold text-sm shrink-0">•</span>
+                              <input
+                                type="text"
+                                value={tBullet}
+                                onChange={(e) => {
+                                  const current = [...(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS)];
+                                  current[idx] = e.target.value;
+                                  setSelectedProposal({ ...selectedProposal, timelineBullets: current });
+                                }}
+                                className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 outline-none"
+                              />
+                              {(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).length > 1 && (
+                                <button
+                                  onClick={() => {
+                                    const current = (selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).filter((_, i) => i !== idx);
+                                    setSelectedProposal({ ...selectedProposal, timelineBullets: current });
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 6: COMMERCIALS & PAYMENT MILESTONES (NO GST) */}
+                  {activeSectionId === 's6' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">6. Commercial Investment &amp; Payment Milestones</h3>
+                        <p className="text-[11px] text-slate-500">Pure management fee retainer with customizable milestone installments, UPI, and bank details (No GST).</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Monthly Management Fee (₹)</label>
+                          <input
+                            type="number"
+                            step={1000}
+                            value={selectedProposal.subtotal}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
+                              setSelectedProposal({
+                                ...selectedProposal,
+                                subtotal: val,
+                                totalAmount: val,
+                                gstAmount: 0,
+                                contractValue: `₹${val.toLocaleString('en-IN')} / month`
+                              });
+                            }}
+                            className="w-full font-black text-sm text-[#1E442B] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-600"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Meta Ad Spend Budget Description</label>
+                          <input
+                            type="text"
+                            value={selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, metaAdSpendText: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-700 dark:text-slate-300"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Investment Explanatory Note</label>
+                        <textarea
+                          rows={3}
+                          value={selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                          onChange={(e) => setSelectedProposal({ ...selectedProposal, investmentNote: e.target.value })}
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-600 leading-relaxed"
+                        />
+                      </div>
+
+                      {/* Milestone Breakdown Table */}
+                      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                        <div className="bg-[#1E442B] text-white p-2.5 font-bold text-[11px] grid grid-cols-12 gap-2">
+                          <span className="col-span-5">Milestone Installment</span>
+                          <span className="col-span-3 text-center">Amount (INR)</span>
+                          <span className="col-span-4 text-center">Due Condition</span>
+                        </div>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">1. Advance (40%) — begins work</span>
+                            <span className="col-span-3 text-center font-bold text-slate-900 dark:text-white">₹{Math.round(selectedProposal.totalAmount * 0.4).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-500 text-[11px]">On Confirmation</span>
+                          </div>
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">2. Milestone 2 (30%) — content + ads live</span>
+                            <span className="col-span-3 text-center font-bold text-slate-900 dark:text-white">₹{Math.round(selectedProposal.totalAmount * 0.3).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-500 text-[11px]">Day 15</span>
+                          </div>
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">3. Milestone 3 (30%) — final report</span>
+                            <span className="col-span-3 text-center font-bold text-slate-900 dark:text-white">₹{Math.round(selectedProposal.totalAmount * 0.3).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-500 text-[11px]">Day 30</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">UPI ID</label>
+                          <input
+                            type="text"
+                            value={selectedProposal.upiId || 'optivirads@icici'}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, upiId: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Bank Account Details</label>
+                          <input
+                            type="text"
+                            value={selectedProposal.bankDetails || 'OptiVir Ads / ICICI A/C 000205029481 / IFSC ICIC0000002'}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, bankDetails: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                        <span>Taxation Policy:</span>
+                        <span className="font-bold">Management fee includes GST (applicable if registered)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 7: KEY ENGAGEMENT TERMS */}
+                  {activeSectionId === 's7' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">7. Key Engagement Terms &amp; Conditions</h3>
+                          <p className="text-[11px] text-slate-500">Edit, add, or delete binding commercial terms governing the engagement.</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const current = selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS;
+                            setSelectedProposal({
+                              ...selectedProposal,
+                              engagementTerms: [...current, 'New custom term or condition agreed between client and agency.']
+                            });
+                            showToast('Term added', 'success');
+                          }}
+                          className="text-xs font-bold text-[#1E442B] hover:underline flex items-center gap-1 cursor-pointer bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add Term</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                          <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-2.5 text-xs">
+                            <span className="text-[#1E442B] font-bold text-sm shrink-0 pt-0.5">•</span>
+                            <textarea
+                              rows={2}
+                              value={term}
+                              onChange={(e) => {
+                                const current = [...(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS)];
+                                current[idx] = e.target.value;
+                                setSelectedProposal({ ...selectedProposal, engagementTerms: current });
+                              }}
+                              className="w-full bg-transparent text-xs text-slate-700 dark:text-slate-300 outline-none leading-relaxed resize-none font-medium"
+                            />
+                            {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).length > 1 && (
                               <button
                                 onClick={() => {
-                                  const updated = selectedProposal.lineItems.filter((_, i) => i !== idx);
-                                  const newSub = updated.reduce((a, b) => a + b.amount, 0);
-                                  const newGst = Math.round((newSub * 18) / 100);
-                                  setSelectedProposal({
-                                    ...selectedProposal,
-                                    lineItems: updated,
-                                    subtotal: newSub,
-                                    gstAmount: newGst,
-                                    totalAmount: newSub + newGst,
-                                    contractValue: `₹${newSub.toLocaleString('en-IN')}`
-                                  });
+                                  const current = (selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).filter((_, i) => i !== idx);
+                                  setSelectedProposal({ ...selectedProposal, engagementTerms: current });
                                 }}
-                                className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                                className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer shrink-0"
+                                title="Remove term"
                               >
-                                <X className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Next Step CTA Narrative</label>
+                          <textarea
+                            rows={2}
+                            value={selectedProposal.nextStepText || DEFAULT_NEXT_STEP}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, nextStepText: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5"
+                          />
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Commercial Summary Banner */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase text-slate-400">TOTAL INVESTMENT</div>
-                      <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
-                        ₹{selectedProposal.totalAmount.toLocaleString('en-IN')}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Subtotal ₹{selectedProposal.subtotal.toLocaleString('en-IN')} + 18% GST (₹{selectedProposal.gstAmount.toLocaleString('en-IN')})
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Start Date / Kickoff Timeline</label>
+                          <textarea
+                            rows={2}
+                            value={selectedProposal.startDateText || DEFAULT_START_DATE}
+                            onChange={(e) => setSelectedProposal({ ...selectedProposal, startDateText: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5"
+                          />
+                        </div>
                       </div>
                     </div>
+                  )}
 
-                    <div className="text-right space-y-1">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800">
-                        Rule 46 Compliant
-                      </span>
-                      <div className="text-[10px] text-slate-400">Billing: {selectedProposal.contractType}</div>
+                  {/* SECTION 8: DIGITAL SIGNOFF & AUTHORITY */}
+                  {activeSectionId === 's8' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">8. Digital E-Signature &amp; Signoff Authority</h3>
+                        <p className="text-[11px] text-slate-500">Configure agency signatory and client representative contact details.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Agency Signatory */}
+                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2 pb-1.5 border-b border-slate-200/60">
+                            <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-5 w-auto object-contain" />
+                            <span>Agency Authority (OptiVirAds)</span>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Signer Name</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.signerName || 'Abhinand C'}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, signerName: e.target.value })}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Representation Title</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.signerRole || 'On behalf of OptiVirAds'}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, signerRole: e.target.value })}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Phone</label>
+                              <input
+                                type="text"
+                                value={selectedProposal.signerPhone || '9995037109'}
+                                onChange={(e) => setSelectedProposal({ ...selectedProposal, signerPhone: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={selectedProposal.signerEmail || 'optivirads@gmail.com'}
+                                onChange={(e) => setSelectedProposal({ ...selectedProposal, signerEmail: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Client Signatory */}
+                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="font-bold text-xs text-slate-900 dark:text-white pb-1.5 border-b border-slate-200/60">
+                            Client Signatory
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Client Entity</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.clientName}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, clientName: e.target.value })}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Brand / Product</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.brandName || selectedProposal.clientName}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, brandName: e.target.value })}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Signatory Name</label>
+                            <input
+                              type="text"
+                              value={selectedProposal.contactPerson}
+                              onChange={(e) => setSelectedProposal({ ...selectedProposal, contactPerson: e.target.value })}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                  )}
+
+                  {/* POST-ACCEPTANCE AUDIT MATRIX (ONLY VISIBLE ON ACCEPTED / POST-ACCEPTANCE) */}
+                  {activeSectionId === 's_audit' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="border-b pb-2 flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] uppercase">
+                              Post-Acceptance Only
+                            </span>
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Client Onboarding Readiness Audit</h3>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Live technical checklist completed with the client after contract acceptance.</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {[
+                          { key: 'Meta Ads setup', status: 'In Progress', note: 'Pixel setup needed, ad account access pending' },
+                          { key: 'Creative asset bank', status: 'Needs Action', note: 'Product photos available; video clips needed for Reels' },
+                          { key: 'Offer clarity', status: 'Ready', note: 'Key products and pricing confirmed' },
+                          { key: 'Lead response time', status: 'Ready', note: 'WhatsApp Business active; ready for direct leads' },
+                          { key: 'Tracking / CAPI', status: 'In Progress', note: 'Setup in Week 1 before scaling ad budget' }
+                        ].map((item, idx) => (
+                          <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
+                            <div className="font-bold text-slate-900 dark:text-white w-36 shrink-0">{item.key}</div>
+                            <div className="flex-1 text-slate-600 dark:text-slate-300 text-[11px]">{item.note}</div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 shrink-0">
+                              {item.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bottom Section Navigator Buttons */}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', ...(selectedProposal.status === 'Accepted' ? ['s_audit'] : [])];
+                        const curIdx = ids.indexOf(activeSectionId);
+                        if (curIdx > 0) setActiveSectionId(ids[curIdx - 1]);
+                      }}
+                      disabled={activeSectionId === 's1'}
+                      className={`px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold transition ${
+                        activeSectionId === 's1' ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'
+                      }`}
+                    >
+                      ← Previous Section
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setProposals(prev => prev.map(p => p.id === selectedProposal.id ? selectedProposal : p));
+                        showToast(`All changes saved to proposal ${selectedProposal.code}!`, 'success');
+                      }}
+                      className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save All Changes</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', ...(selectedProposal.status === 'Accepted' ? ['s_audit'] : [])];
+                        const curIdx = ids.indexOf(activeSectionId);
+                        if (curIdx < ids.length - 1) setActiveSectionId(ids[curIdx + 1]);
+                      }}
+                      disabled={activeSectionId === 's8' || activeSectionId === 's_audit'}
+                      className={`px-3.5 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-800 text-white text-xs font-semibold transition ${
+                        activeSectionId === 's8' || activeSectionId === 's_audit'
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:bg-rose-600 cursor-pointer'
+                      }`}
+                    >
+                      Next Section →
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1727,7 +2648,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-semibold text-slate-500 block mb-1">Primary Contact</label>
+                      <label className="text-[11px] font-semibold text-slate-500 block mb-1">Primary Stakeholder</label>
                       <input
                         type="text"
                         value={selectedProposal.contactPerson}
@@ -1748,19 +2669,19 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        TAXATION &amp; COMPLIANCE
+                        COMMERCIAL TERMS
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-600">CBIC SAC Code:</span>
-                        <span className="font-mono font-bold text-emerald-600">998361</span>
+                        <span className="text-slate-500">Retainer Fee</span>
+                        <span className="font-bold text-slate-900 dark:text-white">₹{selectedProposal.totalAmount.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-600">GST Rate:</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">18% (9% CGST + 9% SGST)</span>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500">GST (18%)</span>
+                        <span className="text-slate-400">Inclusive</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-600">Legal Jurisdiction:</span>
-                        <span className="text-slate-800 dark:text-slate-200 font-medium">Bengaluru, Karnataka</span>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 font-bold text-rose-600">
+                        <span>Total Due (Incl. Tax)</span>
+                        <span>₹{selectedProposal.totalAmount.toLocaleString('en-IN')}</span>
                       </div>
                     </div>
 
@@ -1770,7 +2691,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Receipt className="w-3.5 h-3.5" />
-                        <span>Convert to Tax Invoice</span>
+                        <span>Convert to Invoice</span>
                       </button>
 
                       <button
@@ -1788,333 +2709,587 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           )}
 
           {/* ===================================================================== */}
-          {/* TAB 2: DOCUMENT PREVIEW (HIGH-FIDELITY CLIENT SOW)                    */}
+          {/* TAB 2: DOCUMENT PREVIEW (PRINT-PERFECT LIVE 2-PAGE PROPOSAL/AGREEMENT)*/}
           {/* ===================================================================== */}
           {activeDetailTab === '2. Document Preview' && (
-            <div className="max-w-4xl mx-auto p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl space-y-8 text-xs">
-              {/* Header Cover Banner */}
-              <div className="p-6 rounded-xl bg-[#0A1628] text-white flex items-center justify-between">
-                <div>
-                  <div className="text-rose-400 font-bold uppercase text-[10px] tracking-wider">
-                    OPTIVIR COMMERCIAL STATEMENT OF WORK
+            <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto w-full">
+              {/* Document Type Switcher & Action Bar */}
+              <div className="flex items-center justify-between flex-wrap gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xs">
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                  <button
+                    onClick={() => setReviewDocType('proposal')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      reviewDocType === 'proposal'
+                        ? 'bg-[#1E442B] text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Proposal (2 Pages)</span>
+                  </button>
+                  <button
+                    onClick={() => setReviewDocType('agreement')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      reviewDocType === 'agreement'
+                        ? 'bg-[#1E442B] text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileCheck className="w-3.5 h-3.5" />
+                    <span>Confirmation Agreement (2 Pages)</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print</span>
+                  </button>
+
+                  <button
+                    onClick={() => downloadClientPdf(reviewDocType === 'proposal' ? 'proposal' : 'agreement', {
+                      number: selectedProposal.code,
+                      title: selectedProposal.name,
+                      client: selectedProposal.clientName,
+                      brand: selectedProposal.clientName,
+                      amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
+                      management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                      packageName: selectedProposal.packageName || 'Growth SOW'
+                    })}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download {reviewDocType === 'proposal' ? 'Proposal' : 'Agreement'} PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* LIVE PROPOSAL DOCUMENT REVIEW (2 PAGES) */}
+              {reviewDocType === 'proposal' && (
+                <div className="space-y-8 max-w-4xl mx-auto w-full">
+                  {/* PAGE 1 SHEET */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header with official green logo right */}
+                    <div className="flex items-start justify-between border-b pb-4 pt-1">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          PROPOSAL
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">{selectedProposal.name}</h2>
+                        <div className="text-xs text-slate-600 italic">
+                          Prepared for {selectedProposal.clientName} — {selectedProposal.brandName || selectedProposal.clientName}
+                        </div>
+                        <div className="text-xs text-slate-500 italic">
+                          By OptiVirAds — helping Kerala food &amp; wellness brands grow online
+                        </div>
+                        <div className="text-[11px] text-slate-500 pt-0.5">
+                          Valid till {selectedProposal.validUntil || '17/09/2026'}
+                        </div>
+                      </div>
+                      <div className="shrink-0 pl-4">
+                        <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 sm:h-12 w-auto object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Dear Client Salutation */}
+                    <div className="space-y-2">
+                      <div className="font-bold text-xs text-slate-900">Dear {selectedProposal.contactPerson || 'Client'},</div>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                        {selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`}
+                      </p>
+                    </div>
+
+                    {/* Section 1: The Plan */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">1. The Plan</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                        {selectedProposal.planIntro || DEFAULT_PLAN_INTRO}
+                      </p>
+                      <ul className="space-y-2 text-xs text-slate-700 pt-1">
+                        {(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).map((bullet, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                            <span className="leading-relaxed">{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section 2: What's Included / Not Included */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">2. What's Included / Not Included</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO}
+                      </p>
+                      <ul className="space-y-1.5 text-xs text-slate-700 pt-1">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span><strong>Included</strong>: {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).join(', ')}.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span><strong>Not included</strong>: {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span>Additional scope items or custom shoots can be quoted separately whenever needed.</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 1 of 2</span>
+                    </div>
                   </div>
-                  <h2 className="text-2xl font-black mt-1 text-white">{selectedProposal.name}</h2>
-                  <p className="text-xs text-slate-400 mt-1">Contract Identifier: {selectedProposal.code}</p>
-                </div>
-                <div className="text-right">
-                  <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700/60 p-1 text-white font-black text-sm flex items-center justify-center ml-auto">
-                    <img src="/icon.png" alt="OV" className="w-full h-full object-contain" />
+
+                  {/* PAGE 2 SHEET */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b pb-3 pt-1">
+                      <div className="font-mono text-xs font-bold text-slate-500">{selectedProposal.code}</div>
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-9 w-auto object-contain" />
+                    </div>
+
+                    {/* Section: Investment */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Investment</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        One straightforward number, split so you always know where the money goes:
+                      </p>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-[#1E442B] text-white text-xs font-bold">
+                            <tr>
+                              <th className="p-2.5">Item</th>
+                              <th className="p-2.5 text-center w-48">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            <tr>
+                              <td className="p-2.5 font-bold">Management fee (strategy, content, ads, funnel, reporting)</td>
+                              <td className="p-2.5 text-center font-bold">₹{(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2.5 text-slate-700 font-bold">Meta ad spend (paid directly by you to Meta)</td>
+                              <td className="p-2.5 text-center text-slate-700">{selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}</td>
+                            </tr>
+                            <tr className="bg-[#EBF4EC] font-black text-slate-900 border-t-2 border-[#1E442B]">
+                              <td className="p-2.5 font-bold">Total investment this month</td>
+                              <td className="p-2.5 text-center font-bold text-sm">₹{((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 12000).toLocaleString('en-IN')} - {((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 15000).toLocaleString('en-IN')}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic leading-relaxed">
+                        {selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                      </p>
+                    </div>
+
+                    {/* Section: Engagement Terms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Engagement Terms</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>40% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}) advance to begin content calendar and ad account setup</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 15, once first batch of content and ads are live</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 30, on delivery of the final report</span>
+                        </li>
+                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{term}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section: Timeline */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Timeline</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).map((tb, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{tb}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section: Next Step & Sign-off */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Next Step</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.nextStepText || DEFAULT_NEXT_STEP}
+                      </p>
+                      <p className="text-xs text-slate-800 italic">
+                        Looking forward to taking {selectedProposal.brandName || selectedProposal.clientName}'s growth to the next level.
+                      </p>
+                    </div>
+
+                    {/* Sign-off */}
+                    <div className="pt-4 border-t flex items-center gap-4">
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 w-auto object-contain" />
+                      <div>
+                        <div className="font-bold text-xs text-slate-900">{selectedProposal.signerName || 'Abhinand C'}</div>
+                        <div className="text-[11px] text-slate-500">{selectedProposal.signerRole || 'On behalf of OptiVirAds'}</div>
+                        <div className="text-[10px] text-slate-400">{selectedProposal.signerPhone || '9995037109'} | {selectedProposal.signerEmail || 'optivirads@gmail.com'} | {selectedProposal.signerWebsite || 'www.optivirads.com'}</div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 2 of 2</span>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 block mt-1">Authoritative SOW</span>
                 </div>
-              </div>
+              )}
 
-              {/* Client & Commercial Details */}
-              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">PREPARED FOR</span>
-                  <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">{selectedProposal.clientName}</div>
-                  <div className="text-xs text-slate-500">{selectedProposal.contactPerson}</div>
-                  <div className="text-xs text-slate-500">{selectedProposal.contactEmail}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">COMMERCIAL INVESTMENT</span>
-                  <div className="font-bold text-sm text-rose-600 mt-0.5">
-                    ₹{selectedProposal.totalAmount.toLocaleString('en-IN')} (incl. 18% GST)
+              {/* LIVE AGREEMENT / CONFIRMATION REVIEW (2 PAGES) */}
+              {reviewDocType === 'agreement' && (
+                <div className="space-y-8 max-w-4xl mx-auto w-full">
+                  {/* PAGE 1 SHEET */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header with official green logo right */}
+                    <div className="flex items-start justify-between border-b pb-4 pt-1">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          WRITTEN CONFIRMATION
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">Confirmation of Engagement</h2>
+                        <p className="text-xs text-slate-600 italic">
+                          This confirms both sides' agreement to proceed, based on the proposal sent on {selectedProposal.validUntil || '17/08/2026'}.
+                        </p>
+                      </div>
+                      <div className="shrink-0 pl-4">
+                        <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 sm:h-12 w-auto object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Metadata Grid Box (2x2) */}
+                    <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                      <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300">
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-28">Confirmation #</span>
+                          <span className="text-slate-700 font-mono">[{selectedProposal.code || 'OVA-2026-001'}]</span>
+                        </div>
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-20">Date</span>
+                          <span className="text-slate-700">[{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')}]</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 divide-x divide-slate-300">
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-28">Client</span>
+                          <span className="text-slate-700 font-medium">[{selectedProposal.clientName}]</span>
+                        </div>
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-20">Brand</span>
+                          <span className="text-slate-700 font-medium">{selectedProposal.brandName || selectedProposal.clientName}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 1: What This Confirms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">What This Confirms</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        This document is a simple written record of what both sides agreed on WhatsApp/call — not a replacement for the full proposal, but a one-page reference so there's no confusion later about scope, price, or dates. Both sides keep a copy.
+                      </p>
+                      <p className="text-xs text-slate-700 italic">
+                        If anything here differs from an earlier casual chat or quote, this confirmation is the final version both sides go by.
+                      </p>
+                    </div>
+
+                    {/* Section 2: Month 1 Target */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Month 1 Target</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {selectedProposal.solutionArchitecture || `This is the validation phase of the 3-month roadmap toward ${selectedProposal.month3Goal || '2,500'} customers. Based on the ad budget below, the realistic target for Month 1 is ${selectedProposal.month1Goal || '60-100'} customers — not the full ${selectedProposal.month3Goal || '2,500'}. Month 2-3 scale-up depends on Month 1 data and a fresh budget conversation, as outlined in the proposal.`}
+                      </p>
+                    </div>
+
+                    {/* Section 3: Scope — Month 1 */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Scope — Month 1</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>Not included: {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Section 4: Investment */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Investment</h4>
+                      </div>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-[#1E442B] text-white text-xs font-bold">
+                            <tr>
+                              <th className="p-2.5">Item</th>
+                              <th className="p-2.5 text-center w-48">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            <tr>
+                              <td className="p-2.5 font-bold">Management fee (strategy, content, ads, funnel, reporting)</td>
+                              <td className="p-2.5 text-center font-bold">₹{(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2.5 text-slate-700 font-bold">Meta ad spend (billed separately, paid by client to Meta)</td>
+                              <td className="p-2.5 text-center text-slate-700">{selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}</td>
+                            </tr>
+                            <tr className="bg-[#EBF4EC] font-black text-slate-900 border-t-2 border-[#1E442B]">
+                              <td className="p-2.5 font-bold">Total investment — Month 1</td>
+                              <td className="p-2.5 text-center font-bold text-sm">₹{((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 12000).toLocaleString('en-IN')} - {((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 15000).toLocaleString('en-IN')}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic">
+                        {selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                      </p>
+                    </div>
+
+                    {/* Section 5: Payment Schedule */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Payment Schedule</h4>
+                      </div>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <div className="bg-[#1E442B] text-white p-2.5 font-bold text-xs grid grid-cols-12 gap-2">
+                          <span className="col-span-5">Milestone</span>
+                          <span className="col-span-3 text-center">Amount</span>
+                          <span className="col-span-4 text-center">Due</span>
+                        </div>
+                        <div className="divide-y divide-slate-200 text-xs">
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">Advance (40%) — begins work</span>
+                            <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-600">On confirmation</span>
+                          </div>
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">Milestone 2 (30%) — content + ads live</span>
+                            <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-600">Day 15</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 1 of 2</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500">Service Category: CBIC SAC 998361</div>
-                  <div className="text-xs text-slate-500">Contract Type: {selectedProposal.contractType}</div>
-                </div>
-              </div>
 
-              {/* Executive Summary */}
-              <div className="space-y-2">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white border-b pb-1">
-                  1. Executive Summary &amp; Engagement Objectives
-                </h3>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
-                  {selectedProposal.executiveSummary}
-                </p>
-              </div>
+                  {/* PAGE 2 SHEET */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b pb-3 pt-1">
+                      <div className="font-mono text-xs font-bold text-slate-500">{selectedProposal.code}</div>
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-9 w-auto object-contain" />
+                    </div>
 
-              {/* Deliverables Matrix */}
-              <div className="space-y-2">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white border-b pb-1">
-                  2. Detailed Scope of Services &amp; Deliverables
-                </h3>
-                <table className="w-full text-left border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300">
-                    <tr>
-                      <th className="p-2.5">ITEM DESCRIPTION</th>
-                      <th className="p-2.5">SAC CODE</th>
-                      <th className="p-2.5 text-right">FEE (INR)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {selectedProposal.lineItems.map((li, idx) => (
-                      <tr key={idx}>
-                        <td className="p-2.5 font-medium">{li.description}</td>
-                        <td className="p-2.5 font-mono text-emerald-600">{li.sacCode}</td>
-                        <td className="p-2.5 text-right font-bold">₹{li.amount.toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-slate-50 dark:bg-slate-800/40 font-bold">
-                      <td colSpan={2} className="p-2.5 text-right">Subtotal:</td>
-                      <td className="p-2.5 text-right">₹{selectedProposal.subtotal.toLocaleString('en-IN')}</td>
-                    </tr>
-                    <tr className="bg-slate-50 dark:bg-slate-800/40 font-bold text-slate-600">
-                      <td colSpan={2} className="p-2.5 text-right">Goods &amp; Services Tax (18% GST):</td>
-                      <td className="p-2.5 text-right text-emerald-600">₹{selectedProposal.gstAmount.toLocaleString('en-IN')}</td>
-                    </tr>
-                    <tr className="bg-rose-50/50 dark:bg-rose-950/20 font-black text-rose-600 text-sm">
-                      <td colSpan={2} className="p-3 text-right">Total Contract Value:</td>
-                      <td className="p-3 text-right">₹{selectedProposal.totalAmount.toLocaleString('en-IN')}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    {/* Milestone 3 row */}
+                    <div className="space-y-2">
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                          <span className="col-span-5 font-medium">Milestone 3 (30%) — final report</span>
+                          <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}</span>
+                          <span className="col-span-4 text-center text-slate-600">Day 30</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic">
+                        Pay via UPI: {selectedProposal.upiId || 'optivirads@icici'} or bank transfer: {selectedProposal.bankDetails || 'OptiVir Ads / ICICI A/C 000205029481 / IFSC ICIC0000002'}. Send a screenshot after each payment for the record.
+                      </p>
+                    </div>
 
-              {/* Service Level Agreement */}
-              <div className="space-y-1.5 p-3.5 bg-rose-50/40 dark:bg-rose-950/20 border-l-3 border-[#DC2626] rounded-xl">
-                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-rose-600" />
-                  <span>3. Service Level Assurance (SLA Target)</span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  {selectedProposal.slaAssurance}
-                </p>
-              </div>
+                    {/* Section 6: Key Terms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Key Terms (from the proposal)</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        <li className="flex items-start gap-2"><span className="text-[#1E442B] font-bold">•</span><span>This confirmation is read together with the proposal dated {selectedProposal.validUntil || '17/08/2026'} — where the two conflict on price, scope, or dates, this document governs</span></li>
+                        <li className="flex items-start gap-2"><span className="text-[#1E442B] font-bold">•</span><span>If a milestone payment is more than 3 days late, work pauses until it's received — timeline shifts accordingly</span></li>
+                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{term}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-              {/* Signature Blocks */}
-              <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <div className="space-y-6">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase">For OptiVir CRM Technologies</div>
-                  <div className="h-12 border-b border-dashed border-slate-300 dark:border-slate-700 flex items-end pb-1 font-serif italic text-sm text-slate-700 dark:text-slate-300">
-                    OptiVir Executive Authority
+                    {/* Section 7: Start Date */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Start Date</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.startDateText || `Work begins within 24 hours of advance payment (₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}). First content calendar shared by 24 hours upon payment.`}
+                      </p>
+                    </div>
+
+                    {/* Section 8: Acknowledged By */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Acknowledged By</h4>
+                      </div>
+                      <p className="text-xs text-slate-500 italic">
+                        By replying 'Confirmed' on WhatsApp/email, or signing below, both sides agree this reflects what was discussed.
+                      </p>
+                    </div>
+
+                    {/* Dual Signatures */}
+                    <div className="space-y-6 pt-2">
+                      <div className="space-y-1">
+                        <div className="border-b border-slate-400 w-64 pb-4"></div>
+                        <div className="font-bold text-xs text-slate-900">[{selectedProposal.clientName}] | {selectedProposal.brandName || selectedProposal.clientName}</div>
+                        <div className="text-[11px] text-slate-500">Authorized Signatory: {selectedProposal.contactPerson}</div>
+                      </div>
+                      <div className="space-y-1 pt-2">
+                        <div className="border-b border-slate-400 w-64 pb-4"></div>
+                        <div className="font-bold text-xs text-slate-900">[{selectedProposal.signerName || 'Abhinand C'}] | {selectedProposal.signerRole || 'On behalf of OptiVirAds'}</div>
+                        <div className="text-[11px] text-slate-500">Date: {new Date().toLocaleDateString('en-GB')}</div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 2 of 2</span>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-500">Authorized Signatory • Bengaluru</div>
                 </div>
-
-                <div className="space-y-6">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase">For {selectedProposal.clientName}</div>
-                  <div className="h-12 border-b border-dashed border-slate-300 dark:border-slate-700 flex items-end pb-1 font-serif italic text-sm text-slate-700 dark:text-slate-300">
-                    {selectedProposal.status === 'Accepted' ? selectedProposal.contactPerson : 'Awaiting Digital E-Signature...'}
-                  </div>
-                  <div className="text-[10px] text-slate-500">Client Authorized Signatory</div>
-                </div>
-              </div>
-
-              {/* Bottom Print / Download Bar */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border rounded-lg hover:bg-slate-50"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print Preview</span>
-                </button>
-                <button
-                  onClick={() => downloadClientPdf('proposal', {
-                    number: selectedProposal.code,
-                    title: selectedProposal.name,
-                    client: selectedProposal.clientName,
-                    amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
-                    packageName: selectedProposal.packageName || 'Growth SOW',
-                    sacCode: selectedProposal.sacCode || '998361'
-                  })}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Client Vector PDF</span>
-                </button>
-              </div>
+              )}
             </div>
           )}
 
           {/* ===================================================================== */}
-          {/* TAB 3: PRICING & COMMERCIALS ENGINE                                   */}
+          {/* TAB 3: PRICING & COMMERCIALS ENGINE (CLEAN RETAINER)                  */}
           {/* ===================================================================== */}
           {activeDetailTab === '3. Pricing Engine' && (
             <div className="max-w-5xl mx-auto p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs space-y-6 text-xs">
               <div className="flex items-center justify-between border-b pb-3">
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Commercials &amp; Tax Calculation Engine
+                    Commercial Retainer &amp; Deliverables Configuration
                   </h3>
                   <p className="text-slate-500 text-xs mt-0.5">
-                    Configure line items, billable quantities, and CBIC SAC 998361 tax rate breakdown.
+                    Configure deliverables checklist and monthly commercial retainer fee (includes GST).
                   </p>
                 </div>
                 <button
                   onClick={() => {
                     const newItem: ProposalLineItem = {
                       id: `li-${Date.now()}`,
-                      description: 'Custom Service Scope Line Item',
+                      description: 'Custom Deliverable Item',
                       sacCode: '998361',
                       quantity: 1,
-                      unitPrice: 20000,
-                      amount: 20000
+                      unitPrice: 0,
+                      amount: 0
                     };
-                    const updated = [...selectedProposal.lineItems, newItem];
-                    const newSub = updated.reduce((a, b) => a + b.amount, 0);
-                    const newGst = Math.round((newSub * 18) / 100);
                     setSelectedProposal({
                       ...selectedProposal,
-                      lineItems: updated,
-                      subtotal: newSub,
-                      gstAmount: newGst,
-                      totalAmount: newSub + newGst,
-                      contractValue: `₹${newSub.toLocaleString('en-IN')}`
+                      lineItems: [...selectedProposal.lineItems, newItem]
                     });
                   }}
                   className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Line Item</span>
+                  <span>Add Deliverable</span>
                 </button>
               </div>
 
-              {/* Line Items Editable Table */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800 uppercase font-bold text-[10px] text-slate-500">
-                    <tr>
-                      <th className="p-3">SCOPE ITEM DESCRIPTION</th>
-                      <th className="p-3 w-28">SAC CODE</th>
-                      <th className="p-3 w-20">QTY</th>
-                      <th className="p-3 w-32">RATE (₹)</th>
-                      <th className="p-3 w-32 text-right">AMOUNT (₹)</th>
-                      <th className="p-3 w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {selectedProposal.lineItems.map((item, idx) => (
-                      <tr key={item.id}>
-                        <td className="p-3">
-                          <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => {
-                              const updated = [...selectedProposal.lineItems];
-                              updated[idx].description = e.target.value;
-                              setSelectedProposal({ ...selectedProposal, lineItems: updated });
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800/60 border rounded px-2 py-1 text-xs"
-                          />
-                        </td>
-                        <td className="p-3 font-mono">
-                          <input
-                            type="text"
-                            value={item.sacCode}
-                            onChange={(e) => {
-                              const updated = [...selectedProposal.lineItems];
-                              updated[idx].sacCode = e.target.value;
-                              setSelectedProposal({ ...selectedProposal, lineItems: updated });
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800/60 border rounded px-2 py-1 text-xs font-mono font-bold text-emerald-600"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const qty = Math.max(1, Number(e.target.value) || 1);
-                              const updated = [...selectedProposal.lineItems];
-                              updated[idx].quantity = qty;
-                              updated[idx].amount = qty * updated[idx].unitPrice;
-                              const newSub = updated.reduce((a, b) => a + b.amount, 0);
-                              const newGst = Math.round((newSub * 18) / 100);
-                              setSelectedProposal({
-                                ...selectedProposal,
-                                lineItems: updated,
-                                subtotal: newSub,
-                                gstAmount: newGst,
-                                totalAmount: newSub + newGst,
-                                contractValue: `₹${newSub.toLocaleString('en-IN')}`
-                              });
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800/60 border rounded px-2 py-1 text-xs text-center"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            step={1000}
-                            value={item.unitPrice}
-                            onChange={(e) => {
-                              const price = Number(e.target.value) || 0;
-                              const updated = [...selectedProposal.lineItems];
-                              updated[idx].unitPrice = price;
-                              updated[idx].amount = price * updated[idx].quantity;
-                              const newSub = updated.reduce((a, b) => a + b.amount, 0);
-                              const newGst = Math.round((newSub * 18) / 100);
-                              setSelectedProposal({
-                                ...selectedProposal,
-                                lineItems: updated,
-                                subtotal: newSub,
-                                gstAmount: newGst,
-                                totalAmount: newSub + newGst,
-                                contractValue: `₹${newSub.toLocaleString('en-IN')}`
-                              });
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800/60 border rounded px-2 py-1 text-xs"
-                          />
-                        </td>
-                        <td className="p-3 text-right font-bold">
-                          ₹{item.amount.toLocaleString('en-IN')}
-                        </td>
-                        <td className="p-3 text-right">
-                          {selectedProposal.lineItems.length > 1 && (
-                            <button
-                              onClick={() => {
-                                const updated = selectedProposal.lineItems.filter((_, i) => i !== idx);
-                                const newSub = updated.reduce((a, b) => a + b.amount, 0);
-                                const newGst = Math.round((newSub * 18) / 100);
-                                setSelectedProposal({
-                                  ...selectedProposal,
-                                  lineItems: updated,
-                                  subtotal: newSub,
-                                  gstAmount: newGst,
-                                  totalAmount: newSub + newGst,
-                                  contractValue: `₹${newSub.toLocaleString('en-IN')}`
-                                });
-                              }}
-                              className="text-slate-400 hover:text-rose-600"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Line Items Editable List */}
+              <div className="space-y-2">
+                {selectedProposal.lineItems.map((item, idx) => (
+                  <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-1">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => {
+                          const updated = [...selectedProposal.lineItems];
+                          updated[idx].description = e.target.value;
+                          setSelectedProposal({ ...selectedProposal, lineItems: updated });
+                        }}
+                        className="w-full bg-transparent font-medium text-slate-800 dark:text-slate-200 outline-none text-xs"
+                      />
+                    </div>
+                    {selectedProposal.lineItems.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const updated = selectedProposal.lineItems.filter((_, i) => i !== idx);
+                          setSelectedProposal({ ...selectedProposal, lineItems: updated });
+                        }}
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {/* Commercials Calculation Card */}
+              {/* Commercials Summary */}
               <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 max-w-sm ml-auto space-y-2 text-xs">
                 <div className="flex justify-between text-slate-600">
-                  <span>Subtotal Net Fee:</span>
+                  <span>Monthly Retainer Fee:</span>
                   <span className="font-bold text-slate-900 dark:text-white">
-                    ₹{selectedProposal.subtotal.toLocaleString('en-IN')}
+                    ₹{selectedProposal.totalAmount.toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>CGST (9%):</span>
-                  <span className="font-mono text-emerald-600">
-                    ₹{Math.round(selectedProposal.gstAmount / 2).toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>SGST (9%):</span>
-                  <span className="font-mono text-emerald-600">
-                    ₹{Math.round(selectedProposal.gstAmount / 2).toLocaleString('en-IN')}
-                  </span>
+                <div className="flex justify-between text-slate-500">
+                  <span>Taxation:</span>
+                  <span className="text-emerald-600 font-medium">Includes GST (All-Inclusive)</span>
                 </div>
                 <div className="flex justify-between font-black text-sm pt-2 border-t border-slate-200 dark:border-slate-700 text-rose-600">
-                  <span>Grand Total (INR):</span>
+                  <span>Total Commercial Value:</span>
                   <span>₹{selectedProposal.totalAmount.toLocaleString('en-IN')}</span>
                 </div>
               </div>
@@ -2590,19 +3765,28 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <div className="space-y-1.5">
                     <select
                       value={newPropClient}
-                      onChange={(e) => setNewPropClient(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewPropClient(val);
+                        const match = clientsList.find(c => c.name === val);
+                        if (match?.contactPerson) {
+                          setNewPropContact(match.contactPerson);
+                        }
+                      }}
                       className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
                     >
-                      <option value="">-- Select Existing Client or Type Below --</option>
+                      <option value="">-- Select Existing Client / Lead ({clientsList.length} Available) --</option>
                       {clientsList.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
+                        <option key={c.id || c.name} value={c.name}>
+                          {c.name} {c.source ? `[${c.source}]` : ''} {c.contactPerson ? `— ${c.contactPerson}` : ''}
+                        </option>
                       ))}
                     </select>
                     <input
                       type="text"
                       value={newPropClient}
                       onChange={(e) => setNewPropClient(e.target.value)}
-                      placeholder="Or enter new client name..."
+                      placeholder="Or enter / edit client company name..."
                       required
                       className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-rose-500"
                     />
@@ -2659,20 +3843,18 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-[11px] text-slate-500 space-y-1">
                 <div className="flex justify-between font-semibold text-slate-700 dark:text-slate-300">
                   <span>Selected Package Fee:</span>
-                  <span>
+                  <span className="font-bold text-slate-900 dark:text-white">
                     ₹{(packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0).toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Tax (18% GST, SAC 998361):</span>
-                  <span>
-                    ₹{Math.round(((packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0) * 0.18)).toLocaleString('en-IN')}
-                  </span>
+                <div className="flex justify-between text-slate-400">
+                  <span>Taxation:</span>
+                  <span className="text-emerald-600 font-medium">Includes GST (All-Inclusive Retainer)</span>
                 </div>
                 <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-700">
                   <span>Total Commercial Value:</span>
-                  <span className="text-[#DC2626]">
-                    ₹{Math.round(((packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0) * 1.18)).toLocaleString('en-IN')}
+                  <span className="text-[#DC2626] font-black text-sm">
+                    ₹{(packages.find(p => p.id === newPropSelectedPkgId)?.monthlyFee || 0).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
@@ -2693,6 +3875,533 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FULLSCREEN DOCUMENT REVIEW MODAL (LIVE PROPOSAL / AGREEMENT PREVIEW)       */}
+      {/* ========================================================================= */}
+      {showDocumentReviewModal && selectedProposal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl space-y-6 my-auto">
+            {/* Modal Header Controls */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-wrap sm:flex-nowrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-slate-900 text-white font-bold">
+                  <Eye className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Document Review &amp; Live Print Preview</h3>
+                  <p className="text-xs text-slate-500">{selectedProposal.name} • Ref: {selectedProposal.code}</p>
+                </div>
+              </div>
+
+              {/* Mode Switcher */}
+              <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl gap-1">
+                <button
+                  onClick={() => setReviewDocType('proposal')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    reviewDocType === 'proposal'
+                      ? 'bg-[#1E442B] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Proposal (2 Pages)</span>
+                </button>
+
+                <button
+                  onClick={() => setReviewDocType('agreement')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    reviewDocType === 'agreement'
+                      ? 'bg-[#1E442B] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  <span>Agreement (2 Pages)</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-900 border rounded-lg hover:bg-slate-50 flex items-center gap-1 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  onClick={() => downloadClientPdf(reviewDocType === 'proposal' ? 'proposal' : 'agreement', {
+                    number: selectedProposal.code,
+                    title: selectedProposal.name,
+                    client: selectedProposal.clientName,
+                    brand: selectedProposal.clientName,
+                    amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
+                    management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    packageName: selectedProposal.packageName || 'Growth SOW'
+                  })}
+                  className="px-3.5 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </button>
+                <button
+                  onClick={() => setShowDocumentReviewModal(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* LIVE DOCUMENT PAGES CONTAINER */}
+            <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-2">
+              {reviewDocType === 'proposal' ? (
+                <>
+                  {/* PROPOSAL PAGE 1 */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header with official green logo right */}
+                    <div className="flex items-start justify-between border-b pb-4 pt-1">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          PROPOSAL
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">{selectedProposal.name}</h2>
+                        <div className="text-xs text-slate-600 italic">
+                          Prepared for {selectedProposal.clientName} — {selectedProposal.brandName || selectedProposal.clientName}
+                        </div>
+                        <div className="text-xs text-slate-500 italic">
+                          By OptiVirAds — helping Kerala food &amp; wellness brands grow online
+                        </div>
+                        <div className="text-[11px] text-slate-500 pt-0.5">
+                          Valid till {selectedProposal.validUntil || '17/09/2026'}
+                        </div>
+                      </div>
+                      <div className="shrink-0 pl-4">
+                        <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 sm:h-12 w-auto object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Dear Client Salutation */}
+                    <div className="space-y-2">
+                      <div className="font-bold text-xs text-slate-900">Dear {selectedProposal.contactPerson || 'Client'},</div>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                        {selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`}
+                      </p>
+                    </div>
+
+                    {/* Section 1: The Plan */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">1. The Plan</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                        {selectedProposal.planIntro || DEFAULT_PLAN_INTRO}
+                      </p>
+                      <ul className="space-y-2 text-xs text-slate-700 pt-1">
+                        {(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).map((bullet, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                            <span className="leading-relaxed">{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section 2: What's Included / Not Included */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">2. What's Included / Not Included</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO}
+                      </p>
+                      <ul className="space-y-1.5 text-xs text-slate-700 pt-1">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span><strong>Included</strong>: {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).join(', ')}.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span><strong>Not included</strong>: {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
+                          <span>Additional scope items or custom shoots can be quoted separately whenever needed.</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 1 of 2</span>
+                    </div>
+                  </div>
+
+                  {/* PROPOSAL PAGE 2 */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b pb-3 pt-1">
+                      <div className="font-mono text-xs font-bold text-slate-500">{selectedProposal.code}</div>
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-9 w-auto object-contain" />
+                    </div>
+
+                    {/* Section: Investment */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Investment</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        One straightforward number, split so you always know where the money goes:
+                      </p>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-[#1E442B] text-white text-xs font-bold">
+                            <tr>
+                              <th className="p-2.5">Item</th>
+                              <th className="p-2.5 text-center w-48">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            <tr>
+                              <td className="p-2.5 font-bold">Management fee (strategy, content, ads, funnel, reporting)</td>
+                              <td className="p-2.5 text-center font-bold">₹{(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2.5 text-slate-700 font-bold">Meta ad spend (paid directly by you to Meta)</td>
+                              <td className="p-2.5 text-center text-slate-700">{selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}</td>
+                            </tr>
+                            <tr className="bg-[#EBF4EC] font-black text-slate-900 border-t-2 border-[#1E442B]">
+                              <td className="p-2.5 font-bold">Total investment this month</td>
+                              <td className="p-2.5 text-center font-bold text-sm">₹{((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 12000).toLocaleString('en-IN')} - {((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 15000).toLocaleString('en-IN')}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic leading-relaxed">
+                        {selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                      </p>
+                    </div>
+
+                    {/* Section: Engagement Terms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Engagement Terms</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>40% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}) advance to begin content calendar and ad account setup</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 15, once first batch of content and ads are live</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 30, on delivery of the final report</span>
+                        </li>
+                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{term}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section: Timeline */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Timeline</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).map((tb, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{tb}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section: Next Step & Sign-off */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Next Step</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.nextStepText || DEFAULT_NEXT_STEP}
+                      </p>
+                      <p className="text-xs text-slate-800 italic">
+                        Looking forward to taking {selectedProposal.brandName || selectedProposal.clientName}'s growth to the next level.
+                      </p>
+                    </div>
+
+                    {/* Sign-off */}
+                    <div className="pt-4 border-t flex items-center gap-4">
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 w-auto object-contain" />
+                      <div>
+                        <div className="font-bold text-xs text-slate-900">{selectedProposal.signerName || 'Abhinand C'}</div>
+                        <div className="text-[11px] text-slate-500">{selectedProposal.signerRole || 'On behalf of OptiVirAds'}</div>
+                        <div className="text-[10px] text-slate-400">{selectedProposal.signerPhone || '9995037109'} | {selectedProposal.signerEmail || 'optivirads@gmail.com'} | {selectedProposal.signerWebsite || 'www.optivirads.com'}</div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 2 of 2</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* AGREEMENT PAGE 1 */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header with official green logo right */}
+                    <div className="flex items-start justify-between border-b pb-4 pt-1">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          WRITTEN CONFIRMATION
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">Confirmation of Engagement</h2>
+                        <p className="text-xs text-slate-600 italic">
+                          This confirms both sides' agreement to proceed, based on the proposal sent on {selectedProposal.validUntil || '17/08/2026'}.
+                        </p>
+                      </div>
+                      <div className="shrink-0 pl-4">
+                        <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-10 sm:h-12 w-auto object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Metadata Grid Box (2x2) */}
+                    <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                      <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300">
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-28">Confirmation #</span>
+                          <span className="text-slate-700 font-mono">[{selectedProposal.code || 'OVA-2026-001'}]</span>
+                        </div>
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-20">Date</span>
+                          <span className="text-slate-700">[{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')}]</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 divide-x divide-slate-300">
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-28">Client</span>
+                          <span className="text-slate-700 font-medium">[{selectedProposal.clientName}]</span>
+                        </div>
+                        <div className="p-2.5 flex items-center gap-2">
+                          <span className="font-bold text-slate-900 w-20">Brand</span>
+                          <span className="text-slate-700 font-medium">{selectedProposal.brandName || selectedProposal.clientName}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 1: What This Confirms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">What This Confirms</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        This document is a simple written record of what both sides agreed on WhatsApp/call — not a replacement for the full proposal, but a one-page reference so there's no confusion later about scope, price, or dates. Both sides keep a copy.
+                      </p>
+                      <p className="text-xs text-slate-700 italic">
+                        If anything here differs from an earlier casual chat or quote, this confirmation is the final version both sides go by.
+                      </p>
+                    </div>
+
+                    {/* Section 2: Month 1 Target */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Month 1 Target</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {selectedProposal.solutionArchitecture || `This is the validation phase of the 3-month roadmap toward ${selectedProposal.month3Goal || '2,500'} customers. Based on the ad budget below, the realistic target for Month 1 is ${selectedProposal.month1Goal || '60-100'} customers — not the full ${selectedProposal.month3Goal || '2,500'}. Month 2-3 scale-up depends on Month 1 data and a fresh budget conversation, as outlined in the proposal.`}
+                      </p>
+                    </div>
+
+                    {/* Section 3: Scope — Month 1 */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Scope — Month 1</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#1E442B] font-bold">•</span>
+                          <span>Not included: {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Section 4: Investment */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Investment</h4>
+                      </div>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <table className="w-full text-left">
+                          <thead className="bg-[#1E442B] text-white text-xs font-bold">
+                            <tr>
+                              <th className="p-2.5">Item</th>
+                              <th className="p-2.5 text-center w-48">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            <tr>
+                              <td className="p-2.5 font-bold">Management fee (strategy, content, ads, funnel, reporting)</td>
+                              <td className="p-2.5 text-center font-bold">₹{(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2.5 text-slate-700 font-bold">Meta ad spend (billed separately, paid by client to Meta)</td>
+                              <td className="p-2.5 text-center text-slate-700">{selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}</td>
+                            </tr>
+                            <tr className="bg-[#EBF4EC] font-black text-slate-900 border-t-2 border-[#1E442B]">
+                              <td className="p-2.5 font-bold">Total investment — Month 1</td>
+                              <td className="p-2.5 text-center font-bold text-sm">₹{((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 12000).toLocaleString('en-IN')} - {((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 15000).toLocaleString('en-IN')}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic">
+                        {selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                      </p>
+                    </div>
+
+                    {/* Section 5: Payment Schedule */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Payment Schedule</h4>
+                      </div>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <div className="bg-[#1E442B] text-white p-2.5 font-bold text-xs grid grid-cols-12 gap-2">
+                          <span className="col-span-5">Milestone</span>
+                          <span className="col-span-3 text-center">Amount</span>
+                          <span className="col-span-4 text-center">Due</span>
+                        </div>
+                        <div className="divide-y divide-slate-200 text-xs">
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">Advance (40%) — begins work</span>
+                            <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-600">On confirmation</span>
+                          </div>
+                          <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                            <span className="col-span-5 font-medium">Milestone 2 (30%) — content + ads live</span>
+                            <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}</span>
+                            <span className="col-span-4 text-center text-slate-600">Day 15</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 1 of 2</span>
+                    </div>
+                  </div>
+
+                  {/* PAGE 2 SHEET */}
+                  <div className="bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-10 space-y-6 relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b pb-3 pt-1">
+                      <div className="font-mono text-xs font-bold text-slate-500">{selectedProposal.code}</div>
+                      <img src="/images/optivir-logo-green.png" alt="OptiVirAds" className="h-9 w-auto object-contain" />
+                    </div>
+
+                    {/* Milestone 3 row */}
+                    <div className="space-y-2">
+                      <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
+                        <div className="p-2.5 grid grid-cols-12 gap-2 items-center">
+                          <span className="col-span-5 font-medium">Milestone 3 (30%) — final report</span>
+                          <span className="col-span-3 text-center font-bold">₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}</span>
+                          <span className="col-span-4 text-center text-slate-600">Day 30</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic">
+                        Pay via UPI: {selectedProposal.upiId || 'optivirads@icici'} or bank transfer: {selectedProposal.bankDetails || 'OptiVir Ads / ICICI A/C 000205029481 / IFSC ICIC0000002'}. Send a screenshot after each payment for the record.
+                      </p>
+                    </div>
+
+                    {/* Section 6: Key Terms */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Key Terms (from the proposal)</h4>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        <li className="flex items-start gap-2"><span className="text-[#1E442B] font-bold">•</span><span>This confirmation is read together with the proposal dated {selectedProposal.validUntil || '17/08/2026'} — where the two conflict on price, scope, or dates, this document governs</span></li>
+                        <li className="flex items-start gap-2"><span className="text-[#1E442B] font-bold">•</span><span>If a milestone payment is more than 3 days late, work pauses until it's received — timeline shifts accordingly</span></li>
+                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#1E442B] font-bold">•</span>
+                            <span>{term}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Section 7: Start Date */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Start Date</h4>
+                      </div>
+                      <p className="text-xs text-slate-700">
+                        {selectedProposal.startDateText || `Work begins within 24 hours of advance payment (₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}). First content calendar shared by 24 hours upon payment.`}
+                      </p>
+                    </div>
+
+                    {/* Section 8: Acknowledged By */}
+                    <div className="space-y-2">
+                      <div className="border-b-2 border-slate-800 pb-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Acknowledged By</h4>
+                      </div>
+                      <p className="text-xs text-slate-500 italic">
+                        By replying 'Confirmed' on WhatsApp/email, or signing below, both sides agree this reflects what was discussed.
+                      </p>
+                    </div>
+
+                    {/* Dual Signatures */}
+                    <div className="space-y-6 pt-2">
+                      <div className="space-y-1">
+                        <div className="border-b border-slate-400 w-64 pb-4"></div>
+                        <div className="font-bold text-xs text-slate-900">[{selectedProposal.clientName}] | {selectedProposal.brandName || selectedProposal.clientName}</div>
+                        <div className="text-[11px] text-slate-500">Authorized Signatory: {selectedProposal.contactPerson}</div>
+                      </div>
+                      <div className="space-y-1 pt-2">
+                        <div className="border-b border-slate-400 w-64 pb-4"></div>
+                        <div className="font-bold text-xs text-slate-900">[{selectedProposal.signerName || 'Abhinand C'}] | {selectedProposal.signerRole || 'On behalf of OptiVirAds'}</div>
+                        <div className="text-[11px] text-slate-500">Date: {new Date().toLocaleDateString('en-GB')}</div>
+                      </div>
+                    </div>
+
+                    {/* Running Footer */}
+                    <div className="pt-4 border-t text-[10px] text-slate-400 flex justify-between items-center">
+                      <span>OptiVirAds | Performance Marketing for Growing Brands</span>
+                      <span className="font-bold">Page 2 of 2</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setShowDocumentReviewModal(false)}
+                className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 cursor-pointer"
+              >
+                Close Review
+              </button>
+            </div>
           </div>
         </div>
       )}

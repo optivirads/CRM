@@ -45,7 +45,9 @@ import {
   Send,
   FolderClosed,
   Building2,
-  Download
+  Download,
+  CheckSquare,
+  Unlink
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -70,6 +72,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [clients, setClients] = useState<any[]>([]);
   const [allProjects, setAllProjects] = useState<any[]>([]);
   const [clientProjects, setClientProjects] = useState<any[]>([]);
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'grid' | 'table'>('kanban');
 
   // Filters
@@ -107,11 +110,22 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [shareLinkData, setShareLinkData] = useState<any | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Create Form State (Client -> Project Hierarchy)
+  // Link Task to Creative Modal State
+  const [linkTaskModal, setLinkTaskModal] = useState<{
+    isOpen: boolean;
+    creative: any | null;
+  }>({ isOpen: false, creative: null });
+  const [availableTasks, setAvailableTasks] = useState<any[]>([]);
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [isLinkingTask, setIsLinkingTask] = useState(false);
+
+  // Create Form State (Client -> Project -> Task Hierarchy)
   const [createForm, setCreateForm] = useState({
     name: '',
     clientId: '',
     projectId: '',
+    taskId: '',
     campaignName: '',
     targetPlatform: 'META',
     adFormat: 'IMAGE',
@@ -142,8 +156,32 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     } else {
       setClientProjects([]);
     }
-    setCreateForm(prev => ({ ...prev, projectId: '' }));
+    setCreateForm(prev => ({ ...prev, projectId: '', taskId: '' }));
   }, [createForm.clientId, allProjects]);
+
+  // When Project or Client changes in create form, load available tasks
+  useEffect(() => {
+    if (createForm.projectId) {
+      api.getTasks({ projectId: createForm.projectId }).then(res => {
+        if (res.success && Array.isArray(res.data)) {
+          setProjectTasks(res.data);
+        } else {
+          setProjectTasks([]);
+        }
+      }).catch(() => setProjectTasks([]));
+    } else if (createForm.clientId) {
+      api.getTasks({ clientId: createForm.clientId }).then(res => {
+        if (res.success && Array.isArray(res.data)) {
+          setProjectTasks(res.data);
+        } else {
+          setProjectTasks([]);
+        }
+      }).catch(() => setProjectTasks([]));
+    } else {
+      setProjectTasks([]);
+    }
+    setCreateForm(prev => ({ ...prev, taskId: '' }));
+  }, [createForm.projectId, createForm.clientId]);
 
   const loadData = async () => {
     try {
@@ -205,6 +243,89 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       console.error('Failed to open creative details:', err);
     } finally {
       setStudioLoading(false);
+    }
+  };
+
+  // Open Link Task Modal for a Creative
+  const openLinkTaskModal = async (creative: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLinkTaskModal({ isOpen: true, creative });
+    setTaskSearchQuery('');
+    setLoadingTasks(true);
+    try {
+      const params: any = {};
+      if (creative.project_id) {
+        params.projectId = creative.project_id;
+      } else if (creative.client_id) {
+        params.clientId = creative.client_id;
+      }
+      const res = await api.getTasks(params);
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setAvailableTasks(res.data);
+      } else {
+        // Fallback: fetch all active tasks in organization
+        const allRes = await api.getTasks();
+        if (allRes.success && Array.isArray(allRes.data)) {
+          setAvailableTasks(allRes.data);
+        } else {
+          setAvailableTasks([]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load tasks for linking:', err);
+      setAvailableTasks([]);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  // Perform Link or Unlink of Task to Creative
+  const handleLinkTask = async (taskId: string | null) => {
+    if (!linkTaskModal.creative) return;
+    const creativeId = linkTaskModal.creative.id;
+    try {
+      setIsLinkingTask(true);
+      await api.linkCreativeToTask(creativeId, taskId);
+
+      const targetTask = taskId ? availableTasks.find(t => t.id === taskId) : null;
+
+      // Update in local creatives list
+      setCreatives(prev => prev.map(c => {
+        if (c.id === creativeId) {
+          return {
+            ...c,
+            task_id: taskId || null,
+            task_title: targetTask ? targetTask.title : (taskId ? c.task_title : null),
+            task_status: targetTask ? targetTask.status : (taskId ? c.task_status : null),
+            task_priority: targetTask ? targetTask.priority : (taskId ? c.task_priority : null),
+            task_due_date: targetTask ? targetTask.due_date : (taskId ? c.task_due_date : null)
+          };
+        }
+        return c;
+      }));
+
+      // Update in activeCreativeDetails if open
+      if (activeCreativeDetails && activeCreativeDetails.creative.id === creativeId) {
+        setActiveCreativeDetails((prev: any) => ({
+          ...prev,
+          creative: {
+            ...prev.creative,
+            task_id: taskId || null,
+            task_title: targetTask ? targetTask.title : (taskId ? prev.creative.task_title : null),
+            task_status: targetTask ? targetTask.status : (taskId ? prev.creative.task_status : null),
+            task_priority: targetTask ? targetTask.priority : (taskId ? prev.creative.task_priority : null),
+            task_due_date: targetTask ? targetTask.due_date : (taskId ? prev.creative.task_due_date : null)
+          }
+        }));
+      }
+
+      setLinkTaskModal({ isOpen: false, creative: null });
+      loadData();
+    } catch (err: any) {
+      console.error('Failed to link task:', err);
+      alert('Failed to link task: ' + (err.message || 'Error occurred'));
+    } finally {
+      setIsLinkingTask(false);
     }
   };
 
@@ -479,6 +600,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       await api.createCreative({
         clientId: createForm.clientId || undefined,
         projectId: createForm.projectId || undefined,
+        taskId: createForm.taskId || undefined,
         name: createForm.name.trim(),
         campaignName: createForm.campaignName || undefined,
         targetPlatform: createForm.targetPlatform,
@@ -503,6 +625,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         name: '',
         clientId: '',
         projectId: '',
+        taskId: '',
         campaignName: '',
         targetPlatform: 'META',
         adFormat: 'IMAGE',
@@ -803,6 +926,29 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             </div>
                           </div>
 
+                          {/* Linked Task Deliverable Badge */}
+                          <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                            {c.task_title ? (
+                              <button
+                                onClick={(e) => openLinkTaskModal(c, e)}
+                                title={`Linked Deliverable: ${c.task_title} (Click to change/unlink)`}
+                                className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold transition group/task text-left"
+                              >
+                                <CheckSquare className="w-3 h-3 shrink-0 text-[#DC2626]" />
+                                <span className="truncate flex-1">{c.task_title}</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => openLinkTaskModal(c, e)}
+                                title="Link this creative to a project task deliverable"
+                                className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-[#DC2626] transition py-0.5"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                                <span>Link Task</span>
+                              </button>
+                            )}
+                          </div>
+
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
                             <div className="flex items-center gap-1 text-slate-400">
                               <MessageSquare className="w-3 h-3" />
@@ -885,6 +1031,28 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           "{c.primary_ad_copy}"
                         </p>
                       )}
+
+                      {/* Linked Task Row on Grid Card */}
+                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60" onClick={(e) => e.stopPropagation()}>
+                        {c.task_title ? (
+                          <button
+                            onClick={(e) => openLinkTaskModal(c, e)}
+                            title={`Linked Deliverable: ${c.task_title} (Click to change/unlink)`}
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs font-bold transition text-left"
+                          >
+                            <CheckSquare className="w-3.5 h-3.5 shrink-0 text-[#DC2626]" />
+                            <span className="truncate flex-1">{c.task_title}</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => openLinkTaskModal(c, e)}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-[#DC2626] transition"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Link Task Deliverable</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -922,6 +1090,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     <tr>
                       <th className="py-3 px-4">Creative Name</th>
                       <th className="py-3 px-4">Client & Project</th>
+                      <th className="py-3 px-4">Deliverable Task</th>
                       <th className="py-3 px-4">Platform & Format</th>
                       <th className="py-3 px-4">Active Version</th>
                       <th className="py-3 px-4">Status</th>
@@ -954,6 +1123,26 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
                           <div>{c.client_name || 'Agency Ad'}</div>
                           {c.project_name && <div className="text-[11px] text-slate-400 font-normal">{c.project_name}</div>}
+                        </td>
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                          {c.task_title ? (
+                            <button
+                              onClick={(e) => openLinkTaskModal(c, e)}
+                              title={`Linked Deliverable: ${c.task_title} (Click to change/unlink)`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs font-bold transition max-w-[180px] truncate"
+                            >
+                              <CheckSquare className="w-3.5 h-3.5 text-[#DC2626] shrink-0" />
+                              <span className="truncate">{c.task_title}</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => openLinkTaskModal(c, e)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-[#DC2626] hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Link Task</span>
+                            </button>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
@@ -1018,12 +1207,21 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     </h2>
                     {getStatusBadge(activeCreativeDetails.creative.status)}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
                     <span>Client: <strong>{activeCreativeDetails.creative.client_name || 'Internal'}</strong></span>
                     {activeCreativeDetails.creative.project_name && (
                       <>
                         <span>•</span>
                         <span>Project: <strong>{activeCreativeDetails.creative.project_name}</strong></span>
+                      </>
+                    )}
+                    {activeCreativeDetails.creative.task_title && (
+                      <>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400">
+                          <CheckSquare className="w-3 h-3" />
+                          <span>Task: {activeCreativeDetails.creative.task_title}</span>
+                        </span>
                       </>
                     )}
                     <span>•</span>
@@ -1033,7 +1231,27 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </div>
 
               {/* Header Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => openLinkTaskModal(activeCreativeDetails.creative)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition shadow-xs hover:border-[#DC2626] hover:text-[#DC2626] cursor-pointer"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-[#DC2626]" />
+                  <span>{activeCreativeDetails.creative.task_id ? 'Change Linked Task' : 'Link Task Deliverable'}</span>
+                </button>
+                {activeCreativeDetails.creative.task_id && onNavigate && (
+                  <button
+                    onClick={() => {
+                      setActiveCreativeId(null);
+                      setActiveCreativeDetails(null);
+                      onNavigate('tasks');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-bold transition shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 cursor-pointer"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5 text-rose-600" />
+                    <span>View Task</span>
+                  </button>
+                )}
                 {currentAsset?.viewingUrl && (
                   <button
                     onClick={() => handleDownloadAsset(currentAsset)}
@@ -1274,6 +1492,77 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
               {/* RIGHT: COMMENTS THREADS & METADATA DRAWER */}
               <div className="w-full lg:w-96 bg-white dark:bg-[#0B1424] border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+                {/* Deliverable Task Section in Studio Sidebar */}
+                <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#070D18]/90 space-y-2 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <CheckSquare className="w-3.5 h-3.5 text-[#DC2626]" />
+                      <span>Deliverable Task</span>
+                    </div>
+                    <button
+                      onClick={() => openLinkTaskModal(activeCreativeDetails.creative)}
+                      className="text-[11px] font-bold text-[#DC2626] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{activeCreativeDetails.creative.task_id ? 'Change' : 'Link Task'}</span>
+                    </button>
+                  </div>
+
+                  {activeCreativeDetails.creative.task_id ? (
+                    <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-2 shadow-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-bold text-slate-400">
+                            #{activeCreativeDetails.creative.task_id.slice(0, 6).toUpperCase()}
+                          </div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {activeCreativeDetails.creative.task_title || 'Linked Deliverable Task'}
+                          </div>
+                        </div>
+                        {activeCreativeDetails.creative.task_priority && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                            {activeCreativeDetails.creative.task_priority}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                        {onNavigate && (
+                          <button
+                            onClick={() => {
+                              setActiveCreativeId(null);
+                              setActiveCreativeDetails(null);
+                              onNavigate('tasks');
+                            }}
+                            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Open in Tasks</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleLinkTask(null)}
+                          className="text-[11px] font-semibold text-rose-500 hover:text-rose-700 hover:underline flex items-center gap-1 ml-auto cursor-pointer"
+                        >
+                          <Unlink className="w-3 h-3" />
+                          <span>Unlink</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-slate-300 dark:border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2 bg-white/50 dark:bg-slate-900/40">
+                      <span className="text-[11px] text-slate-400">No task linked to this creative</span>
+                      <button
+                        onClick={() => openLinkTaskModal(activeCreativeDetails.creative)}
+                        className="px-2.5 py-1 bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626] rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Link Task</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Comments Header */}
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070D18]">
                   <div className="flex items-center gap-2">
@@ -1433,8 +1722,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 />
               </div>
 
-              {/* Client -> Project Hierarchy Dropdowns */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Client -> Project -> Task Hierarchy Dropdowns */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Client Account *
@@ -1443,7 +1732,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     required
                     value={createForm.clientId}
                     onChange={(e) => setCreateForm({ ...createForm, clientId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                   >
                     <option value="">Select client account...</option>
                     {clients.map(c => (
@@ -1454,23 +1743,48 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Client Project (Optional)
+                    Project (Optional)
                   </label>
                   <select
                     value={createForm.projectId}
                     disabled={!createForm.clientId}
                     onChange={(e) => setCreateForm({ ...createForm, projectId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white disabled:opacity-50"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-50"
                   >
                     <option value="">
                       {!createForm.clientId
-                        ? 'Select a client first'
+                        ? 'Select client first'
                         : clientProjects.length === 0
-                          ? 'No projects found for client'
-                          : 'Select project (optional)...'}
+                          ? 'No projects found'
+                          : 'Select project...'}
                     </option>
                     {clientProjects.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Linked Task (Optional)
+                  </label>
+                  <select
+                    value={createForm.taskId}
+                    disabled={!createForm.clientId && !createForm.projectId}
+                    onChange={(e) => setCreateForm({ ...createForm, taskId: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-50"
+                  >
+                    <option value="">
+                      {!createForm.clientId
+                        ? 'Select client first'
+                        : projectTasks.length === 0
+                          ? 'No tasks found'
+                          : 'Select task deliverable...'}
+                    </option>
+                    {projectTasks.map(t => (
+                      <option key={t.id} value={t.id}>
+                        #{t.id.slice(0, 4).toUpperCase()} • {t.title}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1752,6 +2066,168 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 <span>Preview Client Portal</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. LINK / RELINK DELIVERABLE TASK MODAL */}
+      {/* ========================================================================= */}
+      {linkTaskModal.isOpen && linkTaskModal.creative && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#DC2626]/10 text-[#DC2626] flex items-center justify-center">
+                  <CheckSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Link Task Deliverable</h3>
+                  <p className="text-xs text-slate-400 truncate max-w-[280px]">
+                    {linkTaskModal.creative.name} {linkTaskModal.creative.client_name ? `• ${linkTaskModal.creative.client_name}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLinkTaskModal({ isOpen: false, creative: null })}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Current Link Status Banner */}
+            {linkTaskModal.creative.task_id && (
+              <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-[#DC2626] uppercase tracking-wider">Currently Linked Task</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {linkTaskModal.creative.task_title || `#${linkTaskModal.creative.task_id.slice(0, 6).toUpperCase()}`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleLinkTask(null)}
+                  disabled={isLinkingTask}
+                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  <span>Unlink</span>
+                </button>
+              </div>
+            )}
+
+            {/* Task Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search deliverable tasks by title, ID, or priority..."
+                value={taskSearchQuery}
+                onChange={(e) => setTaskSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]"
+              />
+            </div>
+
+            {/* Available Tasks List */}
+            <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+              {loadingTasks ? (
+                <div className="py-8 text-center space-y-2">
+                  <div className="w-6 h-6 border-2 border-[#DC2626] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs text-slate-400">Loading deliverable tasks...</p>
+                </div>
+              ) : availableTasks.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 space-y-1">
+                  <p className="text-xs font-semibold">No tasks found</p>
+                  <p className="text-[11px] text-slate-500">Create deliverable tasks in the Tasks tab first.</p>
+                </div>
+              ) : (
+                availableTasks
+                  .filter(t => {
+                    if (!taskSearchQuery) return true;
+                    const q = taskSearchQuery.toLowerCase();
+                    return (
+                      (t.title && t.title.toLowerCase().includes(q)) ||
+                      (t.id && t.id.toLowerCase().includes(q)) ||
+                      (t.priority && t.priority.toLowerCase().includes(q)) ||
+                      (t.status && t.status.toLowerCase().includes(q)) ||
+                      (t.project_name && t.project_name.toLowerCase().includes(q))
+                    );
+                  })
+                  .map(t => {
+                    const isSelected = linkTaskModal.creative?.task_id === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => handleLinkTask(t.id)}
+                        className={`p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-[#DC2626]/10 border-[#DC2626] text-slate-900 dark:text-white'
+                            : 'bg-white dark:bg-[#070D18] hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-200 dark:border-slate-800'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-slate-400">
+                              #{t.id.slice(0, 4).toUpperCase()}
+                            </span>
+                            {t.priority && (
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                t.priority === 'URGENT' ? 'bg-red-500/10 text-red-500' :
+                                t.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-500' :
+                                'bg-blue-500/10 text-blue-500'
+                              }`}>
+                                {t.priority}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-medium text-slate-400">
+                              {t.status || 'TODO'}
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                            {t.title}
+                          </div>
+                          {t.project_name && (
+                            <div className="text-[10px] text-slate-400 truncate">
+                              Project: {t.project_name}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          disabled={isLinkingTask}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#DC2626] text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-[#DC2626] hover:text-white text-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Linked</span>
+                            </>
+                          ) : (
+                            <>
+                              <LinkIcon className="w-3.5 h-3.5" />
+                              <span>Link</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setLinkTaskModal({ isOpen: false, creative: null })}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>,

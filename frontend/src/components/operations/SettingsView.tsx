@@ -129,6 +129,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [industry, setIndustry] = useState('Performance Marketing & Advertising Agency');
   const [supportEmail, setSupportEmail] = useState('optivirads@gmail.com');
   const [switchboardPhone, setSwitchboardPhone] = useState('+919995037109');
+  const [masterLogoUrl, setMasterLogoUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('optivir_master_logo') || '/images/optivir-logo.png';
+    }
+    return '/images/optivir-logo.png';
+  });
 
   // Regionalization States
   const [timezone, setTimezone] = useState('Asia/Kolkata (IST, UTC+05:30)');
@@ -601,6 +607,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         setIndustry(res.data.industry || '');
         setSupportEmail(res.data.support_email || '');
         setSwitchboardPhone(res.data.switchboard_phone || '');
+        if (res.data.logo_url) {
+          setMasterLogoUrl(res.data.logo_url);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('optivir_master_logo', res.data.logo_url);
+            window.dispatchEvent(new Event('optivir_logo_updated'));
+          }
+        }
       }
     } catch (err: any) {
       console.warn('Failed to load org settings:', err);
@@ -885,6 +898,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     loadPipelines();
   }, []);
 
+  // Master Logo Handlers
+  const handleMasterLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB limit');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setMasterLogoUrl(dataUrl);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('optivir_master_logo', dataUrl);
+          window.dispatchEvent(new Event('optivir_logo_updated'));
+        }
+        showToast('Master logo asset selected. Click "Save Organization Identity" to persist.');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetMasterLogo = () => {
+    const defaultLogo = '/images/optivir-logo.png';
+    setMasterLogoUrl(defaultLogo);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('optivir_master_logo', defaultLogo);
+      window.dispatchEvent(new Event('optivir_logo_updated'));
+    }
+    showToast('Master logo reset to default OptiVir CRM logo. Click "Save Organization Identity" to persist.');
+  };
+
   // Save Handlers for live persistence
   const handleSaveOrgIdentity = async () => {
     setIsSaving(true);
@@ -895,9 +941,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         domain_website: domainWebsite,
         industry,
         support_email: supportEmail,
-        switchboard_phone: switchboardPhone
+        switchboard_phone: switchboardPhone,
+        logo_url: masterLogoUrl
       });
-      showToast(res.message || 'Organization identity saved to master ledger [200 OK]');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('optivir_master_logo', masterLogoUrl);
+        window.dispatchEvent(new Event('optivir_logo_updated'));
+      }
+      showToast(res.message || 'Organization identity and master logo saved to master ledger [200 OK]');
     } catch (err: any) {
       showToast(`Error saving organization: ${err.message}`);
     } finally {
@@ -1602,24 +1653,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     </span>
                     <div className="h-28 bg-white dark:bg-white rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center p-4 shadow-inner">
                       <img
-                        src="/images/optivir-logo.png"
+                        src={masterLogoUrl}
                         alt="OptiVir CRM"
                         className="h-14 w-auto max-w-full object-contain"
                       />
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Recommended resolution: 2171x724 SVG or transparent high-res PNG. Used in outbound proposals, PDF invoices &amp; login portals.
+                      Recommended resolution: 2171x724 SVG or transparent high-res PNG. Used in CRM sidebar, header &amp; login portals.
                     </p>
                     <div className="flex items-center gap-2 pt-1">
                       <label className="flex-1 py-1.5 rounded-lg bg-white dark:bg-[#111E34] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-white hover:bg-slate-100 transition text-center cursor-pointer">
                         <Upload className="w-3.5 h-3.5 inline mr-1" />
                         Replace Asset
-                        <input type="file" className="hidden" onChange={() => showToast('Master logo asset updated successfully')} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleMasterLogoUpload}
+                        />
                       </label>
                       <button
-                        onClick={() => showToast('Master logo reset to default')}
+                        type="button"
+                        onClick={handleResetMasterLogo}
                         className="p-2 rounded-lg bg-white dark:bg-[#111E34] border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                        title="Reset Asset"
+                        title="Reset to Default CRM Logo"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

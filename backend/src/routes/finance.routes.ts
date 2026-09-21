@@ -365,6 +365,31 @@ router.post('/invoices', requireAuth, validateBody(createInvoiceSchema), async (
         LIMIT 1;
       `, [orgId, client_name.trim()]);
       resolvedClientId = clientRes.rows[0]?.id;
+
+      if (!resolvedClientId) {
+        // Auto-provision Company & Client so invoice links to this exact client
+        let compRes = await db.query(`
+          SELECT id FROM companies WHERE organization_id = $1 AND name ILIKE $2 AND deleted_at IS NULL LIMIT 1;
+        `, [orgId, client_name.trim()]);
+        let compId = compRes.rows[0]?.id;
+
+        if (!compId) {
+          const newComp = await db.query(`
+            INSERT INTO companies (organization_id, name, created_by)
+            VALUES ($1, $2, $3)
+            RETURNING id;
+          `, [orgId, client_name.trim(), userId]);
+          compId = newComp.rows[0]?.id;
+        }
+
+        const newClient = await db.query(`
+          INSERT INTO clients (organization_id, company_id, status, created_by)
+          VALUES ($1, $2, 'Active', $3)
+          ON CONFLICT (organization_id, company_id) DO UPDATE SET updated_at = NOW()
+          RETURNING id;
+        `, [orgId, compId, userId]);
+        resolvedClientId = newClient.rows[0]?.id;
+      }
     }
 
     if (!resolvedClientId) {
@@ -378,10 +403,13 @@ router.post('/invoices', requireAuth, validateBody(createInvoiceSchema), async (
     }
 
     const invNum = invoice_number || `INV-${Date.now().toString().slice(-6)}`;
-    const calcSubtotal = Number(subtotal || total || 0);
-    const calcTax = Number(tax || 0);
+    const calcTotal = Number(total || subtotal || 0);
     const calcDiscount = Number(discount || 0);
-    const calcTotal = Number(total || (calcSubtotal - calcDiscount + calcTax));
+    // Amount is inclusive of tax: do NOT add tax on top
+    const calcTaxableSubtotal = (subtotal && subtotal < calcTotal) ? Number(subtotal) : Math.round((calcTotal - calcDiscount) / 1.18);
+    const calcTax = (tax !== undefined && tax > 0 && calcTaxableSubtotal + Number(tax) === calcTotal)
+      ? Number(tax)
+      : Math.max(0, (calcTotal - calcDiscount) - calcTaxableSubtotal);
     const invDueDate = due_date || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
 
     const client = await db.getClient();
@@ -395,7 +423,7 @@ router.post('/invoices', requireAuth, validateBody(createInvoiceSchema), async (
         RETURNING *;
       `, [
         orgId, resolvedClientId, invNum, invoice_date || new Date(), invDueDate,
-        calcSubtotal, calcDiscount, calcTax, calcTotal, status || 'Sent', notes || null, userId
+        calcTaxableSubtotal, calcDiscount, calcTax, calcTotal, status || 'Sent', notes || null, userId
       ]);
       const createdInvoice = invRes.rows[0];
 

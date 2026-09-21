@@ -51,15 +51,26 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
   const isPaidInFull = balanceDue === 0 || paid >= totalNum;
   const statusDisplay = isPaidInFull ? 'Paid' : (paid > 0 ? 'Partially Paid' : (invoice.status || 'Unpaid'));
 
-  // Calculate Subtotal & Taxes
-  const subtotalFromTotal = Math.round(totalNum / 1.18);
-  const calculatedSubtotal = invoice.subtotal || subtotalFromTotal;
-  const cgst = Math.round(calculatedSubtotal * 0.09);
-  const sgst = Math.round(calculatedSubtotal * 0.09);
-  const grandTotal = calculatedSubtotal + cgst + sgst;
+  // Calculate Subtotal & Taxes (Amount is inclusive of 18% GST — tax is not added on top)
+  const calculatedSubtotal = Math.round(totalNum / 1.18);
+  const totalTax = totalNum - calculatedSubtotal;
+  const cgst = Math.round(totalTax / 2);
+  const sgst = totalTax - cgst;
+  const grandTotal = totalNum;
 
   // Invoice Line Items
-  const items = invoice.items && invoice.items.length > 0 ? invoice.items : [];
+  const items = invoice.items && invoice.items.length > 0
+    ? invoice.items
+    : [
+        {
+          description: 'Digital Marketing & Performance Operations Retainer',
+          subtext: 'Includes Search, Social Media Management, and Growth Telemetry (Inclusive of GST)',
+          sac_code: '998361',
+          quantity: 1,
+          rate: calculatedSubtotal,
+          amount: calculatedSubtotal
+        }
+      ];
 
   const amountInWords = numberToIndianWords(grandTotal);
 
@@ -272,7 +283,7 @@ export const PrintableInvoiceModal: React.FC<PrintableInvoiceModalProps> = ({ in
                   <span className="font-semibold text-[#0B1727]">₹{sgst.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-sm font-extrabold text-[#0B1727] border-t border-slate-300 pt-2">
-                  <span>Total Invoice Value:</span>
+                  <span>Total Invoice Value (Incl. Tax):</span>
                   <span className="text-[#B91C1C] text-base">₹{grandTotal.toLocaleString('en-IN')}</span>
                 </div>
 

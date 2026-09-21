@@ -4,7 +4,7 @@
  * Sends Authorization header to ensure protected access.
  */
 
-export type ClientPdfType = 'invoice' | 'proposal' | 'quotation' | 'report' | 'contract';
+export type ClientPdfType = 'invoice' | 'proposal' | 'quotation' | 'report' | 'contract' | 'agreement' | 'confirmation';
 
 export async function downloadClientPdf(
   type: ClientPdfType,
@@ -27,10 +27,10 @@ export async function downloadClientPdf(
 
   let fallbackName = `${type}-document.pdf`;
   if (type === 'invoice') fallbackName = `Invoice-${params.invoice_number || params.number || 'INV-2026-089'}.pdf`;
-  if (type === 'proposal') fallbackName = `Proposal-${params.number || 'PROP-2026-042'}.pdf`;
+  if (type === 'proposal') fallbackName = `Proposal-${params.number || params.code || 'PROP-2026-042'}.pdf`;
   if (type === 'quotation') fallbackName = `Quotation-${params.number || 'QUO-2026-015'}.pdf`;
   if (type === 'report') fallbackName = `Report-${params.client ? String(params.client).replace(/\s+/g, '-') : 'QBR'}.pdf`;
-  if (type === 'contract') fallbackName = `Contract-${params.id || 'DOC-2026-089-MSA'}.pdf`;
+  if (type === 'contract' || type === 'agreement' || type === 'confirmation') fallbackName = `Confirmation-of-Engagement-${params.number || params.code || params.id || 'OVA-2026-001'}.pdf`;
 
   try {
     const res = await fetch(url, {

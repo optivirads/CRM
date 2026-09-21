@@ -1133,6 +1133,7 @@ class ApiClient {
   async createCreative(payload: {
     clientId?: string;
     projectId?: string;
+    taskId?: string;
     name: string;
     description?: string;
     campaignName?: string;
