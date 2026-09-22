@@ -1,4 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import dotenv from 'dotenv';
+dotenv.config();
 
 interface SendOtpParams {
   toEmail: string;
@@ -33,16 +35,22 @@ interface TeamNotificationParams {
 
 export class EmailService {
   private static transporter: Transporter | null = null;
+  private static cachedUser: string | null = null;
+  private static cachedPass: string | null = null;
 
   private static getTransporter(): Transporter | null {
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
+    dotenv.config();
+    const user = (process.env.GMAIL_USER || '').trim();
+    const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
     if (!user || !pass) {
+      console.error('[EmailService] Missing GMAIL_USER or GMAIL_APP_PASSWORD in environment.');
       return null;
     }
 
-    if (!this.transporter) {
+    if (!this.transporter || this.cachedUser !== user || this.cachedPass !== pass) {
+      this.cachedUser = user;
+      this.cachedPass = pass;
       this.transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
@@ -73,7 +81,7 @@ export class EmailService {
     const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || agencyName || 'Opti CRM';
     const brandName = agencyName || process.env.GMAIL_FROM_NAME || 'Opti CRM';
-    const fromEmail = process.env.GMAIL_USER || 'no-reply@optivircrm.com';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
 
     const subject = `[${otpCode}] Your Access Code for Creative Review: ${creativeName}`;
 
@@ -149,7 +157,7 @@ export class EmailService {
     const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || agencyName || 'Opti CRM';
     const brandName = agencyName || process.env.GMAIL_FROM_NAME || 'Opti CRM';
-    const fromEmail = process.env.GMAIL_USER || 'no-reply@optivircrm.com';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
 
     const subject = `Review & Approval Request: ${creativeName} | ${brandName}`;
 
@@ -249,7 +257,7 @@ export class EmailService {
 
     const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || 'Opti CRM';
-    const fromEmail = process.env.GMAIL_USER || 'no-reply@optivircrm.com';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
     const crmUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/creatives?id=${creative.id}`;
 
     let subject = '';
@@ -389,7 +397,7 @@ export class EmailService {
   }): Promise<boolean> {
     const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || 'Opti CRM';
-    const fromEmail = process.env.GMAIL_USER || 'no-reply@optivircrm.com';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
 
     const subject = `[${otpCode}] Security Verification Code for ${actionTitle} | ${fromName}`;
 
