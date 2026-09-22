@@ -193,7 +193,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [selfPasswordOtp, setSelfPasswordOtp] = useState('');
   const [isRequestingSelfOtp, setIsRequestingSelfOtp] = useState(false);
   const [selfOtpSent, setSelfOtpSent] = useState(false);
-  const [devSelfOtp, setDevSelfOtp] = useState<string | null>(null);
   const [selfOtpTimer, setSelfOtpTimer] = useState(0);
   const [isSelfChangingPassword, setIsSelfChangingPassword] = useState(false);
 
@@ -568,10 +567,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         setSelfOtpSent(true);
         setSelfOtpTimer(60);
         showToast(res.message || 'OTP verification code sent to your email!');
-        if (res.devOtp) {
-          setDevSelfOtp(res.devOtp);
-          setSelfPasswordOtp(res.devOtp);
-        }
       } else {
         showToast(res.message || 'Failed to dispatch verification code', 'error');
       }
@@ -610,7 +605,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
         setSelfNewPassword('');
         setSelfConfirmPassword('');
         setSelfPasswordOtp('');
-        setDevSelfOtp(null);
       } else {
         showToast(res.message || 'Failed to change password', 'error');
       }
@@ -1655,18 +1649,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               </button>
                             )}
                           </div>
-                          {devSelfOtp && (
-                            <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between max-w-sm">
-                              <span>Dev Code: <strong className="font-mono text-white">{devSelfOtp}</strong></span>
-                              <button
-                                type="button"
-                                onClick={() => setSelfPasswordOtp(devSelfOtp)}
-                                className="underline font-bold cursor-pointer text-[10px]"
-                              >
-                                Fill
-                              </button>
-                            </div>
-                          )}
                         </div>
 
                         <div className="flex justify-end">
@@ -3657,18 +3639,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             </button>
                           )}
                         </div>
-                        {devSelfOtp && (
-                          <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between max-w-sm">
-                            <span>Dev Code: <strong className="font-mono text-white">{devSelfOtp}</strong></span>
-                            <button
-                              type="button"
-                              onClick={() => setSelfPasswordOtp(devSelfOtp)}
-                              className="underline font-bold cursor-pointer text-[10px]"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        )}
                       </div>
 
                       <div className="flex justify-end pt-1">

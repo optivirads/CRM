@@ -424,16 +424,19 @@ router.post(
         actionTitle: 'Password Change',
       });
 
-      const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD || !sent;
+      if (!sent) {
+        res.status(500).json({
+          success: false,
+          message: `Failed to dispatch verification email to ${user.email}. Please verify your network or contact support.`
+        });
+        return;
+      }
 
       res.json({
         success: true,
-        message: sent
-          ? `A 6-digit verification code has been sent to ${user.email}.`
-          : `Verification code generated for ${user.email}.`,
-        emailSent: sent,
+        message: `A 6-digit verification code has been sent to ${user.email}.`,
+        emailSent: true,
         email: user.email,
-        ...(isDev ? { devOtp: otpCode } : {})
       });
     } catch (err: any) {
       console.error('[Request Password OTP Error]:', err);

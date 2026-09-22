@@ -76,7 +76,6 @@ export default function ClientProofingPortalPage() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpSuccessMessage, setOtpSuccessMessage] = useState<string | null>(null);
-  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
 
   useEffect(() => {
@@ -143,16 +142,11 @@ export default function ClientProofingPortalPage() {
       setRequestingOtp(true);
       setOtpError(null);
       setOtpSuccessMessage(null);
-      setDevOtpCode(null);
 
       const res = await api.requestProofOtp(token, otpEmail.trim(), otpName.trim() || undefined);
       if (res.success) {
         setOtpStep('CODE');
         setOtpSuccessMessage(res.message);
-        if (res.devOtp) {
-          setDevOtpCode(res.devOtp);
-          setOtpCode(res.devOtp);
-        }
         setResendTimer(60);
       } else {
         setOtpError(res.message || 'Failed to send verification code.');
@@ -447,23 +441,6 @@ export default function ClientProofingPortalPage() {
               </div>
             )}
 
-            {/* Dev / Testing OTP Callout */}
-            {devOtpCode && (
-              <div className="p-3.5 bg-amber-950/60 border border-amber-600/50 rounded-xl flex items-center justify-between text-xs text-amber-200 backdrop-blur-md">
-                <div>
-                  <div className="font-bold text-amber-100">Testing Code (Dev / Fallback):</div>
-                  <div className="font-mono text-base font-black text-amber-300 tracking-wider mt-0.5">{devOtpCode}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOtpCode(devOtpCode)}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold transition cursor-pointer"
-                >
-                  Fill Code
-                </button>
-              </div>
-            )}
-
             {/* STEP 1: Enter Email */}
             {otpStep === 'EMAIL' && (
               <form onSubmit={handleRequestOtp} className="space-y-4">
@@ -567,22 +544,6 @@ export default function ClientProofingPortalPage() {
                     )}
                   </div>
                 </div>
-
-                {devOtpCode && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200 flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] text-amber-400/90 block font-medium">Verification Code:</span>
-                      <span className="font-mono font-bold text-white text-base tracking-widest">{devOtpCode}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setOtpCode(devOtpCode)}
-                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-bold transition"
-                    >
-                      Fill Code
-                    </button>
-                  </div>
-                )}
 
                 <button
                   type="submit"

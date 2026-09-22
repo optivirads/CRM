@@ -67,7 +67,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [passwordOtp, setPasswordOtp] = useState('');
   const [isRequestingPasswordOtp, setIsRequestingPasswordOtp] = useState(false);
   const [passwordOtpSent, setPasswordOtpSent] = useState(false);
-  const [devPasswordOtp, setDevPasswordOtp] = useState<string | null>(null);
   const [passwordOtpTimer, setPasswordOtpTimer] = useState(0);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
@@ -88,10 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
         setPasswordOtpSent(true);
         setPasswordOtpTimer(60);
         showToast(res.message || 'OTP verification code sent to your email!', 'success');
-        if (res.devOtp) {
-          setDevPasswordOtp(res.devOtp);
-          setPasswordOtp(res.devOtp);
-        }
       } else {
         setPasswordError(res.message || 'Failed to send OTP verification code');
       }
@@ -589,7 +584,7 @@ export const Header: React.FC<HeaderProps> = ({
                   if (res && res.success) {
                     showToast('Password changed successfully!', 'success');
                     setShowChangePasswordModal(false);
-                    setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(''); setDevPasswordOtp(null);
+                    setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp('');
                   } else {
                     setPasswordError(res?.message || 'Failed to update password');
                   }
@@ -660,19 +655,6 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )}
                 </div>
-
-                {devPasswordOtp && (
-                  <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between mt-1">
-                    <span>Dev Code: <strong className="font-mono text-white">{devPasswordOtp}</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => setPasswordOtp(devPasswordOtp)}
-                      className="underline font-bold cursor-pointer text-[10px]"
-                    >
-                      Fill
-                    </button>
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">

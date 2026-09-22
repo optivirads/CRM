@@ -90,7 +90,7 @@ class ApiClient {
   }
 
   async requestPasswordOtp() {
-    return this.request<{ success: boolean; message: string; email?: string; devOtp?: string }>('/auth/request-password-otp', {
+    return this.request<{ success: boolean; message: string; email?: string }>('/auth/request-password-otp', {
       method: 'POST',
     });
   }
@@ -1414,7 +1414,6 @@ class ApiClient {
       success: boolean;
       message: string;
       emailSent: boolean;
-      devOtp?: string;
     }>(`/public/proofs/${token}/request-otp`, {
       method: 'POST',
       body: JSON.stringify({ email, name }),

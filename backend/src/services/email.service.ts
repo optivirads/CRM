@@ -44,11 +44,17 @@ export class EmailService {
 
     if (!this.transporter) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
           user,
           pass,
         },
+        pool: true,
+        maxConnections: 3,
+        connectionTimeout: 10000,
+        socketTimeout: 15000,
       });
     }
 
@@ -105,15 +111,8 @@ export class EmailService {
     `;
 
     if (!transporter) {
-      console.log(`\n================== [GMAIL SERVICE (Dev / Fallback Logger)] ==================`);
-      console.log(`Action: OTP_DISPATCH`);
-      console.log(`To: ${toEmail}`);
-      console.log(`Subject: ${subject}`);
-      console.log(`OTP Code: >>> ${otpCode} <<<`);
-      console.log(`Creative: ${creativeName}`);
-      console.log(`(Configure GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env for live Gmail dispatch)`);
-      console.log(`============================================================================\n`);
-      return true;
+      console.error('[Gmail Service] Gmail transporter not initialized. Ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in .env');
+      return false;
     }
 
     try {
@@ -124,7 +123,7 @@ export class EmailService {
         html: htmlContent,
       });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 8s')), 8000)
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
       );
       await Promise.race([sendPromise, timeoutPromise]);
 
@@ -132,8 +131,6 @@ export class EmailService {
       return true;
     } catch (err: any) {
       console.error(`[Gmail Service] Error sending OTP email to ${toEmail}:`, err.message);
-      // Fallback log to console so testing is not blocked
-      console.log(`[Fallback OTP for ${toEmail}]: ${otpCode}`);
       return false;
     }
   }
@@ -426,8 +423,8 @@ export class EmailService {
     `;
 
     if (!transporter) {
-      console.log(`[Dev Fallback Security OTP for ${toEmail} (${actionTitle})]: ${otpCode}`);
-      return true;
+      console.error('[Gmail Service] Gmail transporter not initialized for security OTP.');
+      return false;
     }
 
     try {
@@ -438,14 +435,13 @@ export class EmailService {
         html: htmlContent,
       });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 8s')), 8000)
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
       );
       await Promise.race([sendPromise, timeoutPromise]);
       console.log(`[Gmail Service] Successfully sent Security OTP to ${toEmail}`);
       return true;
     } catch (err: any) {
       console.error(`[Gmail Service] Error sending security OTP to ${toEmail}:`, err.message);
-      console.log(`[Fallback Security OTP for ${toEmail}]: ${otpCode}`);
       return false;
     }
   }

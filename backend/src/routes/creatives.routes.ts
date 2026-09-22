@@ -332,15 +332,18 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
       agencyName: shareLink.organization_name,
     });
 
-    const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD || !sent;
+    if (!sent) {
+      res.status(500).json({
+        success: false,
+        message: `Failed to dispatch verification email to ${clientEmail}. Please check that your email is valid or try again.`
+      });
+      return;
+    }
 
     res.json({
       success: true,
-      message: sent
-        ? `A 6-digit verification code has been sent to ${clientEmail}.`
-        : `Verification code generated for ${clientEmail}.`,
-      emailSent: sent,
-      ...(isDev ? { devOtp: otpCode } : {})
+      message: `A 6-digit verification code has been sent to ${clientEmail}.`,
+      emailSent: true,
     });
   } catch (err: any) {
     console.error('[Request Proof OTP Error]:', err);
