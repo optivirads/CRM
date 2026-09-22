@@ -497,14 +497,15 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-// General Update Task (Title, description, priority, due date, assigned date, assignee)
+// General Update Task (Title, description, priority, due date, assigned date, assignee, project, client)
 router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const taskId = req.params.id;
   const {
     title, description, priority, status, due_date,
-    assigned_date, start_date, assignee_id, assignee_name, assignee_role
+    assigned_date, start_date, assignee_id, assignee_name, assignee_role,
+    project_id, client_id
   } = req.body;
 
   try {
@@ -529,11 +530,19 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
         assignee_role = COALESCE($8, assignee_role),
         assigned_date = COALESCE($9, assigned_date),
         start_date = COALESCE($9, start_date),
+        project_id = CASE WHEN $13::boolean THEN $14::uuid ELSE project_id END,
+        client_id = CASE WHEN $15::boolean THEN $16::uuid ELSE client_id END,
         completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
         updated_by = $10
       WHERE id = $11 AND organization_id = $12
       RETURNING *;
-    `, [title, description, priority, status, due_date, assignee_id, assignee_name, assignee_role, effectiveAssignedDate, userId, taskId, orgId]);
+    `, [
+      title, description, priority, status, due_date,
+      assignee_id, assignee_name, assignee_role, effectiveAssignedDate,
+      userId, taskId, orgId,
+      project_id !== undefined, project_id || null,
+      client_id !== undefined, client_id || null
+    ]);
 
     await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });

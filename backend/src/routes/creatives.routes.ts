@@ -306,14 +306,6 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
     const shareLink = linkRes.rows[0];
     const clientEmail = email.trim().toLowerCase();
 
-    // If share link does not have a recipient email, bind it to this client
-    if (!shareLink.recipient_email) {
-      await db.query(
-        `UPDATE creative_share_links SET recipient_email = $1, recipient_name = COALESCE(recipient_name, $2) WHERE id = $3`,
-        [clientEmail, name?.trim() || null, shareLink.id]
-      );
-    }
-
     // Generate secure 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 

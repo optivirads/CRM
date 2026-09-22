@@ -417,6 +417,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [editContactFirst, setEditContactFirst] = useState('');
   const [editContactLast, setEditContactLast] = useState('');
   const [editContactEmail, setEditContactEmail] = useState('');
+  const [editAdditionalEmails, setEditAdditionalEmails] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
@@ -447,6 +448,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
     setEditContactFirst(liveClient?.contact_first || '');
     setEditContactLast(liveClient?.contact_last || '');
     setEditContactEmail(liveClient?.contact_email || '');
+    setEditAdditionalEmails(Array.isArray(liveClient?.additional_emails) ? liveClient.additional_emails.join(', ') : '');
     setEditContactPhone(liveClient?.contact_phone || '');
     setEditContactRole(liveClient?.contact_role || 'Lead Stakeholder');
     setEditAccountManagerId(liveClient?.account_manager_id || '');
@@ -3717,6 +3719,24 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     <p className="text-xs">No primary contacts logged yet.</p>
                   </div>
                 )}
+
+                {Array.isArray(liveClient?.additional_emails) && liveClient.additional_emails.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Additional Reviewers</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {liveClient.additional_emails.map((email: string, idx: number) => (
+                        <a
+                          key={idx}
+                          href={`mailto:${email}`}
+                          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:underline border border-blue-200 dark:border-blue-800/50"
+                        >
+                          <Mail className="w-3 h-3 text-blue-500" />
+                          <span>{email}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -5752,6 +5772,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                     contact_first: editContactFirst.trim() || null,
                     contact_last: editContactLast.trim() || null,
                     contact_email: editContactEmail.trim() || null,
+                    additional_emails: editAdditionalEmails.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean),
                     contact_phone: editContactPhone.trim() || null,
                     contact_role: editContactRole.trim() || 'Lead Stakeholder',
                     account_manager_id: editAccountManagerId || null,
@@ -5887,6 +5908,18 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                       placeholder="contact@client.com"
                       className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                     />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Additional Reviewer Emails</label>
+                    <input
+                      type="text"
+                      value={editAdditionalEmails}
+                      onChange={(e) => setEditAdditionalEmails(e.target.value)}
+                      placeholder="e.g. rev1@co.com, rev2@co.com"
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Comma-separated for multi-stakeholder OTP proof access.</p>
                   </div>
 
                   <div>

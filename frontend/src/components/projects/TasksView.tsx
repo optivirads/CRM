@@ -93,6 +93,10 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [newTaskPriority, setNewTaskPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskAssignedDate, setNewTaskAssignedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newTaskClientId, setNewTaskClientId] = useState('');
+  const [newTaskProjectId, setNewTaskProjectId] = useState('');
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
   const [taskComments, setTaskComments] = useState<Record<string, Array<{ id: string; author: string; initials: string; text: string; time: string }>>>({});
 
   // Team Members & Assignee States
@@ -268,15 +272,22 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
 
   const [clientNames, setClientNames] = useState<string[]>([]);
 
-  const fetchClients = async () => {
+  const fetchClientsAndProjects = async () => {
     try {
-      const res = await api.getClients();
-      if (res.success && Array.isArray(res.data)) {
-        const names = res.data.map((c: any) => c.company_name || c.name).filter(Boolean);
+      const [clientsRes, projectsRes] = await Promise.all([
+        api.getClients().catch(() => ({ success: false, data: [] })),
+        api.getProjects().catch(() => ({ success: false, data: [] })),
+      ]);
+      if (clientsRes.success && Array.isArray(clientsRes.data)) {
+        setClientsList(clientsRes.data);
+        const names = clientsRes.data.map((c: any) => c.company_name || c.name).filter(Boolean);
         setClientNames(names);
       }
+      if (projectsRes.success && Array.isArray(projectsRes.data)) {
+        setProjectsList(projectsRes.data);
+      }
     } catch (err) {
-      console.warn('Failed to load clients in TasksView:', err);
+      console.warn('Failed to load clients/projects in TasksView:', err);
     }
   };
 
@@ -385,7 +396,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   useEffect(() => {
     fetchTasks();
     fetchTeamMembers();
-    fetchClients();
+    fetchClientsAndProjects();
   }, []);
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -402,6 +413,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       const res = await api.createTask({
         title: newTaskTitle.trim(),
         description: formattedDesc || undefined,
+        client_id: newTaskClientId || undefined,
+        project_id: newTaskProjectId || undefined,
         priority: newTaskPriority,
         assigned_date: newTaskAssignedDate || undefined,
         due_date: newTaskDueDate || undefined,
@@ -416,6 +429,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
         setNewTaskDesc('');
         setNewTaskDueDate('');
         setNewTaskAssignedDate(new Date().toISOString().split('T')[0]);
+        setNewTaskClientId('');
+        setNewTaskProjectId('');
         setSelectedAssigneeId('');
         setSelectedAssigneeName('');
         setSelectedAssigneeRole('');
@@ -1788,6 +1803,52 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                   placeholder="e.g. Implement conversion tracking tag & pixel validation"
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
                 />
+              </div>
+
+              {/* Client & Project Selection (Cascading Dropdown) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Client Account (Optional)</label>
+                  <select
+                    value={newTaskClientId}
+                    onChange={(e) => {
+                      const newCId = e.target.value;
+                      setNewTaskClientId(newCId);
+                      setNewTaskProjectId('');
+                    }}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">No Client (Internal / General)</option>
+                    {clientsList.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.company_name || c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">Project (Optional)</label>
+                  <select
+                    value={newTaskProjectId}
+                    onChange={(e) => setNewTaskProjectId(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">
+                      {newTaskClientId && projectsList.filter((p: any) => p.client_id === newTaskClientId).length === 0
+                        ? 'No projects for this client'
+                        : 'No Project (Ad-Hoc / General)'}
+                    </option>
+                    {(newTaskClientId
+                      ? projectsList.filter((p: any) => p.client_id === newTaskClientId)
+                      : projectsList
+                    ).map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>

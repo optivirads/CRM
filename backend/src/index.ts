@@ -80,7 +80,13 @@ app.use(cors({
     'Range',
     'Origin',
     'Cache-Control',
-    'Pragma'
+    'Pragma',
+    'x-client-session',
+    'X-Client-Session',
+    'x-portal-token',
+    'X-Portal-Token',
+    'x-organization-id',
+    'X-Organization-Id'
   ]
 }));
 

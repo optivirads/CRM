@@ -191,6 +191,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [customNewIndustryText, setCustomNewIndustryText] = useState('');
   const [newPrimaryContact, setNewPrimaryContact] = useState('');
   const [newContactEmail, setNewContactEmail] = useState('');
+  const [newAdditionalEmails, setNewAdditionalEmails] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [newContactRole, setNewContactRole] = useState('Primary Contact');
   const [newAccountManagerId, setNewAccountManagerId] = useState('');
@@ -216,6 +217,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [editDomain, setEditDomain] = useState('');
   const [editPrimaryContact, setEditPrimaryContact] = useState('');
   const [editContactEmail, setEditContactEmail] = useState('');
+  const [editAdditionalEmails, setEditAdditionalEmails] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactRole, setEditContactRole] = useState('Lead Stakeholder');
   const [editAccountManagerId, setEditAccountManagerId] = useState('');
@@ -353,6 +355,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     setEditDomain(client.domain || '');
     setEditPrimaryContact(client.primaryContact !== '—' ? client.primaryContact : '');
     setEditContactEmail(client.contactEmail || '');
+    setEditAdditionalEmails(Array.isArray((client as any).additional_emails) ? (client as any).additional_emails.join(', ') : '');
     setEditContactPhone(client.contactPhone || '');
     setEditContactRole(client.contactRole || 'Lead Stakeholder');
     setEditAccountManagerId(client.accountManagerId || '');
@@ -428,6 +431,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         website: editDomain.trim() || null,
         contact_name: editPrimaryContact.trim() || null,
         contact_email: editContactEmail.trim() || null,
+        additional_emails: editAdditionalEmails.split(',').map(s => s.trim()).filter(Boolean),
         contact_phone: editContactPhone.trim() || null,
         contact_role: editContactRole.trim() || 'Primary Contact',
         account_manager_id: editAccountManagerId || null,
@@ -502,6 +506,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         website: newDomain.trim() || null,
         contact_name: newPrimaryContact.trim() || null,
         contact_email: newContactEmail.trim() || null,
+        additional_emails: newAdditionalEmails.split(',').map(s => s.trim()).filter(Boolean),
         contact_phone: newContactPhone.trim() || null,
         contact_role: newContactRole.trim() || 'Primary Contact',
         account_manager_id: newAccountManagerId || null,
@@ -525,6 +530,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
         setCustomNewIndustryText('');
         setNewPrimaryContact('');
         setNewContactEmail('');
+        setNewAdditionalEmails('');
         setNewContactPhone('');
         setNewContactRole('Primary Contact');
         setNewAccountManagerId('');
@@ -1779,6 +1785,20 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
 
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Additional Reviewer &amp; Stakeholder Emails (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newAdditionalEmails}
+                    onChange={(e) => setNewAdditionalEmails(e.target.value)}
+                    placeholder="e.g. reviewer@client.com, founder@client.com, team@client.com"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Separate with commas. All listed emails can receive OTPs and verify creative deliverables.</p>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Billing &amp; Engagement Model *
                   </label>
                   <select
@@ -2130,6 +2150,20 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Additional Reviewer &amp; Stakeholder Emails (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editAdditionalEmails}
+                    onChange={(e) => setEditAdditionalEmails(e.target.value)}
+                    placeholder="e.g. reviewer@client.com, founder@client.com"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 text-xs"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Separate with commas. All listed emails can receive OTPs and verify creative deliverables.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

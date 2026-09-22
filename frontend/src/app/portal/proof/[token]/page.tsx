@@ -21,7 +21,8 @@ import {
   X,
   Layers,
   Image as ImageIcon,
-  Download
+  Download,
+  LogOut
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
@@ -456,15 +457,10 @@ export default function ClientProofingPortalPage() {
                       value={otpEmail}
                       onChange={(e) => setOtpEmail(e.target.value)}
                       placeholder="name@company.com"
-                      disabled={requestingOtp || Boolean(restrictedEmail)}
+                      disabled={requestingOtp}
                       className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-rose-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
                     />
                   </div>
-                  {restrictedEmail && (
-                    <p className="text-[10px] text-slate-400">
-                      This link has been locked to <strong className="text-slate-200">{restrictedEmail}</strong>
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -621,16 +617,19 @@ export default function ClientProofingPortalPage() {
         {/* Action Buttons & Client Badge */}
         <div className="flex items-center gap-3">
           {clientSession ? (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 border border-emerald-500/30 rounded-xl text-xs text-slate-300 shadow-inner">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-white">{clientSession.email}</span>
+            <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 bg-slate-900/90 border border-emerald-500/30 rounded-xl text-xs text-slate-300 shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="font-semibold text-white text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-[220px]">
+                {clientSession.name ? `${clientSession.name} (${clientSession.email})` : clientSession.email}
+              </span>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="text-slate-400 hover:text-rose-400 ml-1.5 transition cursor-pointer text-[11px]"
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/25 ml-1 transition cursor-pointer"
                 title="Switch client user / Sign out"
               >
-                Sign Out
+                <LogOut className="w-3 h-3" />
+                <span>Sign Out</span>
               </button>
             </div>
           ) : (

@@ -380,7 +380,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     status,
     renewal_date,
     start_date,
-    notes
+    notes,
+    additional_emails
   } = req.body;
 
   try {
@@ -457,11 +458,17 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
         : (account_assistant_id ? [account_assistant_id] : []);
     const primaryAssistantId = rawAssistantIds[0] || account_assistant_id || null;
 
+    const normalizedAdditionalEmails: string[] = Array.isArray(additional_emails)
+      ? additional_emails.map(e => String(e).trim().toLowerCase()).filter(Boolean)
+      : typeof additional_emails === 'string'
+        ? additional_emails.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+        : [];
+
     const result = await db.query(`
       INSERT INTO clients (
         organization_id, company_id, primary_contact_id, account_manager_id, account_assistant_id, account_assistant_ids, contract_value,
-        billing_frequency, health_status, status, start_date, renewal_date, notes, created_by, custom_fields
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        billing_frequency, health_status, status, start_date, renewal_date, notes, created_by, custom_fields, additional_emails
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *;
     `, [
       orgId,
@@ -478,7 +485,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
       renewal_date || null,
       notes || null,
       userId,
-      custom_fields ? JSON.stringify(custom_fields) : '{}'
+      custom_fields ? JSON.stringify(custom_fields) : '{}',
+      normalizedAdditionalEmails
     ]);
 
     const createdClient = result.rows[0];
@@ -557,7 +565,8 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       contact_phone,
       contact_role,
       asset_scope,
-      onboarding_stage
+      onboarding_stage,
+      additional_emails
     } = req.body;
 
     const rawAssistantIds: string[] | undefined = Array.isArray(account_assistant_ids)
@@ -624,6 +633,14 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       }
     }
 
+    const normalizedAdditionalEmails: string[] | undefined = additional_emails !== undefined
+      ? (Array.isArray(additional_emails)
+          ? additional_emails.map(e => String(e).trim().toLowerCase()).filter(Boolean)
+          : typeof additional_emails === 'string'
+            ? additional_emails.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+            : [])
+      : undefined;
+
     const updated = await db.query(`
       UPDATE clients
       SET 
@@ -638,6 +655,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         account_assistant_id = CASE WHEN $16::text IS NOT NULL THEN $16::uuid ELSE account_assistant_id END,
         account_assistant_ids = CASE WHEN $17::uuid[] IS NOT NULL THEN $17::uuid[] ELSE account_assistant_ids END,
         assigned_team_ids = COALESCE($9, assigned_team_ids),
+        additional_emails = CASE WHEN $18::text[] IS NOT NULL THEN $18::text[] ELSE clients.additional_emails END,
         custom_fields = CASE WHEN $13::jsonb IS NOT NULL THEN COALESCE(clients.custom_fields, '{}'::jsonb) || $13::jsonb ELSE clients.custom_fields END,
         asset_scope = CASE WHEN $14::jsonb IS NOT NULL THEN $14::jsonb ELSE clients.asset_scope END,
         onboarding_stage = COALESCE($15, clients.onboarding_stage),
@@ -661,7 +679,8 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       asset_scope ? JSON.stringify(asset_scope) : null,
       onboarding_stage || null,
       primaryAssistantId !== undefined ? primaryAssistantId : null,
-      rawAssistantIds !== undefined ? rawAssistantIds : null
+      rawAssistantIds !== undefined ? rawAssistantIds : null,
+      normalizedAdditionalEmails !== undefined ? normalizedAdditionalEmails : null
     ]);
 
     // Update client_assistants junction table if provided
