@@ -14,6 +14,7 @@ import {
   Send,
   Sparkles,
   Lock,
+  KeyRound,
   ThumbsUp,
   RotateCcw,
   Check,
@@ -180,6 +181,14 @@ export default function ClientProofingPortalPage() {
         }
         setSessionToken(res.sessionToken);
         setClientSession(res.client);
+        if (res.client?.email) {
+          setAuthorEmail(res.client.email);
+          setApproverEmail(res.client.email);
+        }
+        if (res.client?.name) {
+          setAuthorName(res.client.name);
+          setApproverName(res.client.name);
+        }
         setNeedsOtp(false);
         await loadProof(res.sessionToken);
       } else {
@@ -205,6 +214,10 @@ export default function ClientProofingPortalPage() {
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!clientSession) {
+      setNeedsOtp(true);
+      return;
+    }
     if (!isPlacingPin || !mediaContainerRef.current) return;
     const rect = mediaContainerRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -213,12 +226,19 @@ export default function ClientProofingPortalPage() {
   };
 
   const handleSubmitComment = async () => {
-    if (!commentContent.trim() || !authorName.trim() || !token) return;
+    if (!clientSession || !sessionToken) {
+      setNeedsOtp(true);
+      return;
+    }
+    if (!commentContent.trim() || !token) return;
     try {
       setSubmittingComment(true);
+      const effectiveName = clientSession?.name || authorName.trim() || clientSession?.email || 'Client Reviewer';
+      const effectiveEmail = clientSession?.email || authorEmail.trim();
+
       await api.submitPublicProofComment(token, {
-        authorName: authorName.trim(),
-        authorEmail: authorEmail.trim() || undefined,
+        authorName: effectiveName,
+        authorEmail: effectiveEmail || undefined,
         content: commentContent.trim(),
         pinXPercent: pendingPin?.x,
         pinYPercent: pendingPin?.y,
@@ -232,7 +252,10 @@ export default function ClientProofingPortalPage() {
       setTimeout(() => setDecisionSuccessMessage(null), 5000);
       loadProof();
     } catch (err: any) {
-      alert('Failed to submit comment: ' + err.message);
+      if (err.requiresOtp || err.message?.toLowerCase().includes('otp')) {
+        setNeedsOtp(true);
+      }
+      alert(err.message || 'Failed to submit comment');
     } finally {
       setSubmittingComment(false);
     }
@@ -240,13 +263,20 @@ export default function ClientProofingPortalPage() {
 
   const handleApprove = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!approverName.trim() || !approverEmail.trim() || !token) return;
+    if (!clientSession || !sessionToken) {
+      setShowApproveModal(false);
+      setNeedsOtp(true);
+      return;
+    }
 
     try {
       setSubmittingDecision(true);
+      const effectiveName = clientSession?.name || approverName.trim() || clientSession?.email;
+      const effectiveEmail = clientSession?.email || approverEmail.trim();
+
       const res = await api.approvePublicProof(token, {
-        approverName: approverName.trim(),
-        approverEmail: approverEmail.trim(),
+        approverName: effectiveName,
+        approverEmail: effectiveEmail,
         feedbackNotes: feedbackNotes.trim() || undefined
       }, sessionToken || undefined);
       if (res.success) {
@@ -255,7 +285,11 @@ export default function ClientProofingPortalPage() {
         loadProof();
       }
     } catch (err: any) {
-      alert('Approval failed: ' + err.message);
+      if (err.requiresOtp || err.message?.toLowerCase().includes('otp')) {
+        setShowApproveModal(false);
+        setNeedsOtp(true);
+      }
+      alert('Approval failed: ' + (err.message || 'Error recording approval'));
     } finally {
       setSubmittingDecision(false);
     }
@@ -263,13 +297,21 @@ export default function ClientProofingPortalPage() {
 
   const handleRequestChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!approverName.trim() || !feedbackNotes.trim() || !token) return;
+    if (!clientSession || !sessionToken) {
+      setShowRequestChangesModal(false);
+      setNeedsOtp(true);
+      return;
+    }
+    if (!feedbackNotes.trim() || !token) return;
 
     try {
       setSubmittingDecision(true);
+      const effectiveName = clientSession?.name || approverName.trim() || clientSession?.email;
+      const effectiveEmail = clientSession?.email || approverEmail.trim();
+
       const res = await api.requestChangesPublicProof(token, {
-        reviewerName: approverName.trim(),
-        reviewerEmail: approverEmail.trim() || undefined,
+        reviewerName: effectiveName,
+        reviewerEmail: effectiveEmail || undefined,
         changeNotes: feedbackNotes.trim()
       }, sessionToken || undefined);
       if (res.success) {
@@ -278,7 +320,11 @@ export default function ClientProofingPortalPage() {
         loadProof();
       }
     } catch (err: any) {
-      alert('Request failed: ' + err.message);
+      if (err.requiresOtp || err.message?.toLowerCase().includes('otp')) {
+        setShowRequestChangesModal(false);
+        setNeedsOtp(true);
+      }
+      alert('Request failed: ' + (err.message || 'Error recording revision request'));
     } finally {
       setSubmittingDecision(false);
     }
@@ -522,6 +568,22 @@ export default function ClientProofingPortalPage() {
                   </div>
                 </div>
 
+                {devOtpCode && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] text-amber-400/90 block font-medium">Verification Code:</span>
+                      <span className="font-mono font-bold text-white text-base tracking-widest">{devOtpCode}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOtpCode(devOtpCode)}
+                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-bold transition"
+                    >
+                      Fill Code
+                    </button>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={verifyingOtp || otpCode.length < 6}
@@ -572,6 +634,7 @@ export default function ClientProofingPortalPage() {
   const { creative, proof, shareLink } = data;
   const currentAsset = proof.assets?.[activeSlideIndex] || proof.assets?.[0] || null;
   const isApproved = proof.status === 'APPROVED';
+  const latestApproval = proof.approvals?.find((a: any) => a.decision === 'APPROVED') || proof.approvals?.[0];
 
   return (
     <div className="min-h-screen bg-[#060B13] text-slate-100 font-sans flex flex-col selection:bg-[#DC2626] selection:text-white">
@@ -596,7 +659,7 @@ export default function ClientProofingPortalPage() {
 
         {/* Action Buttons & Client Badge */}
         <div className="flex items-center gap-3">
-          {clientSession && (
+          {clientSession ? (
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 border border-emerald-500/30 rounded-xl text-xs text-slate-300 shadow-inner">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-semibold text-white">{clientSession.email}</span>
@@ -609,24 +672,53 @@ export default function ClientProofingPortalPage() {
                 Sign Out
               </button>
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNeedsOtp(true)}
+              className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Log in with email OTP to comment or approve"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Log in with OTP</span>
+            </button>
           )}
 
           {isApproved ? (
-            <div className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Approved</span>
+            <div className="px-3.5 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="text-left">
+                <span className="font-bold">Approved</span>
+                {latestApproval?.approver_name && (
+                  <span className="text-[11px] text-emerald-300 block font-normal">
+                    by {latestApproval.approver_name} {latestApproval.approver_email ? `(${latestApproval.approver_email})` : ''}
+                  </span>
+                )}
+              </div>
             </div>
           ) : (
             <>
               <button
-                onClick={() => setShowRequestChangesModal(true)}
+                onClick={() => {
+                  if (!clientSession) {
+                    setNeedsOtp(true);
+                    return;
+                  }
+                  setShowRequestChangesModal(true);
+                }}
                 className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Request</span> Changes
               </button>
               <button
-                onClick={() => setShowApproveModal(true)}
+                onClick={() => {
+                  if (!clientSession) {
+                    setNeedsOtp(true);
+                    return;
+                  }
+                  setShowApproveModal(true);
+                }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1.5 transform active:scale-95 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
@@ -674,10 +766,14 @@ export default function ClientProofingPortalPage() {
 
               <button
                 onClick={() => {
+                  if (!clientSession) {
+                    setNeedsOtp(true);
+                    return;
+                  }
                   setIsPlacingPin(!isPlacingPin);
                   setPendingPin(null);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${isPlacingPin ? 'bg-[#DC2626] text-white ring-2 ring-red-400' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 <span>{isPlacingPin ? 'Click image to drop pin' : 'Add Pin Comment'}</span>
@@ -838,14 +934,25 @@ export default function ClientProofingPortalPage() {
             {/* Pending Pin Form */}
             {pendingPin && (
               <div className="bg-blue-950/40 border border-blue-900 rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold text-blue-300">Drop Pin Annotation</div>
-                <input
-                  type="text"
-                  placeholder="Your Name *"
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
-                />
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-blue-300">Drop Pin Annotation</div>
+                  {clientSession && (
+                    <span className="text-[10px] text-slate-400">
+                      Posting as <strong className="text-white">{authorName || clientSession.name || clientSession.email}</strong>
+                    </span>
+                  )}
+                </div>
+                {!clientSession && (
+                  <div className="text-[11px] text-amber-300/90 bg-amber-950/40 border border-amber-800/50 rounded-lg p-2.5 flex items-center justify-between">
+                    <span>OTP login is required to post annotations.</span>
+                    <button
+                      onClick={() => setNeedsOtp(true)}
+                      className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-bold"
+                    >
+                      Login
+                    </button>
+                  </div>
+                )}
                 <textarea
                   rows={2}
                   placeholder="What should be adjusted here?"
@@ -859,8 +966,8 @@ export default function ClientProofingPortalPage() {
                   </button>
                   <button
                     onClick={handleSubmitComment}
-                    disabled={submittingComment || !authorName.trim() || !commentContent.trim()}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold"
+                    disabled={submittingComment || !commentContent.trim()}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold disabled:opacity-50"
                   >
                     Post Pin
                   </button>
@@ -879,11 +986,16 @@ export default function ClientProofingPortalPage() {
               {proof.comments?.map((c: any, idx: number) => (
                 <div key={c.id} className="p-3 bg-[#060B13] border border-slate-800/80 rounded-2xl space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 font-bold text-white">
-                      <span className="w-4 h-4 rounded-full bg-[#DC2626] text-white text-[9px] flex items-center justify-center">
+                    <div className="flex items-center gap-1.5 font-bold text-white flex-wrap">
+                      <span className="w-4 h-4 rounded-full bg-[#DC2626] text-white text-[9px] flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
                       <span>{c.author_name}</span>
+                      {c.author_email && (
+                        <span className="text-[11px] font-normal text-slate-400">
+                          ({c.author_email})
+                        </span>
+                      )}
                     </div>
                     {c.is_resolved && (
                       <span className="text-[10px] text-emerald-400 font-bold">Resolved ✓</span>
@@ -894,33 +1006,59 @@ export default function ClientProofingPortalPage() {
               ))}
             </div>
 
-            {/* General Feedback input */}
-            <div className="pt-3 border-t border-slate-800 space-y-2">
-              <input
-                type="text"
-                placeholder="Your Name (for comment)"
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="w-full px-3 py-1.5 bg-[#060B13] border border-slate-800 rounded-xl text-xs text-white"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Add general note..."
-                  value={commentContent}
-                  onChange={(e) => setCommentContent(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSubmitComment()}
-                  className="flex-1 px-3 py-1.5 bg-[#060B13] border border-slate-800 rounded-xl text-xs text-white"
-                />
-                <button
-                  onClick={handleSubmitComment}
-                  disabled={submittingComment || !authorName.trim() || !commentContent.trim()}
-                  className="p-2 rounded-xl bg-[#DC2626] text-white disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
+            {/* General Feedback / OTP Requirement Gate */}
+            {!clientSession ? (
+              <div className="pt-3 border-t border-slate-800">
+                <div className="bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 rounded-2xl p-4 text-center space-y-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">OTP Verification Required</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                      OTP login is mandatory to post comments, drop pin annotations, or approve this creative.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setNeedsOtp(true)}
+                    className="w-full py-2 px-3 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-600/20 flex items-center justify-center gap-1.5"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    Verify with Email OTP
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pt-3 border-t border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                  <span>
+                    Commenting as <strong className="text-slate-200">{authorName || clientSession.name || clientSession.email}</strong>
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Verified Client
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add general note or revision feedback..."
+                    value={commentContent}
+                    onChange={(e) => setCommentContent(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSubmitComment()}
+                    className="flex-1 px-3 py-2 bg-[#060B13] border border-slate-800 focus:border-red-500 rounded-xl text-xs text-white focus:outline-none transition-colors"
+                  />
+                  <button
+                    onClick={handleSubmitComment}
+                    disabled={submittingComment || !commentContent.trim()}
+                    className="p-2.5 rounded-xl bg-[#DC2626] hover:bg-[#b91c1c] text-white disabled:opacity-50 transition-colors shadow-md shadow-red-600/20"
+                    title="Send comment"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -957,14 +1095,24 @@ export default function ClientProofingPortalPage() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Corporate Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="s.jenkins@clientcompany.com"
-                  value={approverEmail}
-                  onChange={(e) => setApproverEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
-                />
+                {clientSession?.email ? (
+                  <div className="w-full px-3 py-2 bg-[#060B13] border border-emerald-900/60 rounded-xl text-xs text-slate-200 flex items-center justify-between">
+                    <span>{clientSession.email}</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Verified via OTP
+                    </span>
+                  </div>
+                ) : (
+                  <input
+                    type="email"
+                    required
+                    placeholder="s.jenkins@clientcompany.com"
+                    value={approverEmail}
+                    onChange={(e) => setApproverEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Approval Notes (Optional)</label>
@@ -1026,13 +1174,23 @@ export default function ClientProofingPortalPage() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Corporate Email Address</label>
-                <input
-                  type="email"
-                  placeholder="s.jenkins@clientcompany.com"
-                  value={approverEmail}
-                  onChange={(e) => setApproverEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
-                />
+                {clientSession?.email ? (
+                  <div className="w-full px-3 py-2 bg-[#060B13] border border-emerald-900/60 rounded-xl text-xs text-slate-200 flex items-center justify-between">
+                    <span>{clientSession.email}</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Verified via OTP
+                    </span>
+                  </div>
+                ) : (
+                  <input
+                    type="email"
+                    placeholder="s.jenkins@clientcompany.com"
+                    value={approverEmail}
+                    onChange={(e) => setApproverEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Revision Summary / Change Instructions *</label>

@@ -64,8 +64,43 @@ export const Header: React.FC<HeaderProps> = ({
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordOtp, setPasswordOtp] = useState('');
+  const [isRequestingPasswordOtp, setIsRequestingPasswordOtp] = useState(false);
+  const [passwordOtpSent, setPasswordOtpSent] = useState(false);
+  const [devPasswordOtp, setDevPasswordOtp] = useState<string | null>(null);
+  const [passwordOtpTimer, setPasswordOtpTimer] = useState(0);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+
+  useEffect(() => {
+    if (passwordOtpTimer > 0) {
+      const t = setTimeout(() => setPasswordOtpTimer(passwordOtpTimer - 1), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [passwordOtpTimer]);
+
+  const handleRequestPasswordOtp = async () => {
+    try {
+      setIsRequestingPasswordOtp(true);
+      setPasswordError('');
+      const res = await api.requestPasswordOtp();
+      if (res.success) {
+        setPasswordOtpSent(true);
+        setPasswordOtpTimer(60);
+        showToast(res.message || 'OTP verification code sent to your email!', 'success');
+        if (res.devOtp) {
+          setDevPasswordOtp(res.devOtp);
+          setPasswordOtp(res.devOtp);
+        }
+      } else {
+        setPasswordError(res.message || 'Failed to send OTP verification code');
+      }
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to dispatch verification code');
+    } finally {
+      setIsRequestingPasswordOtp(false);
+    }
+  };
 
   const [notifications, setNotifications] = useState<Array<{
     id: number;
@@ -544,30 +579,34 @@ export const Header: React.FC<HeaderProps> = ({
                 if (!oldPassword) { setPasswordError('Please enter your current password'); return; }
                 if (newPassword.length < 6) { setPasswordError('New password must be at least 6 characters'); return; }
                 if (newPassword !== confirmPassword) { setPasswordError('New password and confirm password do not match'); return; }
+                if (!passwordOtp.trim() || passwordOtp.trim().length < 6) {
+                  setPasswordError('Please enter the 6-digit OTP verification code sent to your email');
+                  return;
+                }
                 setIsChangingPassword(true);
                 try {
-                  const res = await api.changePassword(oldPassword, newPassword);
+                  const res = await api.changePassword(oldPassword, newPassword, passwordOtp.trim());
                   if (res && res.success) {
                     showToast('Password changed successfully!', 'success');
                     setShowChangePasswordModal(false);
-                    setOldPassword(''); setNewPassword(''); setConfirmPassword('');
+                    setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(''); setDevPasswordOtp(null);
                   } else {
                     setPasswordError(res?.message || 'Failed to update password');
                   }
                 } catch (err: any) {
-                  setPasswordError(err?.message || 'Failed to update password. Please verify current password.');
+                  setPasswordError(err?.message || 'Failed to update password. Please verify your current password and OTP code.');
                 } finally {
                   setIsChangingPassword(false);
                 }
               }}
-              className="space-y-4 text-xs"
+              className="space-y-3.5 text-xs"
             >
               {[
                 { label: 'Current Password', val: oldPassword, setter: setOldPassword, placeholder: 'Enter current password' },
                 { label: 'New Password', val: newPassword, setter: setNewPassword, placeholder: 'Minimum 6 characters' },
                 { label: 'Confirm New Password', val: confirmPassword, setter: setConfirmPassword, placeholder: 'Re-enter new password' },
               ].map(({ label, val, setter, placeholder }) => (
-                <div key={label} className="space-y-1.5">
+                <div key={label} className="space-y-1">
                   <label className="font-semibold text-slate-700 dark:text-slate-300">{label}</label>
                   <input
                     type="password"
@@ -575,24 +614,81 @@ export const Header: React.FC<HeaderProps> = ({
                     onChange={(e) => setter(e.target.value)}
                     placeholder={placeholder}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626] transition text-xs"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626] transition text-xs"
                   />
                 </div>
               ))}
+
+              {/* Email OTP Security Verification Field */}
+              <div className="pt-1 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    6-Digit Email Verification Code *
+                  </label>
+                  {passwordOtpTimer > 0 ? (
+                    <span className="text-[11px] text-slate-400 font-medium">Resend in {passwordOtpTimer}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRequestPasswordOtp}
+                      disabled={isRequestingPasswordOtp}
+                      className="text-[11px] text-[#DC2626] hover:underline font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {isRequestingPasswordOtp ? 'Sending...' : (passwordOtpSent ? 'Resend Code' : 'Send Code to Email')}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={passwordOtp}
+                    onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter 6-digit OTP"
+                    className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none focus:border-[#DC2626] tracking-widest font-mono text-center transition text-xs"
+                  />
+                  {!passwordOtpSent && (
+                    <button
+                      type="button"
+                      onClick={handleRequestPasswordOtp}
+                      disabled={isRequestingPasswordOtp}
+                      className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer text-xs"
+                    >
+                      {isRequestingPasswordOtp ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+
+                {devPasswordOtp && (
+                  <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between mt-1">
+                    <span>Dev Code: <strong className="font-mono text-white">{devPasswordOtp}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordOtp(devPasswordOtp)}
+                      className="underline font-bold cursor-pointer text-[10px]"
+                    >
+                      Fill
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => { setShowChangePasswordModal(false); setPasswordError(''); setOldPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+                  onClick={() => { setShowChangePasswordModal(false); setPasswordError(''); setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(''); }}
                   className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isChangingPassword}
+                  disabled={isChangingPassword || !passwordOtp}
                   className="px-5 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold transition cursor-pointer disabled:opacity-50 text-xs"
                 >
-                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                  {isChangingPassword ? 'Updating...' : 'Verify & Update Password'}
                 </button>
               </div>
             </form>

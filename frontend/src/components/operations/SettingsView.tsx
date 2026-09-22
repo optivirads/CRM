@@ -190,6 +190,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
   const [selfNewPassword, setSelfNewPassword] = useState('');
   const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
+  const [selfPasswordOtp, setSelfPasswordOtp] = useState('');
+  const [isRequestingSelfOtp, setIsRequestingSelfOtp] = useState(false);
+  const [selfOtpSent, setSelfOtpSent] = useState(false);
+  const [devSelfOtp, setDevSelfOtp] = useState<string | null>(null);
+  const [selfOtpTimer, setSelfOtpTimer] = useState(0);
   const [isSelfChangingPassword, setIsSelfChangingPassword] = useState(false);
 
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -222,14 +227,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   // 6. Teams & Pods State
   const [showPodModal, setShowPodModal] = useState(false);
   const [newPodName, setNewPodName] = useState('');
-  const [newPodLead, setNewPodLead] = useState('Priya Sharma');
-  const [newPodTarget, setNewPodTarget] = useState('2000000');
-  const [podsList, setPodsList] = useState<any[]>([
-    { id: 'pod-1', name: 'Performance Growth Pod', lead: 'Priya Sharma', membersCount: 4, activeClients: 12, target: '₹18,50,000/mo', color: 'border-blue-500/40 bg-blue-500/5' },
-    { id: 'pod-2', name: 'Media Buying & Ad Ops Pod', lead: 'Maya Joseph', membersCount: 3, activeClients: 8, target: '₹45,00,000 Ad Spend', color: 'border-purple-500/40 bg-purple-500/5' },
-    { id: 'pod-3', name: 'Creative Production Sprint Pod', lead: 'Rahul Verma', membersCount: 5, activeClients: 14, target: '32 Deliverables/mo', color: 'border-rose-500/40 bg-rose-500/5' },
-    { id: 'pod-4', name: 'Enterprise Finance & Billing Pod', lead: 'Rohan Verma', membersCount: 2, activeClients: 25, target: '100% Tax Ledger SLA', color: 'border-emerald-500/40 bg-emerald-500/5' }
-  ]);
+  const [newPodLead, setNewPodLead] = useState('');
+  const [newPodTarget, setNewPodTarget] = useState('');
+  const [podsList, setPodsList] = useState<any[]>([]);
 
   // 7. SSO & Security 2FA State
   const [twoFactorEnforced, setTwoFactorEnforced] = useState(true);
@@ -560,6 +560,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleRequestSelfOtp = async () => {
+    try {
+      setIsRequestingSelfOtp(true);
+      const res = await api.requestPasswordOtp();
+      if (res.success) {
+        setSelfOtpSent(true);
+        setSelfOtpTimer(60);
+        showToast(res.message || 'OTP verification code sent to your email!');
+        if (res.devOtp) {
+          setDevSelfOtp(res.devOtp);
+          setSelfPasswordOtp(res.devOtp);
+        }
+      } else {
+        showToast(res.message || 'Failed to dispatch verification code', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to dispatch verification code', 'error');
+    } finally {
+      setIsRequestingSelfOtp(false);
+    }
+  };
+
   const handleSelfChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selfCurrentPassword) {
@@ -574,20 +596,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
       showToast('New passwords do not match', 'error');
       return;
     }
+    if (!selfPasswordOtp.trim() || selfPasswordOtp.trim().length < 6) {
+      showToast('Please enter the 6-digit OTP verification code sent to your email', 'error');
+      return;
+    }
 
     setIsSelfChangingPassword(true);
     try {
-      const res = await api.changePassword(selfCurrentPassword, selfNewPassword);
+      const res = await api.changePassword(selfCurrentPassword, selfNewPassword, selfPasswordOtp.trim());
       if (res.success) {
         showToast('Password changed successfully!', 'success');
         setSelfCurrentPassword('');
         setSelfNewPassword('');
         setSelfConfirmPassword('');
+        setSelfPasswordOtp('');
+        setDevSelfOtp(null);
       } else {
         showToast(res.message || 'Failed to change password', 'error');
       }
     } catch (err: any) {
-      showToast(err.message || 'Failed to change password. Verify current password.', 'error');
+      showToast(err.message || 'Failed to change password. Verify current password and OTP code.', 'error');
     } finally {
       setIsSelfChangingPassword(false);
     }
@@ -1587,10 +1615,64 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           </div>
                         </div>
 
+                        {/* OTP Verification Field */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <label className="font-semibold text-slate-700 dark:text-slate-300">
+                              Email Verification Code (OTP) *
+                            </label>
+                            {selfOtpTimer > 0 ? (
+                              <span className="text-slate-400 font-medium">Resend in {selfOtpTimer}s</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleRequestSelfOtp}
+                                disabled={isRequestingSelfOtp}
+                                className="text-rose-500 hover:text-rose-600 font-bold cursor-pointer underline disabled:opacity-50"
+                              >
+                                {isRequestingSelfOtp ? 'Sending code...' : (selfOtpSent ? 'Resend Code' : 'Send Code to Email')}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex gap-2 max-w-sm">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              required
+                              placeholder="Enter 6-digit OTP"
+                              value={selfPasswordOtp}
+                              onChange={(e) => setSelfPasswordOtp(e.target.value.replace(/\D/g, ''))}
+                              className="w-40 p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500 font-mono tracking-widest text-center text-xs"
+                            />
+                            {!selfOtpSent && (
+                              <button
+                                type="button"
+                                onClick={handleRequestSelfOtp}
+                                disabled={isRequestingSelfOtp}
+                                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer text-xs"
+                              >
+                                {isRequestingSelfOtp ? 'Sending...' : 'Send OTP'}
+                              </button>
+                            )}
+                          </div>
+                          {devSelfOtp && (
+                            <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between max-w-sm">
+                              <span>Dev Code: <strong className="font-mono text-white">{devSelfOtp}</strong></span>
+                              <button
+                                type="button"
+                                onClick={() => setSelfPasswordOtp(devSelfOtp)}
+                                className="underline font-bold cursor-pointer text-[10px]"
+                              >
+                                Fill
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="flex justify-end">
                           <button
                             type="submit"
-                            disabled={isSelfChangingPassword}
+                            disabled={isSelfChangingPassword || !selfPasswordOtp}
                             className="px-4 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white font-semibold rounded-xl text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                           >
                             {isSelfChangingPassword ? (
@@ -1600,8 +1682,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               </>
                             ) : (
                               <>
-                                <KeyRound className="w-3.5 h-3.5" />
-                                <span>Update Password</span>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Verify &amp; Update Password</span>
                               </>
                             )}
                           </button>
@@ -3496,81 +3578,117 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                     </div>
 
                     <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!selfCurrentPassword) {
-                          showToast('Please enter your current password', 'error');
-                          return;
-                        }
-                        if (selfNewPassword.length < 6) {
-                          showToast('New password must be at least 6 characters', 'error');
-                          return;
-                        }
-                        if (selfNewPassword !== selfConfirmPassword) {
-                          showToast('New passwords do not match', 'error');
-                          return;
-                        }
-
-                        setIsSelfChangingPassword(true);
-                        try {
-                          const res = await api.changePassword(selfCurrentPassword, selfNewPassword);
-                          if (res.success) {
-                            showToast('Password changed successfully!', 'success');
-                            setSelfCurrentPassword('');
-                            setSelfNewPassword('');
-                            setSelfConfirmPassword('');
-                          } else {
-                            showToast(res.message || 'Failed to change password', 'error');
-                          }
-                        } catch (err: any) {
-                          showToast(err.message || 'Failed to change password. Verify current password.', 'error');
-                        } finally {
-                          setIsSelfChangingPassword(false);
-                        }
-                      }}
-                      className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1"
+                      onSubmit={handleSelfChangePassword}
+                      className="space-y-3 pt-1"
                     >
-                      <div>
-                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Current Password</label>
-                        <input
-                          type="password"
-                          required
-                          placeholder="Current password"
-                          value={selfCurrentPassword}
-                          onChange={e => setSelfCurrentPassword(e.target.value)}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">New Password</label>
-                        <input
-                          type="password"
-                          required
-                          placeholder="Min 6 characters"
-                          value={selfNewPassword}
-                          onChange={e => setSelfNewPassword(e.target.value)}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Confirm Password</label>
-                        <div className="flex gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Current Password</label>
+                          <input
+                            type="password"
+                            required
+                            placeholder="Current password"
+                            value={selfCurrentPassword}
+                            onChange={e => setSelfCurrentPassword(e.target.value)}
+                            className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">New Password</label>
+                          <input
+                            type="password"
+                            required
+                            placeholder="Min 6 characters"
+                            value={selfNewPassword}
+                            onChange={e => setSelfNewPassword(e.target.value)}
+                            className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Confirm Password</label>
                           <input
                             type="password"
                             required
                             placeholder="Re-type new"
                             value={selfConfirmPassword}
                             onChange={e => setSelfConfirmPassword(e.target.value)}
-                            className="flex-1 p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
+                            className="w-full p-2 bg-white dark:bg-slate-800 border rounded-lg text-xs"
                           />
-                          <button
-                            type="submit"
-                            disabled={isSelfChangingPassword}
-                            className="px-3 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50 shrink-0"
-                          >
-                            {isSelfChangingPassword ? 'Updating...' : 'Update'}
-                          </button>
                         </div>
+                      </div>
+
+                      {/* OTP Verification Field */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300">
+                            Email Verification Code (OTP) *
+                          </label>
+                          {selfOtpTimer > 0 ? (
+                            <span className="text-slate-400 font-medium">Resend in {selfOtpTimer}s</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleRequestSelfOtp}
+                              disabled={isRequestingSelfOtp}
+                              className="text-rose-500 hover:text-rose-600 font-bold cursor-pointer underline disabled:opacity-50"
+                            >
+                              {isRequestingSelfOtp ? 'Sending code...' : (selfOtpSent ? 'Resend Code' : 'Send Code to Email')}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-2 max-w-sm">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            required
+                            placeholder="Enter 6-digit OTP"
+                            value={selfPasswordOtp}
+                            onChange={(e) => setSelfPasswordOtp(e.target.value.replace(/\D/g, ''))}
+                            className="w-40 p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-rose-500 font-mono tracking-widest text-center text-xs"
+                          />
+                          {!selfOtpSent && (
+                            <button
+                              type="button"
+                              onClick={handleRequestSelfOtp}
+                              disabled={isRequestingSelfOtp}
+                              className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition cursor-pointer text-xs"
+                            >
+                              {isRequestingSelfOtp ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          )}
+                        </div>
+                        {devSelfOtp && (
+                          <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-400 flex items-center justify-between max-w-sm">
+                            <span>Dev Code: <strong className="font-mono text-white">{devSelfOtp}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => setSelfPasswordOtp(devSelfOtp)}
+                              className="underline font-bold cursor-pointer text-[10px]"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={isSelfChangingPassword || !selfPasswordOtp}
+                          className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {isSelfChangingPassword ? (
+                            <>
+                              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Updating Password...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Verify &amp; Update Password</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </form>
                   </div>

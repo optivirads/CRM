@@ -306,13 +306,12 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
     const shareLink = linkRes.rows[0];
     const clientEmail = email.trim().toLowerCase();
 
-    // If share link is strictly bound to a designated recipient email, verify match
-    if (shareLink.recipient_email && shareLink.recipient_email.toLowerCase() !== clientEmail) {
-      res.status(403).json({
-        success: false,
-        message: `This review link is restricted to ${shareLink.recipient_email}. Please enter that authorized email address.`,
-      });
-      return;
+    // If share link does not have a recipient email, bind it to this client
+    if (!shareLink.recipient_email) {
+      await db.query(
+        `UPDATE creative_share_links SET recipient_email = $1, recipient_name = COALESCE(recipient_name, $2) WHERE id = $3`,
+        [clientEmail, name?.trim() || null, shareLink.id]
+      );
     }
 
     // Generate secure 6-digit OTP
@@ -333,11 +332,13 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
       agencyName: shareLink.organization_name,
     });
 
-    const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD;
+    const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD || !sent;
 
     res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${clientEmail}.`,
+      message: sent
+        ? `A 6-digit verification code has been sent to ${clientEmail}.`
+        : `Verification code generated for ${clientEmail}.`,
       emailSent: sent,
       ...(isDev ? { devOtp: otpCode } : {})
     });
@@ -470,35 +471,33 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
 
     const creative = creativeRes.rows[0];
 
-    // 3. Check OTP Requirement Gate
+    // 3. Check OTP Requirement Gate (Mandatory for client review, comments, and approvals)
     let verifiedClient: { email: string; name: string } | null = null;
-    if (shareLink.require_otp) {
-      const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
-      verifiedClient = verifyClientProofSession(sessionHeader, tokenHash);
+    const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
+    verifiedClient = verifyClientProofSession(sessionHeader, tokenHash);
 
-      if (!verifiedClient) {
-        // Return minimal public preview info so frontend shows the OTP Login gate
-        res.json({
-          success: true,
-          requireOtp: true,
-          shareLink: {
-            id: shareLink.id,
-            allowComments: shareLink.allow_comments,
-            allowApprovals: shareLink.allow_approvals,
-            expiresAt: shareLink.expires_at,
-            organizationName: shareLink.organization_name,
-            organizationLogo: shareLink.organization_logo,
-            recipientEmail: shareLink.recipient_email,
-            recipientName: shareLink.recipient_name,
-          },
-          creativeInfo: {
-            name: creative?.name || 'Creative Deliverable',
-            campaignName: creative?.campaign_name,
-            targetPlatform: creative?.target_platform,
-          }
-        });
-        return;
-      }
+    if (shareLink.require_otp !== false && !verifiedClient) {
+      // Return minimal public preview info so frontend shows the OTP Login gate
+      res.json({
+        success: true,
+        requireOtp: true,
+        shareLink: {
+          id: shareLink.id,
+          allowComments: shareLink.allow_comments,
+          allowApprovals: shareLink.allow_approvals,
+          expiresAt: shareLink.expires_at,
+          organizationName: shareLink.organization_name,
+          organizationLogo: shareLink.organization_logo,
+          recipientEmail: shareLink.recipient_email,
+          recipientName: shareLink.recipient_name,
+        },
+        creativeInfo: {
+          name: creative?.name || 'Creative Deliverable',
+          campaignName: creative?.campaign_name,
+          targetPlatform: creative?.target_platform,
+        }
+      });
+      return;
     }
 
     // Increment access count & update last_accessed_at
@@ -550,7 +549,7 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
     // 6. Fetch Comments
     const commentsRes = await db.query(
       `SELECT
-        id, asset_id, author_name, is_client_comment, content,
+        id, asset_id, author_name, author_email, is_client_comment, content,
         pin_x_percent, pin_y_percent, timestamp_start_seconds,
         timestamp_end_seconds, is_resolved, created_at
       FROM creative_comments
@@ -561,7 +560,7 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
 
     // 7. Fetch Existing Approvals
     const approvalsRes = await db.query(
-      `SELECT id, decision, approver_name, feedback_notes, signed_at
+      `SELECT id, decision, approver_name, approver_email, feedback_notes, signed_at
        FROM creative_approvals
        WHERE proof_id = $1
        ORDER BY signed_at DESC`,
@@ -696,15 +695,20 @@ router.post('/public/proofs/:token/comments', async (req: Request, res: Response
       return;
     }
 
-    // Resolve verified client session if available
+    // Resolve verified client session (STRICTLY REQUIRED to add comments)
     const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
     const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
-    if (verifiedSession) {
-      authorEmail = verifiedSession.email;
-      authorName = authorName?.trim() || verifiedSession.name;
-    } else if (!authorName) {
-      authorName = 'Client Reviewer';
+    if (!verifiedSession) {
+      res.status(401).json({
+        success: false,
+        requiresOtp: true,
+        message: 'OTP login is required to add comments to this creative. Please log in with your email verification code.'
+      });
+      return;
     }
+
+    authorEmail = verifiedSession.email;
+    authorName = verifiedSession.name || authorName?.trim() || verifiedSession.email.split('@')[0];
 
     const commentRes = await db.query(
       `INSERT INTO creative_comments (
@@ -800,18 +804,20 @@ router.post('/public/proofs/:token/approve', async (req: Request, res: Response)
       return;
     }
 
-    // Resolve verified client session if available
+    // Resolve verified client session (STRICTLY REQUIRED for formal approval)
     const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
     const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
-    if (verifiedSession) {
-      approverEmail = verifiedSession.email;
-      approverName = approverName?.trim() || verifiedSession.name;
-    }
-
-    if (!approverName || !approverEmail) {
-      res.status(400).json({ success: false, message: 'Full name and email are required for official approval.' });
+    if (!verifiedSession) {
+      res.status(401).json({
+        success: false,
+        requiresOtp: true,
+        message: 'OTP login is required to officially approve this creative. Please log in with your email verification code.'
+      });
       return;
     }
+
+    approverEmail = verifiedSession.email;
+    approverName = verifiedSession.name || approverName?.trim() || verifiedSession.email.split('@')[0];
 
     const client = await db.getClient();
     try {
@@ -930,17 +936,20 @@ router.post('/public/proofs/:token/request-changes', async (req: Request, res: R
 
     const shareLink = linkRes.rows[0];
 
-    // Resolve verified client session if available
+    // Resolve verified client session (STRICTLY REQUIRED to request changes)
     const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
     const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
-    if (verifiedSession) {
-      reviewerEmail = verifiedSession.email;
-      reviewerName = reviewerName?.trim() || verifiedSession.name;
+    if (!verifiedSession) {
+      res.status(401).json({
+        success: false,
+        requiresOtp: true,
+        message: 'OTP login is required to request changes on this creative. Please log in with your email verification code.'
+      });
+      return;
     }
 
-    if (!reviewerName) {
-      reviewerName = 'Client Reviewer';
-    }
+    reviewerEmail = verifiedSession.email;
+    reviewerName = verifiedSession.name || reviewerName?.trim() || verifiedSession.email.split('@')[0];
 
     const client = await db.getClient();
     try {

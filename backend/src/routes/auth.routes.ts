@@ -8,6 +8,7 @@ import { validateBody } from '../middleware/validate';
 import { parseDeviceInfo } from '../utils/device';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { EmailService } from '../services/email.service';
 
 const router = Router();
 
@@ -22,7 +23,8 @@ const loginSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(6, 'New password must be at least 6 characters').max(256)
+  newPassword: z.string().min(6, 'New password must be at least 6 characters').max(256),
+  otp: z.string().min(6, '6-digit OTP verification code is required').max(10)
 });
 
 // Default lockout limit if org setting is not configured
@@ -392,6 +394,55 @@ router.post('/logout', requireAuth, async (req: AuthenticatedRequest, res: Respo
 });
 
 // ---------------------------------------------------------------------------
+// POST /auth/request-password-otp
+// ---------------------------------------------------------------------------
+router.post(
+  '/request-password-otp',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    try {
+      const userRes = await db.query('SELECT email, first_name, last_name FROM users WHERE id = $1', [userId]);
+      if (userRes.rows.length === 0) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+      const user = userRes.rows[0];
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Store in user_security_otps with 10-minute expiry
+      await db.query(
+        `INSERT INTO user_security_otps (user_id, action, otp_code, expires_at)
+         VALUES ($1, 'PASSWORD_CHANGE', $2, NOW() + INTERVAL '10 minutes')`,
+        [userId, otpCode]
+      );
+
+      const sent = await EmailService.sendSecurityOtpEmail({
+        toEmail: user.email,
+        userName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || undefined,
+        otpCode,
+        actionTitle: 'Password Change',
+      });
+
+      const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD || !sent;
+
+      res.json({
+        success: true,
+        message: sent
+          ? `A 6-digit verification code has been sent to ${user.email}.`
+          : `Verification code generated for ${user.email}.`,
+        emailSent: sent,
+        email: user.email,
+        ...(isDev ? { devOtp: otpCode } : {})
+      });
+    } catch (err: any) {
+      console.error('[Request Password OTP Error]:', err);
+      res.status(500).json({ success: false, message: 'Failed to dispatch verification code: ' + err.message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // POST /auth/change-password
 // ---------------------------------------------------------------------------
 router.post(
@@ -399,10 +450,29 @@ router.post(
   requireAuth,
   validateBody(changePasswordSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, otp } = req.body;
     const userId = req.user!.id;
 
     try {
+      // 1. Verify OTP code
+      const cleanOtp = otp?.toString().trim();
+      const otpRes = await db.query(
+        `SELECT id FROM user_security_otps
+         WHERE user_id = $1 AND action = 'PASSWORD_CHANGE' AND otp_code = $2 AND verified_at IS NULL AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId, cleanOtp]
+      );
+
+      if (otpRes.rows.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired OTP verification code. Please request a new code.',
+          code: 'INVALID_OTP'
+        });
+        return;
+      }
+
+      // 2. Verify current password
       const userRes = await db.query(
         'SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL;',
         [userId]
@@ -421,6 +491,9 @@ router.post(
         res.status(400).json({ success: false, message: 'Incorrect current password. Please verify and try again.' });
         return;
       }
+
+      // 3. Mark OTP verified
+      await db.query('UPDATE user_security_otps SET verified_at = NOW() WHERE id = $1', [otpRes.rows[0].id]);
 
       const { hashPassword } = await import('../utils/auth');
       const newHash = hashPassword(newPassword);

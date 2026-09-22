@@ -117,12 +117,17 @@ export class EmailService {
     }
 
     try {
-      await transporter.sendMail({
+      const sendPromise = transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to: toEmail,
         subject,
         html: htmlContent,
       });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 8s')), 8000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+
       console.log(`[Gmail Service] Successfully dispatched OTP email to: ${toEmail}`);
       return true;
     } catch (err: any) {
@@ -368,6 +373,80 @@ export class EmailService {
       console.log(`[Gmail Service] Notification delivered to team (${recipientEmails.join(', ')})`);
     } catch (err: any) {
       console.error(`[Gmail Service] Error notifying team:`, err.message);
+    }
+  }
+
+  /**
+   * 4. Send Security Confirmation OTP (Password Change / Security Update)
+   */
+  public static async sendSecurityOtpEmail({
+    toEmail,
+    userName,
+    otpCode,
+    actionTitle,
+  }: {
+    toEmail: string;
+    userName?: string;
+    otpCode: string;
+    actionTitle: string;
+  }): Promise<boolean> {
+    const transporter = this.getTransporter();
+    const fromName = process.env.GMAIL_FROM_NAME || 'Opti CRM';
+    const fromEmail = process.env.GMAIL_USER || 'no-reply@optivircrm.com';
+
+    const subject = `[${otpCode}] Security Verification Code for ${actionTitle} | ${fromName}`;
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${fromName} Security Center</h2>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Security Verification Code</p>
+        </div>
+        <div style="padding: 32px;">
+          <p style="margin: 0 0 16px; font-size: 14px; color: #CBD5E1;">
+            Hello ${userName || 'User'},
+          </p>
+          <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #CBD5E1;">
+            A request was initiated for <strong>${actionTitle}</strong> on your Opti CRM account. Use the one-time verification code below to authorize this operation:
+          </p>
+
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="font-size: 12px; color: #94A3B8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Your One-Time Security Code</div>
+            <div style="display: inline-block; background: #0F172A; border: 2px solid #DC2626; border-radius: 12px; padding: 14px 36px; font-size: 32px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 8px; color: #FFFFFF; text-shadow: 0 0 12px rgba(220, 38, 38, 0.6);">
+              ${otpCode}
+            </div>
+            <div style="font-size: 11px; color: #64748B; margin-top: 8px;">Valid for 10 minutes • Do not share this code with anyone</div>
+          </div>
+
+          <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #94A3B8;">
+            If you did not initiate this request, please contact your workspace administrator immediately and ensure your account credentials are secure.
+          </p>
+        </div>
+      </div>
+    `;
+
+    if (!transporter) {
+      console.log(`[Dev Fallback Security OTP for ${toEmail} (${actionTitle})]: ${otpCode}`);
+      return true;
+    }
+
+    try {
+      const sendPromise = transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent,
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 8s')), 8000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`[Gmail Service] Successfully sent Security OTP to ${toEmail}`);
+      return true;
+    } catch (err: any) {
+      console.error(`[Gmail Service] Error sending security OTP to ${toEmail}:`, err.message);
+      console.log(`[Fallback Security OTP for ${toEmail}]: ${otpCode}`);
+      return false;
     }
   }
 }

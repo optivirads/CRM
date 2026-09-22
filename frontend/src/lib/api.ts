@@ -89,10 +89,16 @@ class ApiClient {
     return this.request<{ success: boolean; data: any }>('/auth/me');
   }
 
-  async changePassword(currentPassword: string, newPassword: string) {
+  async requestPasswordOtp() {
+    return this.request<{ success: boolean; message: string; email?: string; devOtp?: string }>('/auth/request-password-otp', {
+      method: 'POST',
+    });
+  }
+
+  async changePassword(currentPassword: string, newPassword: string, otp: string) {
     return this.request<{ success: boolean; message: string }>('/auth/change-password', {
       method: 'POST',
-      body: JSON.stringify({ currentPassword, newPassword }),
+      body: JSON.stringify({ currentPassword, newPassword, otp }),
     });
   }
 

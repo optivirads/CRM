@@ -1713,6 +1713,11 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           <span className="text-xs font-bold text-slate-900 dark:text-white">
                             {c.author_name}
                           </span>
+                          {c.author_email && (
+                            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                              ({c.author_email})
+                            </span>
+                          )}
                           {c.is_client_comment && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
                               Client

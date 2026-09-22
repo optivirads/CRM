@@ -517,14 +517,6 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
         });
       }
 
-      // If still empty (new workspace), supply default demo entries for instant usability
-      if (allClients.length === 0) {
-        allClients.push(
-          { id: 'client-demo-1', name: 'Hijabi Ladies Beauty Salon', contactPerson: 'Fatima Al-Zahra', contactEmail: 'fatima@hijabibeauty.ae', source: 'Client' },
-          { id: 'client-demo-2', name: 'Aura Lifestyle & Apparel', contactPerson: 'Karan Mehra', contactEmail: 'karan@auralifestyle.com', source: 'Lead' },
-          { id: 'client-demo-3', name: 'Zentra FinTech Solutions', contactPerson: 'Priya Sharma', contactEmail: 'priya@zentra.io', source: 'Lead' }
-        );
-      }
 
       setClientsList(allClients);
 
