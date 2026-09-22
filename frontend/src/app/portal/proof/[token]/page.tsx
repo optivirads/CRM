@@ -59,19 +59,68 @@ export default function ClientProofingPortalPage() {
   const [decisionSuccessMessage, setDecisionSuccessMessage] = useState<string | null>(null);
   const [isDownloadingWatermarked, setIsDownloadingWatermarked] = useState(false);
 
+  // Session & OTP Gate State
+  const sessionKey = `optivir_proof_session_${token}`;
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [needsOtp, setNeedsOtp] = useState(false);
+  const [previewInfo, setPreviewInfo] = useState<any | null>(null);
+  const [clientSession, setClientSession] = useState<{ email: string; name: string } | null>(null);
+
+  // OTP Login Form State
+  const [otpStep, setOtpStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpName, setOtpName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [requestingOtp, setRequestingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState<string | null>(null);
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
   useEffect(() => {
     if (token) {
       loadProof();
     }
   }, [token]);
 
-  const loadProof = async () => {
+  const loadProof = async (overrideToken?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.getPublicProof(token);
-      if (res.success) {
+      const activeSession = overrideToken || sessionToken || (typeof window !== 'undefined' ? sessionStorage.getItem(sessionKey) : null);
+      if (activeSession && !sessionToken) {
+        setSessionToken(activeSession);
+      }
+
+      const res = await api.getPublicProof(token, activeSession || undefined);
+
+      if (res.requireOtp) {
+        setNeedsOtp(true);
+        setPreviewInfo(res);
+        if (res.shareLink?.recipientEmail) {
+          setOtpEmail(res.shareLink.recipientEmail);
+        }
+        if (res.shareLink?.recipientName) {
+          setOtpName(res.shareLink.recipientName);
+        }
+      } else if (res.success && res.proof) {
+        setNeedsOtp(false);
         setData(res);
+        if (res.clientSession) {
+          setClientSession(res.clientSession);
+          setAuthorEmail(res.clientSession.email);
+          setAuthorName(res.clientSession.name);
+          setApproverEmail(res.clientSession.email);
+          setApproverName(res.clientSession.name);
+        }
       } else {
         setError('Unable to load client proof. The link may have expired or been revoked.');
       }
@@ -80,6 +129,79 @@ export default function ClientProofingPortalPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpEmail.trim() || !otpEmail.includes('@')) {
+      setOtpError('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      setRequestingOtp(true);
+      setOtpError(null);
+      setOtpSuccessMessage(null);
+      setDevOtpCode(null);
+
+      const res = await api.requestProofOtp(token, otpEmail.trim(), otpName.trim() || undefined);
+      if (res.success) {
+        setOtpStep('CODE');
+        setOtpSuccessMessage(res.message);
+        if (res.devOtp) {
+          setDevOtpCode(res.devOtp);
+          setOtpCode(res.devOtp);
+        }
+        setResendTimer(60);
+      } else {
+        setOtpError(res.message || 'Failed to send verification code.');
+      }
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to request verification code.');
+    } finally {
+      setRequestingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      setOtpError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    try {
+      setVerifyingOtp(true);
+      setOtpError(null);
+      const res = await api.verifyProofOtp(token, otpEmail.trim(), otpCode.trim(), otpName.trim() || undefined);
+      if (res.success && res.sessionToken) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(sessionKey, res.sessionToken);
+        }
+        setSessionToken(res.sessionToken);
+        setClientSession(res.client);
+        setNeedsOtp(false);
+        await loadProof(res.sessionToken);
+      } else {
+        setOtpError(res.message || 'Verification failed. Please check the code.');
+      }
+    } catch (err: any) {
+      setOtpError(err.message || 'Verification failed.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(sessionKey);
+    }
+    setSessionToken(null);
+    setClientSession(null);
+    setNeedsOtp(true);
+    setOtpStep('EMAIL');
+    setOtpCode('');
+    setOtpSuccessMessage(null);
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -102,10 +224,12 @@ export default function ClientProofingPortalPage() {
         pinYPercent: pendingPin?.y,
         timestampStartSeconds: currentAsset?.assetType === 'VIDEO' ? videoCurrentTime : undefined,
         assetId: currentAsset?.id
-      });
+      }, sessionToken || undefined);
       setCommentContent('');
       setPendingPin(null);
       setIsPlacingPin(false);
+      setDecisionSuccessMessage('Comment added! Assigned Manager and Creator have been notified via Gmail.');
+      setTimeout(() => setDecisionSuccessMessage(null), 5000);
       loadProof();
     } catch (err: any) {
       alert('Failed to submit comment: ' + err.message);
@@ -124,10 +248,10 @@ export default function ClientProofingPortalPage() {
         approverName: approverName.trim(),
         approverEmail: approverEmail.trim(),
         feedbackNotes: feedbackNotes.trim() || undefined
-      });
+      }, sessionToken || undefined);
       if (res.success) {
         setShowApproveModal(false);
-        setDecisionSuccessMessage('Thank you! This creative proof has been officially approved for campaign deployment.');
+        setDecisionSuccessMessage('Thank you! This creative proof has been officially approved. Project Manager & Creator have been notified via Gmail.');
         loadProof();
       }
     } catch (err: any) {
@@ -147,10 +271,10 @@ export default function ClientProofingPortalPage() {
         reviewerName: approverName.trim(),
         reviewerEmail: approverEmail.trim() || undefined,
         changeNotes: feedbackNotes.trim()
-      });
+      }, sessionToken || undefined);
       if (res.success) {
         setShowRequestChangesModal(false);
-        setDecisionSuccessMessage('Your change requests have been sent directly to the creative design team.');
+        setDecisionSuccessMessage('Your change requests have been dispatched directly to the Creator & Manager via Gmail.');
         loadProof();
       }
     } catch (err: any) {
@@ -203,6 +327,234 @@ export default function ClientProofingPortalPage() {
     );
   }
 
+  // 0. CLIENT OTP LOGIN GATE
+  if (needsOtp) {
+    const orgName = previewInfo?.shareLink?.organizationName || 'OptiVir CRM';
+    const creativeTitle = previewInfo?.creativeInfo?.name || 'Creative Deliverable';
+    const campaignTitle = previewInfo?.creativeInfo?.campaignName;
+    const restrictedEmail = previewInfo?.shareLink?.recipientEmail;
+
+    return (
+      <div className="min-h-screen bg-[#050911] text-white flex flex-col font-sans selection:bg-[#DC2626] selection:text-white relative overflow-hidden">
+        {/* Background Ambient Radial Colored Glows */}
+        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-rose-600/10 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-blue-900/15 rounded-full blur-[150px] pointer-events-none" />
+
+        {/* Minimal Portal Header */}
+        <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700/60 p-1.5 flex items-center justify-center shadow-lg">
+              <img src="/icon.png" alt={orgName} className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm tracking-tight text-white">{orgName}</div>
+              <p className="text-[10px] text-slate-400">Client Creative Review &amp; Approval Portal</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/50 border border-white/5 px-3 py-1.5 rounded-xl backdrop-blur-md">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Secured Client Gateway</span>
+          </div>
+        </header>
+
+        {/* Center OTP Card */}
+        <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-md bg-[#0B1528]/85 dark:bg-[#071120]/85 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-[0_25px_70px_rgba(0,0,0,0.85)] space-y-6">
+            
+            {/* Top Badge & Title */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-rose-950/60 border border-rose-500/30 text-rose-400 mb-1 shadow-lg shadow-rose-950/40">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white">Client Access Verification</h2>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-xs mx-auto">
+                Sign in with a one-time OTP code sent to your work email to review, leave comments, and approve this creative.
+              </p>
+            </div>
+
+            {/* Creative Info Pill */}
+            <div className="bg-slate-900/70 border border-white/5 rounded-2xl p-3.5 space-y-1">
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Deliverable Ready For Review</div>
+              <div className="text-sm font-bold text-white flex items-center justify-between">
+                <span className="truncate mr-2">{creativeTitle}</span>
+                {campaignTitle && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-950/70 text-rose-300 border border-rose-800/40 shrink-0">
+                    {campaignTitle}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {otpError && (
+              <div className="p-3.5 bg-rose-950/60 border border-rose-700/60 rounded-xl flex items-start gap-2 text-xs text-rose-200 backdrop-blur-md">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1">{otpError}</div>
+              </div>
+            )}
+
+            {/* Success Message */}
+            {otpSuccessMessage && (
+              <div className="p-3.5 bg-emerald-950/60 border border-emerald-700/60 rounded-xl flex items-start gap-2 text-xs text-emerald-200 backdrop-blur-md">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="flex-1">{otpSuccessMessage}</div>
+              </div>
+            )}
+
+            {/* Dev / Testing OTP Callout */}
+            {devOtpCode && (
+              <div className="p-3.5 bg-amber-950/60 border border-amber-600/50 rounded-xl flex items-center justify-between text-xs text-amber-200 backdrop-blur-md">
+                <div>
+                  <div className="font-bold text-amber-100">Testing Code (Dev / Fallback):</div>
+                  <div className="font-mono text-base font-black text-amber-300 tracking-wider mt-0.5">{devOtpCode}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOtpCode(devOtpCode)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold transition cursor-pointer"
+                >
+                  Fill Code
+                </button>
+              </div>
+            )}
+
+            {/* STEP 1: Enter Email */}
+            {otpStep === 'EMAIL' && (
+              <form onSubmit={handleRequestOtp} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-200 block">Work Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Send className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={otpEmail}
+                      onChange={(e) => setOtpEmail(e.target.value)}
+                      placeholder="name@company.com"
+                      disabled={requestingOtp || Boolean(restrictedEmail)}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-rose-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
+                    />
+                  </div>
+                  {restrictedEmail && (
+                    <p className="text-[10px] text-slate-400">
+                      This link has been locked to <strong className="text-slate-200">{restrictedEmail}</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-200 block">Your Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={otpName}
+                    onChange={(e) => setOtpName(e.target.value)}
+                    placeholder="e.g. Alex Sharma"
+                    disabled={requestingOtp}
+                    className="w-full px-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-rose-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={requestingOtp}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-[#DC2626] to-[#991B1B] hover:from-[#EF4444] hover:to-[#DC2626] text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-950/70 border border-rose-500/40 flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                >
+                  {requestingOtp ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Sending Verification Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send OTP Code via Gmail</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* STEP 2: Enter 6-Digit OTP Code */}
+            {otpStep === 'CODE' && (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200">Enter 6-Digit OTP Code</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtpStep('EMAIL');
+                        setOtpError(null);
+                      }}
+                      className="text-[11px] text-rose-400 hover:underline cursor-pointer"
+                    >
+                      Change Email
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      autoFocus
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••••"
+                      className="w-full px-4 py-3 bg-slate-950/80 border border-white/15 focus:border-rose-500 rounded-xl text-center text-2xl font-mono tracking-[0.5em] text-white placeholder-slate-600 focus:outline-hidden transition"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                    <span>Sent to: <strong className="text-slate-300">{otpEmail}</strong></span>
+                    {resendTimer > 0 ? (
+                      <span>Resend in {resendTimer}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleRequestOtp}
+                        disabled={requestingOtp}
+                        className="text-rose-400 hover:text-rose-300 font-semibold cursor-pointer underline"
+                      >
+                        Resend Code
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={verifyingOtp || otpCode.length < 6}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-950/70 border border-emerald-500/40 flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                >
+                  {verifyingOtp ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Verify &amp; Access Creative Proof</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            <div className="pt-2 text-center text-[11px] text-slate-400 border-t border-white/5">
+              <span>Client actions are logged &amp; synced with the assigned Creative Lead &amp; Project Manager.</span>
+            </div>
+          </div>
+        </main>
+
+        <footer className="relative z-10 w-full max-w-6xl mx-auto px-6 py-4 text-center text-xs text-slate-500">
+          © {new Date().getFullYear()} {orgName} • Single-Session Client Governance
+        </footer>
+      </div>
+    );
+  }
+
   if (error || !data) {
     return (
       <div className="min-h-screen bg-[#060B13] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -226,8 +578,8 @@ export default function ClientProofingPortalPage() {
       {/* 1. Portal Header (Branded, No internal CRM nav) */}
       <header className="sticky top-0 z-40 bg-[#0B1424]/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-[#DC2626] flex items-center justify-center text-white font-black text-xs shadow-md">
-            OP
+          <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-700/60 p-1 flex items-center justify-center shadow-md">
+            <img src="/icon.png" alt="OptiVir CRM" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -242,8 +594,23 @@ export default function ClientProofingPortalPage() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Action Buttons & Client Badge */}
+        <div className="flex items-center gap-3">
+          {clientSession && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 border border-emerald-500/30 rounded-xl text-xs text-slate-300 shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-semibold text-white">{clientSession.email}</span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-slate-400 hover:text-rose-400 ml-1.5 transition cursor-pointer text-[11px]"
+                title="Switch client user / Sign out"
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+
           {isApproved ? (
             <div className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
               <CheckCircle2 className="w-4 h-4" />
@@ -253,14 +620,14 @@ export default function ClientProofingPortalPage() {
             <>
               <button
                 onClick={() => setShowRequestChangesModal(true)}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Request</span> Changes
               </button>
               <button
                 onClick={() => setShowApproveModal(true)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1.5 transform active:scale-95"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1.5 transform active:scale-95 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>Approve Proof</span>

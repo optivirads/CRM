@@ -1341,6 +1341,9 @@ class ApiClient {
     expiresInDays?: number;
     allowComments?: boolean;
     allowApprovals?: boolean;
+    recipientEmail?: string;
+    recipientName?: string;
+    requireOtp?: boolean;
   }) {
     return this.request<{
       success: boolean;
@@ -1351,6 +1354,9 @@ class ApiClient {
         expires_at: string;
         allow_comments: boolean;
         allow_approvals: boolean;
+        recipient_email?: string;
+        recipient_name?: string;
+        require_otp?: boolean;
       };
     }>(`/creatives/${id}/proofs/${proofId}/share`, {
       method: 'POST',
@@ -1396,14 +1402,63 @@ class ApiClient {
     });
   }
 
-  // Public Client Portal API (No Bearer token needed)
-  async getPublicProof(token: string) {
+  // Public Client Portal API (OTP Gated & Session Verified)
+  async requestProofOtp(token: string, email: string, name?: string) {
     return this.request<{
       success: boolean;
+      message: string;
+      emailSent: boolean;
+      devOtp?: string;
+    }>(`/public/proofs/${token}/request-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, name }),
+    });
+  }
+
+  async verifyProofOtp(token: string, email: string, otp: string, name?: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      sessionToken: string;
+      client: { email: string; name: string };
+    }>(`/public/proofs/${token}/verify-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, name }),
+    });
+  }
+
+  async sendProofEmailToClient(creativeId: string, proofId: string, payload: {
+    recipientEmail: string;
+    recipientName?: string;
+    personalMessage?: string;
+    expiresInDays?: number;
+  }) {
+    return this.request<{
+      success: boolean;
+      message: string;
       shareLink: any;
-      creative: any;
-      proof: any;
-    }>(`/public/proofs/${token}`);
+      emailSent: boolean;
+    }>(`/creatives/${creativeId}/proofs/${proofId}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getPublicProof(token: string, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
+    return this.request<{
+      success: boolean;
+      requireOtp?: boolean;
+      clientSession?: { email: string; name: string };
+      shareLink?: any;
+      creativeInfo?: any;
+      creative?: any;
+      proof?: any;
+      message?: string;
+    }>(`/public/proofs/${token}`, { headers });
   }
 
   async submitPublicProofComment(token: string, payload: {
@@ -1415,9 +1470,14 @@ class ApiClient {
     pinYPercent?: number;
     timestampStartSeconds?: number;
     timestampEndSeconds?: number;
-  }) {
+  }, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
     return this.request<{ success: boolean; comment: any }>(`/public/proofs/${token}/comments`, {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload),
     });
   }
@@ -1426,9 +1486,14 @@ class ApiClient {
     approverName: string;
     approverEmail: string;
     feedbackNotes?: string;
-  }) {
+  }, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
     return this.request<{ success: boolean; approval: any; message?: string }>(`/public/proofs/${token}/approve`, {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload),
     });
   }
@@ -1437,9 +1502,14 @@ class ApiClient {
     reviewerName: string;
     reviewerEmail?: string;
     changeNotes: string;
-  }) {
+  }, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
     return this.request<{ success: boolean; approval: any; message?: string }>(`/public/proofs/${token}/request-changes`, {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload),
     });
   }

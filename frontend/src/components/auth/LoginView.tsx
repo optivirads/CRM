@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useAuth, AGENCY_PERSONAS } from '@/lib/auth-context';
 import {
-  ShieldCheck,
   Lock,
   Mail,
   Eye,
@@ -107,7 +106,6 @@ export const LoginView: React.FC = () => {
               </div>
               <div>
                 <div className="font-extrabold text-sm text-white">OptiVir CRM</div>
-                <div className="text-[10px] text-slate-400">Enterprise OS v4.8</div>
               </div>
             </div>
 
@@ -214,24 +212,9 @@ export const LoginView: React.FC = () => {
             <img src="/icon.png" alt="OptiVir CRM" className="w-full h-full object-contain" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-sm tracking-tight text-white">OptiVir CRM</span>
-              <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-300 border border-rose-700/50">
-                Enterprise OS v4.8
-              </span>
-            </div>
+            <div className="font-extrabold text-sm tracking-tight text-white">OptiVir CRM</div>
             <p className="text-[10px] text-slate-400">Indian Performance Marketing Agency Operations</p>
           </div>
-        </div>
-
-        <div className="hidden sm:flex items-center space-x-3 text-xs text-slate-300">
-          <span className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-950/40 backdrop-blur-xl border border-white/10 shadow-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-[11px]">Auth Gateway Online</span>
-          </span>
-          <span className="px-3 py-1.5 rounded-xl bg-slate-950/40 backdrop-blur-xl border border-white/10 text-slate-300 text-[11px] font-semibold shadow-md">
-            SAC 998361 Standard
-          </span>
         </div>
       </header>
 
@@ -351,7 +334,6 @@ export const LoginView: React.FC = () => {
                   />
                   <span>Persist session (7 days)</span>
                 </label>
-                <span className="text-[10px] text-slate-400 font-mono">AES-256 JWT Token</span>
               </div>
 
               {/* Submit Button */}
@@ -415,10 +397,6 @@ export const LoginView: React.FC = () => {
 
           {/* Trust & Security Footnote */}
           <div className="flex items-center justify-center space-x-6 text-[11px] text-slate-400/90 pt-4">
-            <span className="flex items-center space-x-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>TLS 256-Bit Cryptography</span>
-            </span>
             <span className="flex items-center space-x-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
               <span>Tenant Isolated DB</span>

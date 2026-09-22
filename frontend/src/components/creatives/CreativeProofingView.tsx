@@ -43,6 +43,7 @@ import {
   UserCheck,
   History,
   Send,
+  Mail,
   FolderClosed,
   Building2,
   Download,
@@ -111,6 +112,11 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareLinkData, setShareLinkData] = useState<any | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareRecipientEmail, setShareRecipientEmail] = useState('');
+  const [shareRecipientName, setShareRecipientName] = useState('');
+  const [sharePersonalMessage, setSharePersonalMessage] = useState('');
+  const [isSendingShareEmail, setIsSendingShareEmail] = useState(false);
+  const [shareEmailStatus, setShareEmailStatus] = useState<string | null>(null);
 
   // Link Task to Creative Modal State
   const [linkTaskModal, setLinkTaskModal] = useState<{
@@ -440,15 +446,45 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       const res = await api.generateShareLink(activeCreativeId, currentProof.id, {
         expiresInDays: 14,
         allowComments: true,
-        allowApprovals: true
+        allowApprovals: true,
+        requireOtp: true
       });
       if (res.success) {
         setShareLinkData(res.shareLink);
+        setShareEmailStatus(null);
         setShowShareModal(true);
         loadData();
       }
     } catch (err) {
       console.error('Failed to generate share link:', err);
+    }
+  };
+
+  // Direct Gmail Dispatch to Client
+  const handleSendShareEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCreativeId || !currentProof?.id || !shareRecipientEmail.trim()) {
+      alert('Please enter a valid client recipient email.');
+      return;
+    }
+
+    try {
+      setIsSendingShareEmail(true);
+      setShareEmailStatus(null);
+      const res = await api.sendProofEmailToClient(activeCreativeId, currentProof.id, {
+        recipientEmail: shareRecipientEmail.trim(),
+        recipientName: shareRecipientName.trim() || undefined,
+        personalMessage: sharePersonalMessage.trim() || undefined,
+      });
+
+      if (res.success) {
+        setShareEmailStatus(`Invitation dispatched to ${shareRecipientEmail.trim()} via Gmail!`);
+        setTimeout(() => setShareEmailStatus(null), 5000);
+      }
+    } catch (err: any) {
+      alert('Failed to send email: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSendingShareEmail(false);
     }
   };
 
@@ -2100,17 +2136,89 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
               </button>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2">
-              <span>Token expires in 14 days</span>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+              <span className="flex items-center gap-1 text-emerald-400 font-medium">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Protected with Client Email OTP</span>
+              </span>
               <a
                 href={shareLinkData.shareUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-500 hover:underline flex items-center gap-1 font-semibold"
               >
-                <span>Preview Client Portal</span>
+                <span>Preview Portal</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
+            </div>
+
+            {/* Direct Send via Gmail Section */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                  <Mail className="w-4 h-4 text-rose-500" />
+                  <span>Send Direct Invitation via Gmail</span>
+                </div>
+                <span className="text-[10px] text-slate-400">Notifies Team on Activity</span>
+              </div>
+
+              {shareEmailStatus && (
+                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{shareEmailStatus}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSendShareEmail} className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="email"
+                    required
+                    value={shareRecipientEmail}
+                    onChange={(e) => setShareRecipientEmail(e.target.value)}
+                    placeholder="client@brand.com"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-rose-500"
+                  />
+                  <input
+                    type="text"
+                    value={shareRecipientName}
+                    onChange={(e) => setShareRecipientName(e.target.value)}
+                    placeholder="Client Contact Name (optional)"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-rose-500"
+                  />
+                </div>
+
+                <textarea
+                  rows={2}
+                  value={sharePersonalMessage}
+                  onChange={(e) => setSharePersonalMessage(e.target.value)}
+                  placeholder="Add optional personal note for client..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-rose-500 resize-none"
+                />
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-slate-400">
+                    Manager &amp; Creator will receive Gmail alerts upon comments/approval.
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={isSendingShareEmail || !shareRecipientEmail.trim()}
+                    className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md"
+                  >
+                    {isSendingShareEmail ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send via Gmail</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>,

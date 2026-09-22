@@ -7,6 +7,8 @@ import { AuthenticatedRequest } from '../types';
 import { StorageService } from '../services/storage.service';
 import { WatermarkService } from '../services/watermark.service';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
+import { EmailService } from '../services/email.service';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -20,6 +22,174 @@ const router = Router();
 // Helper to hash proof tokens
 function hashProofToken(token: string): string {
   return crypto.createHash('sha256').update(token.trim()).digest('hex');
+}
+
+// Client Proof OTP Session Helpers
+function signClientProofSession(tokenHash: string, email: string, name?: string): string {
+  const secret = process.env.JWT_SECRET || 'optivir_crm_enterprise_jwt_secret_key_2026';
+  return jwt.sign(
+    {
+      scope: 'client_proof',
+      tokenHash,
+      email: email.toLowerCase().trim(),
+      name: name || email.split('@')[0],
+    },
+    secret,
+    { expiresIn: '7d' }
+  );
+}
+
+function verifyClientProofSession(sessionToken: string | undefined, tokenHash: string): { email: string; name: string } | null {
+  if (!sessionToken) return null;
+  try {
+    const cleanToken = sessionToken.startsWith('Bearer ') ? sessionToken.slice(7) : sessionToken;
+    const secret = process.env.JWT_SECRET || 'optivir_crm_enterprise_jwt_secret_key_2026';
+    const decoded = jwt.verify(cleanToken, secret) as any;
+    if (decoded.scope === 'client_proof' && decoded.tokenHash === tokenHash) {
+      return { email: decoded.email, name: decoded.name };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to query Creator & Manager recipients for email notifications
+async function getCreativeCreatorAndManager(creativeId: string, orgId: string, shareCreatedBy?: string) {
+  try {
+    const query = `
+      SELECT
+        c.id, c.name, c.campaign_name, c.target_platform,
+        u_designer.id as designer_user_id, u_designer.email as designer_email, u_designer.first_name as designer_first, u_designer.last_name as designer_last,
+        u_creator.id as creator_user_id, u_creator.email as creator_email, u_creator.first_name as creator_first, u_creator.last_name as creator_last,
+        u_pm.id as pm_user_id, u_pm.email as pm_email, u_pm.first_name as pm_first, u_pm.last_name as pm_last,
+        u_am.id as am_user_id, u_am.email as am_email, u_am.first_name as am_first, u_am.last_name as am_last,
+        u_sharer.id as sharer_user_id, u_sharer.email as sharer_email, u_sharer.first_name as sharer_first, u_sharer.last_name as sharer_last
+      FROM creatives c
+      LEFT JOIN users u_designer ON c.designer_id = u_designer.id
+      LEFT JOIN users u_creator ON c.created_by = u_creator.id
+      LEFT JOIN projects p ON c.project_id = p.id
+      LEFT JOIN users u_pm ON p.project_manager_id = u_pm.id
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN users u_am ON cl.account_manager_id = u_am.id
+      LEFT JOIN users u_sharer ON u_sharer.id = $2
+      WHERE c.id = $1
+    `;
+    const res = await db.query(query, [creativeId, shareCreatedBy || null]);
+    if (res.rows.length === 0) return { creative: null, recipients: [] };
+
+    const row = res.rows[0];
+    const recipients: Array<{ email: string; name?: string; role: 'CREATOR' | 'MANAGER' | 'TEAM'; userId?: string }> = [];
+
+    // 1. Creator: designer_id or created_by
+    if (row.designer_email) {
+      recipients.push({
+        email: row.designer_email,
+        name: `${row.designer_first || ''} ${row.designer_last || ''}`.trim() || 'Creative Creator',
+        role: 'CREATOR',
+        userId: row.designer_user_id,
+      });
+    } else if (row.creator_email) {
+      recipients.push({
+        email: row.creator_email,
+        name: `${row.creator_first || ''} ${row.creator_last || ''}`.trim() || 'Creative Creator',
+        role: 'CREATOR',
+        userId: row.creator_user_id,
+      });
+    }
+
+    // 2. Manager: project_manager_id or account_manager_id or shareCreatedBy
+    if (row.pm_email) {
+      recipients.push({
+        email: row.pm_email,
+        name: `${row.pm_first || ''} ${row.pm_last || ''}`.trim() || 'Project Manager',
+        role: 'MANAGER',
+        userId: row.pm_user_id,
+      });
+    } else if (row.am_email) {
+      recipients.push({
+        email: row.am_email,
+        name: `${row.am_first || ''} ${row.am_last || ''}`.trim() || 'Account Manager',
+        role: 'MANAGER',
+        userId: row.am_user_id,
+      });
+    } else if (row.sharer_email) {
+      recipients.push({
+        email: row.sharer_email,
+        name: `${row.sharer_first || ''} ${row.sharer_last || ''}`.trim() || 'Manager',
+        role: 'MANAGER',
+        userId: row.sharer_user_id,
+      });
+    }
+
+    // Fallback if none found
+    if (recipients.length === 0) {
+      const fallback = await db.query(
+        `SELECT u.id, u.email, u.first_name, u.last_name
+         FROM organization_users ou
+         JOIN users u ON ou.user_id = u.id
+         WHERE ou.organization_id = $1
+         LIMIT 2`,
+        [orgId]
+      );
+      for (const u of fallback.rows) {
+        if (u.email) {
+          recipients.push({
+            email: u.email,
+            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Agency Admin',
+            role: 'TEAM',
+            userId: u.id,
+          });
+        }
+      }
+    }
+
+    return {
+      creative: {
+        id: row.id,
+        name: row.name,
+        campaign_name: row.campaign_name,
+        target_platform: row.target_platform,
+      },
+      recipients,
+    };
+  } catch (err) {
+    console.error('[Notification Helper Error]:', err);
+    return { creative: null, recipients: [] };
+  }
+}
+
+async function createInAppNotification(
+  orgId: string,
+  title: string,
+  message: string,
+  type: string,
+  creativeId: string,
+  metadata: any = {},
+  recipientUserIds: string[] = []
+) {
+  try {
+    let targetUserIds = recipientUserIds.filter(Boolean);
+    if (targetUserIds.length === 0) {
+      const orgUsers = await db.query(
+        `SELECT user_id FROM organization_users WHERE organization_id = $1 LIMIT 5`,
+        [orgId]
+      );
+      targetUserIds = orgUsers.rows.map(r => r.user_id);
+    }
+
+    const uniqueIds = Array.from(new Set(targetUserIds));
+    const notifLink = `/creatives?id=${creativeId}`;
+    for (const uId of uniqueIds) {
+      await db.query(
+        `INSERT INTO notifications (organization_id, user_id, title, message, link, type, is_read)
+         VALUES ($1, $2, $3, $4, $5, $6, false)`,
+        [orgId, uId, title, message, notifLink, type]
+      );
+    }
+  } catch (err) {
+    console.error('[In-App Notification Error]:', err);
+  }
 }
 
 /**
@@ -102,6 +272,770 @@ function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tabl
     )
   )`;
 }
+
+// ---------------------------------------------------------------------------
+// 12. PUBLIC CLIENT PORTAL PROOFING ENDPOINTS (OTP Gated & Team Notified)
+// ---------------------------------------------------------------------------
+
+// 12.1. Request OTP for Client Proof Portal
+router.post('/public/proofs/:token/request-otp', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  const { email, name } = req.body;
+
+  if (!email || !email.includes('@')) {
+    res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    return;
+  }
+
+  try {
+    const tokenHash = hashProofToken(token);
+    const linkRes = await db.query(
+      `SELECT sl.*, c.name as creative_name, o.name as organization_name
+       FROM creative_share_links sl
+       JOIN creatives c ON sl.creative_id = c.id
+       JOIN organizations o ON sl.organization_id = o.id
+       WHERE sl.token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'This client review link is invalid or has expired.' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+    const clientEmail = email.trim().toLowerCase();
+
+    // If share link is strictly bound to a designated recipient email, verify match
+    if (shareLink.recipient_email && shareLink.recipient_email.toLowerCase() !== clientEmail) {
+      res.status(403).json({
+        success: false,
+        message: `This review link is restricted to ${shareLink.recipient_email}. Please enter that authorized email address.`,
+      });
+      return;
+    }
+
+    // Generate secure 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in database with 10-minute expiry
+    await db.query(
+      `INSERT INTO creative_proof_otps (share_link_id, email, otp_code, expires_at)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')`,
+      [shareLink.id, clientEmail, otpCode]
+    );
+
+    // Send OTP email via Gmail
+    const sent = await EmailService.sendProofOtpEmail({
+      toEmail: clientEmail,
+      otpCode,
+      creativeName: shareLink.creative_name,
+      agencyName: shareLink.organization_name,
+    });
+
+    const isDev = process.env.NODE_ENV !== 'production' || !process.env.GMAIL_APP_PASSWORD;
+
+    res.json({
+      success: true,
+      message: `A 6-digit verification code has been sent to ${clientEmail}.`,
+      emailSent: sent,
+      ...(isDev ? { devOtp: otpCode } : {})
+    });
+  } catch (err: any) {
+    console.error('[Request Proof OTP Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to send verification code', error: err.message });
+  }
+});
+
+// 12.2. Verify OTP & Issue Client Proof Session Token
+router.post('/public/proofs/:token/verify-otp', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  const { email, otp, name } = req.body;
+
+  if (!email || !otp) {
+    res.status(400).json({ success: false, message: 'Email and 6-digit verification code are required.' });
+    return;
+  }
+
+  try {
+    const tokenHash = hashProofToken(token);
+    const linkRes = await db.query(
+      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'This review link is invalid or has expired.' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+    const clientEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.toString().trim();
+
+    // Verify OTP record
+    const otpRes = await db.query(
+      `SELECT * FROM creative_proof_otps
+       WHERE share_link_id = $1 AND LOWER(email) = $2 AND otp_code = $3 AND verified_at IS NULL AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [shareLink.id, clientEmail, cleanOtp]
+    );
+
+    if (otpRes.rows.length === 0) {
+      await db.query(
+        `UPDATE creative_proof_otps SET attempts = attempts + 1 WHERE share_link_id = $1 AND LOWER(email) = $2`,
+        [shareLink.id, clientEmail]
+      );
+      res.status(400).json({ success: false, message: 'Invalid or expired verification code. Please request a new code.' });
+      return;
+    }
+
+    const otpRecord = otpRes.rows[0];
+
+    // Mark verified
+    await db.query(
+      `UPDATE creative_proof_otps SET verified_at = NOW() WHERE id = $1`,
+      [otpRecord.id]
+    );
+
+    const clientName = name?.trim() || shareLink.recipient_name || clientEmail.split('@')[0];
+    const sessionToken = signClientProofSession(tokenHash, clientEmail, clientName);
+
+    res.json({
+      success: true,
+      message: 'OTP verified successfully.',
+      sessionToken,
+      client: {
+        email: clientEmail,
+        name: clientName,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Verify Proof OTP Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to verify code', error: err.message });
+  }
+});
+
+// 12.3. Validate Token & Load Proof for Client (OTP Protected)
+router.get('/public/proofs/:token', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+
+  try {
+    const tokenHash = hashProofToken(token);
+
+    // 1. Validate Share Link
+    const linkRes = await db.query(
+      `SELECT
+        sl.*,
+        o.name as organization_name,
+        o.logo_url as organization_logo
+      FROM creative_share_links sl
+      JOIN organizations o ON sl.organization_id = o.id
+      WHERE sl.token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invalid or expired proof link' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+
+    // Check if revoked
+    if (shareLink.revoked_at) {
+      res.status(403).json({ success: false, message: 'This client proofing link has been revoked by the agency.' });
+      return;
+    }
+
+    // Check expiration
+    if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
+      res.status(403).json({ success: false, message: 'This client proofing link has expired.' });
+      return;
+    }
+
+    // 2. Fetch Creative & Proof Details
+    const creativeRes = await db.query(
+      `SELECT
+        c.id, c.name, c.description, c.campaign_name, c.target_platform,
+        c.ad_format, c.aspect_ratio, c.status, c.primary_ad_copy, c.headline,
+        c.call_to_action, c.destination_url, c.approval_due_at,
+        co.name as client_name
+      FROM creatives c
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies co ON cl.company_id = co.id
+      WHERE c.id = $1`,
+      [shareLink.creative_id]
+    );
+
+    const creative = creativeRes.rows[0];
+
+    // 3. Check OTP Requirement Gate
+    let verifiedClient: { email: string; name: string } | null = null;
+    if (shareLink.require_otp) {
+      const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
+      verifiedClient = verifyClientProofSession(sessionHeader, tokenHash);
+
+      if (!verifiedClient) {
+        // Return minimal public preview info so frontend shows the OTP Login gate
+        res.json({
+          success: true,
+          requireOtp: true,
+          shareLink: {
+            id: shareLink.id,
+            allowComments: shareLink.allow_comments,
+            allowApprovals: shareLink.allow_approvals,
+            expiresAt: shareLink.expires_at,
+            organizationName: shareLink.organization_name,
+            organizationLogo: shareLink.organization_logo,
+            recipientEmail: shareLink.recipient_email,
+            recipientName: shareLink.recipient_name,
+          },
+          creativeInfo: {
+            name: creative?.name || 'Creative Deliverable',
+            campaignName: creative?.campaign_name,
+            targetPlatform: creative?.target_platform,
+          }
+        });
+        return;
+      }
+    }
+
+    // Increment access count & update last_accessed_at
+    await db.query(
+      `UPDATE creative_share_links SET
+        access_count = access_count + 1,
+        last_accessed_at = NOW()
+      WHERE id = $1`,
+      [shareLink.id]
+    );
+
+    // 4. Fetch Proof Version
+    const proofRes = await db.query(
+      `SELECT * FROM creative_proofs WHERE id = $1`,
+      [shareLink.proof_id]
+    );
+
+    const proof = proofRes.rows[0];
+
+    // 5. Fetch Assets & Generate Short-Lived Signed Viewing URLs
+    const assetsRes = await db.query(
+      `SELECT * FROM creative_proof_assets WHERE proof_id = $1 ORDER BY slide_order ASC`,
+      [proof.id]
+    );
+
+    const assets = await Promise.all(
+      assetsRes.rows.map(async (asset) => {
+        const deliverableKey = await WatermarkService.getOrGenerateWatermarkedKey(asset);
+        const viewingUrl = await StorageService.generateViewingSignedUrl(deliverableKey, 7200); // 2 hours
+        const thumbnailUrl = asset.thumbnail_storage_key
+          ? await StorageService.generateViewingSignedUrl(asset.thumbnail_storage_key, 7200)
+          : viewingUrl;
+
+        return {
+          id: asset.id,
+          assetType: asset.asset_type,
+          slideOrder: asset.slide_order,
+          fileName: asset.file_name,
+          mimeType: asset.mime_type,
+          widthPx: asset.width_px,
+          heightPx: asset.height_px,
+          durationSeconds: asset.duration_seconds,
+          viewingUrl,
+          thumbnailUrl
+        };
+      })
+    );
+
+    // 6. Fetch Comments
+    const commentsRes = await db.query(
+      `SELECT
+        id, asset_id, author_name, is_client_comment, content,
+        pin_x_percent, pin_y_percent, timestamp_start_seconds,
+        timestamp_end_seconds, is_resolved, created_at
+      FROM creative_comments
+      WHERE proof_id = $1
+      ORDER BY created_at ASC`,
+      [proof.id]
+    );
+
+    // 7. Fetch Existing Approvals
+    const approvalsRes = await db.query(
+      `SELECT id, decision, approver_name, feedback_notes, signed_at
+       FROM creative_approvals
+       WHERE proof_id = $1
+       ORDER BY signed_at DESC`,
+      [proof.id]
+    );
+
+    res.json({
+      success: true,
+      requireOtp: false,
+      clientSession: verifiedClient,
+      shareLink: {
+        id: shareLink.id,
+        allowComments: shareLink.allow_comments,
+        allowApprovals: shareLink.allow_approvals,
+        expiresAt: shareLink.expires_at,
+        organizationName: shareLink.organization_name,
+        organizationLogo: shareLink.organization_logo
+      },
+      creative,
+      proof: {
+        id: proof.id,
+        versionNumber: proof.version_number,
+        title: proof.title,
+        changeSummary: proof.change_summary,
+        status: proof.status,
+        assets,
+        comments: commentsRes.rows,
+        approvals: approvalsRes.rows
+      }
+    });
+  } catch (err: any) {
+    console.error('[Public Proof API] Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to load client proof', error: err.message });
+  }
+});
+
+// 12.4. PUBLIC CLIENT PROOF DOWNLOAD (STRICTLY WATERMARKED)
+router.get('/public/proofs/:token/assets/:assetId/download', async (req: Request, res: Response): Promise<void> => {
+  const { token, assetId } = req.params;
+
+  try {
+    const tokenHash = hashProofToken(token);
+
+    const linkRes = await db.query(
+      `SELECT sl.* FROM creative_share_links sl
+       WHERE sl.token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Invalid or expired proof link' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+    if (shareLink.revoked_at || (shareLink.expires_at && new Date(shareLink.expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'This proof link is inactive or expired' });
+      return;
+    }
+
+    const assetRes = await db.query(
+      `SELECT * FROM creative_proof_assets WHERE id = $1 AND proof_id = $2`,
+      [assetId, shareLink.proof_id]
+    );
+
+    if (assetRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Proof asset not found' });
+      return;
+    }
+
+    const asset = assetRes.rows[0];
+
+    const watermarked = await WatermarkService.createWatermarkedAsset({
+      storageKey: asset.storage_key,
+      fileName: asset.file_name,
+      assetType: asset.asset_type,
+      mimeType: asset.mime_type
+    });
+
+    res.setHeader('Content-Type', watermarked.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${watermarked.fileName}"`);
+
+    const readStream = fs.createReadStream(watermarked.filePath);
+    readStream.pipe(res);
+    readStream.on('close', () => watermarked.cleanup());
+    readStream.on('error', (err) => {
+      console.error('[Public Download Stream Error]:', err);
+      watermarked.cleanup();
+    });
+  } catch (err: any) {
+    console.error('[Public Download API Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate watermarked proof download', error: err.message });
+  }
+});
+
+// 12.5. Client submits a comment / pin annotation -> Triggers Gmail to Manager & Creator
+router.post('/public/proofs/:token/comments', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  const {
+    assetId,
+    content,
+    pinXPercent,
+    pinYPercent,
+    timestampStartSeconds,
+    timestampEndSeconds
+  } = req.body;
+
+  let authorName = req.body.authorName;
+  let authorEmail = req.body.authorEmail;
+
+  if (!content) {
+    res.status(400).json({ success: false, message: 'Comment content is required' });
+    return;
+  }
+
+  try {
+    const tokenHash = hashProofToken(token);
+    const linkRes = await db.query(
+      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+
+    if (!shareLink.allow_comments) {
+      res.status(403).json({ success: false, message: 'Comments are disabled for this proofing link.' });
+      return;
+    }
+
+    // Resolve verified client session if available
+    const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
+    const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
+    if (verifiedSession) {
+      authorEmail = verifiedSession.email;
+      authorName = authorName?.trim() || verifiedSession.name;
+    } else if (!authorName) {
+      authorName = 'Client Reviewer';
+    }
+
+    const commentRes = await db.query(
+      `INSERT INTO creative_comments (
+        organization_id, proof_id, asset_id, author_name, author_email,
+        is_client_comment, content, pin_x_percent, pin_y_percent,
+        timestamp_start_seconds, timestamp_end_seconds
+      ) VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        shareLink.organization_id,
+        shareLink.proof_id,
+        assetId || null,
+        authorName.trim(),
+        authorEmail ? authorEmail.trim() : null,
+        content.trim(),
+        pinXPercent !== undefined ? pinXPercent : null,
+        pinYPercent !== undefined ? pinYPercent : null,
+        timestampStartSeconds !== undefined ? timestampStartSeconds : null,
+        timestampEndSeconds !== undefined ? timestampEndSeconds : null
+      ]
+    );
+
+    // Audit Log
+    await db.query(
+      `INSERT INTO creative_audit_logs (
+        organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
+      ) VALUES ($1, $2, $3, 'COMMENT_ADDED', 'CLIENT', $4, $5, $6, $7)`,
+      [
+        shareLink.organization_id,
+        shareLink.creative_id,
+        shareLink.proof_id,
+        authorName.trim(),
+        authorEmail ? authorEmail.trim() : null,
+        JSON.stringify({ commentId: commentRes.rows[0].id, hasPin: pinXPercent !== undefined }),
+        req.ip
+      ]
+    );
+
+    // NOTIFY CREATOR & MANAGER VIA GMAIL & IN-APP
+    const team = await getCreativeCreatorAndManager(shareLink.creative_id, shareLink.organization_id, shareLink.created_by);
+    if (team.creative && team.recipients.length > 0) {
+      EmailService.sendCreativeNotificationToTeam({
+        type: 'COMMENT',
+        creative: team.creative,
+        clientName: authorName.trim(),
+        clientEmail: authorEmail || 'client@external.com',
+        commentContent: content.trim(),
+        recipients: team.recipients,
+      }).catch(e => console.error('[Gmail Comment Notification Error]:', e));
+
+      createInAppNotification(
+        shareLink.organization_id,
+        `New Client Comment: ${team.creative.name}`,
+        `${authorName.trim()} commented on creative "${team.creative.name}": "${content.trim().slice(0, 80)}"`,
+        'CREATIVE_COMMENT',
+        team.creative.id,
+        { commentId: commentRes.rows[0].id, clientEmail: authorEmail },
+        team.recipients.map(r => r.userId).filter(Boolean) as string[]
+      );
+    }
+
+    res.status(201).json({
+      success: true,
+      comment: commentRes.rows[0]
+    });
+  } catch (err: any) {
+    console.error('[Public Proof API] Client Comment Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to post comment', error: err.message });
+  }
+});
+
+// 12.6. Client APPROVES Proof -> Triggers Gmail to Manager & Creator
+router.post('/public/proofs/:token/approve', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  let { approverName, approverEmail, feedbackNotes } = req.body;
+
+  try {
+    const tokenHash = hashProofToken(token);
+    const linkRes = await db.query(
+      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+
+    if (!shareLink.allow_approvals) {
+      res.status(403).json({ success: false, message: 'Formal approval is disabled for this link.' });
+      return;
+    }
+
+    // Resolve verified client session if available
+    const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
+    const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
+    if (verifiedSession) {
+      approverEmail = verifiedSession.email;
+      approverName = approverName?.trim() || verifiedSession.name;
+    }
+
+    if (!approverName || !approverEmail) {
+      res.status(400).json({ success: false, message: 'Full name and email are required for official approval.' });
+      return;
+    }
+
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Record formal approval
+      const approvalRes = await client.query(
+        `INSERT INTO creative_approvals (
+          organization_id, creative_id, proof_id, decision, feedback_notes,
+          approver_name, approver_email, ip_address, user_agent
+        ) VALUES ($1, $2, $3, 'APPROVED', $4, $5, $6, $7, $8)
+        RETURNING *`,
+        [
+          shareLink.organization_id,
+          shareLink.creative_id,
+          shareLink.proof_id,
+          feedbackNotes || 'Approved by client via Client Proofing Portal',
+          approverName.trim(),
+          approverEmail.trim(),
+          req.ip,
+          req.headers['user-agent']
+        ]
+      );
+
+      // Update Proof & Creative Status to APPROVED
+      await client.query(
+        `UPDATE creative_proofs SET status = 'APPROVED', is_immutable = true WHERE id = $1`,
+        [shareLink.proof_id]
+      );
+
+      await client.query(
+        `UPDATE creatives SET status = 'APPROVED', updated_at = NOW() WHERE id = $1`,
+        [shareLink.creative_id]
+      );
+
+      // Audit Log
+      await client.query(
+        `INSERT INTO creative_audit_logs (
+          organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
+        ) VALUES ($1, $2, $3, 'APPROVED', 'CLIENT', $4, $5, $6, $7)`,
+        [
+          shareLink.organization_id,
+          shareLink.creative_id,
+          shareLink.proof_id,
+          approverName.trim(),
+          approverEmail.trim(),
+          JSON.stringify({ decision: 'APPROVED', approvalId: approvalRes.rows[0].id }),
+          req.ip
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      // NOTIFY CREATOR & MANAGER VIA GMAIL & IN-APP
+      const team = await getCreativeCreatorAndManager(shareLink.creative_id, shareLink.organization_id, shareLink.created_by);
+      if (team.creative && team.recipients.length > 0) {
+        EmailService.sendCreativeNotificationToTeam({
+          type: 'APPROVED',
+          creative: team.creative,
+          clientName: approverName.trim(),
+          clientEmail: approverEmail.trim(),
+          feedbackNotes: feedbackNotes?.trim(),
+          recipients: team.recipients,
+        }).catch(e => console.error('[Gmail Approval Notification Error]:', e));
+
+        createInAppNotification(
+          shareLink.organization_id,
+          `Creative Officially Approved: ${team.creative.name}`,
+          `${approverName.trim()} (${approverEmail.trim()}) approved "${team.creative.name}" for deployment!`,
+          'CREATIVE_APPROVED',
+          team.creative.id,
+          { approvalId: approvalRes.rows[0].id, clientEmail: approverEmail.trim() },
+          team.recipients.map(r => r.userId).filter(Boolean) as string[]
+        );
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Creative proof approved successfully!',
+        approval: approvalRes.rows[0]
+      });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error('[Public Proof API] Client Approval Error:', err);
+      res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('[Public Proof API] Client Approval Outer Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
+  }
+});
+
+// 12.7. Client REQUESTS CHANGES -> Triggers Gmail to Manager & Creator
+router.post('/public/proofs/:token/request-changes', async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  let { reviewerName, reviewerEmail, changeNotes } = req.body;
+
+  if (!changeNotes) {
+    res.status(400).json({ success: false, message: 'Change request details are required.' });
+    return;
+  }
+
+  try {
+    const tokenHash = hashProofToken(token);
+    const linkRes = await db.query(
+      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
+      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
+      return;
+    }
+
+    const shareLink = linkRes.rows[0];
+
+    // Resolve verified client session if available
+    const sessionHeader = (req.headers['x-client-session'] || req.headers.authorization) as string | undefined;
+    const verifiedSession = verifyClientProofSession(sessionHeader, tokenHash);
+    if (verifiedSession) {
+      reviewerEmail = verifiedSession.email;
+      reviewerName = reviewerName?.trim() || verifiedSession.name;
+    }
+
+    if (!reviewerName) {
+      reviewerName = 'Client Reviewer';
+    }
+
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Record change request decision
+      const approvalRes = await client.query(
+        `INSERT INTO creative_approvals (
+          organization_id, creative_id, proof_id, decision, feedback_notes,
+          approver_name, approver_email, ip_address, user_agent
+        ) VALUES ($1, $2, $3, 'CHANGES_REQUESTED', $4, $5, $6, $7, $8)
+        RETURNING *`,
+        [
+          shareLink.organization_id,
+          shareLink.creative_id,
+          shareLink.proof_id,
+          changeNotes.trim(),
+          reviewerName.trim(),
+          reviewerEmail?.trim() || 'client@external.com',
+          req.ip,
+          req.headers['user-agent']
+        ]
+      );
+
+      // Update status to CHANGES_REQUESTED
+      await client.query(
+        `UPDATE creative_proofs SET status = 'CHANGES_REQUESTED' WHERE id = $1`,
+        [shareLink.proof_id]
+      );
+
+      await client.query(
+        `UPDATE creatives SET status = 'CHANGES_REQUESTED', updated_at = NOW() WHERE id = $1`,
+        [shareLink.creative_id]
+      );
+
+      // Audit Log
+      await client.query(
+        `INSERT INTO creative_audit_logs (
+          organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
+        ) VALUES ($1, $2, $3, 'CHANGES_REQUESTED', 'CLIENT', $4, $5, $6, $7)`,
+        [
+          shareLink.organization_id,
+          shareLink.creative_id,
+          shareLink.proof_id,
+          reviewerName.trim(),
+          reviewerEmail?.trim() || null,
+          JSON.stringify({ decision: 'CHANGES_REQUESTED', notes: changeNotes }),
+          req.ip
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      // NOTIFY CREATOR & MANAGER VIA GMAIL & IN-APP
+      const team = await getCreativeCreatorAndManager(shareLink.creative_id, shareLink.organization_id, shareLink.created_by);
+      if (team.creative && team.recipients.length > 0) {
+        EmailService.sendCreativeNotificationToTeam({
+          type: 'CHANGES_REQUESTED',
+          creative: team.creative,
+          clientName: reviewerName.trim(),
+          clientEmail: reviewerEmail || 'client@external.com',
+          feedbackNotes: changeNotes.trim(),
+          recipients: team.recipients,
+        }).catch(e => console.error('[Gmail Revision Notification Error]:', e));
+
+        createInAppNotification(
+          shareLink.organization_id,
+          `Revisions Requested: ${team.creative.name}`,
+          `${reviewerName.trim()} requested revision changes on "${team.creative.name}": "${changeNotes.trim().slice(0, 80)}"`,
+          'CREATIVE_CHANGES_REQUESTED',
+          team.creative.id,
+          { approvalId: approvalRes.rows[0].id, clientEmail: reviewerEmail },
+          team.recipients.map(r => r.userId).filter(Boolean) as string[]
+        );
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Change request submitted successfully to the creative team.',
+        approval: approvalRes.rows[0]
+      });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error('[Public Proof API] Request Changes Error:', err);
+      res.status(500).json({ success: false, message: 'Failed to record change request', error: err.message });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('[Public Proof API] Request Changes Outer Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to record change request', error: err.message });
+  }
+});
+
+
 
 // ---------------------------------------------------------------------------
 // 1. METRICS & KPI DASHBOARD (Scoped)
@@ -1242,7 +2176,14 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const { id, proofId } = req.params;
-  const { expiresInDays = 14, allowComments = true, allowApprovals = true } = req.body;
+  const {
+    expiresInDays = 14,
+    allowComments = true,
+    allowApprovals = true,
+    recipientEmail,
+    recipientName,
+    requireOtp = true
+  } = req.body;
 
   try {
     // Generate secure 32-byte hex token
@@ -1255,10 +2196,23 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
     const insertRes = await db.query(
       `INSERT INTO creative_share_links (
         organization_id, creative_id, proof_id, token_hash,
-        created_by, expires_at, allow_comments, allow_approvals
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, expires_at, allow_comments, allow_approvals, created_at`,
-      [orgId, id, proofId, tokenHash, userId, expiresAt, allowComments, allowApprovals]
+        created_by, expires_at, allow_comments, allow_approvals,
+        recipient_email, recipient_name, require_otp
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, expires_at, allow_comments, allow_approvals, recipient_email, recipient_name, require_otp, created_at`,
+      [
+        orgId,
+        id,
+        proofId,
+        tokenHash,
+        userId,
+        expiresAt,
+        allowComments,
+        allowApprovals,
+        recipientEmail ? recipientEmail.trim().toLowerCase() : null,
+        recipientName ? recipientName.trim() : null,
+        requireOtp
+      ]
     );
 
     // Update creative status to PENDING_CLIENT_APPROVAL
@@ -1284,7 +2238,7 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
         proofId,
         userId,
         `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email,
-        JSON.stringify({ expiresInDays, shareLinkId: insertRes.rows[0].id })
+        JSON.stringify({ expiresInDays, shareLinkId: insertRes.rows[0].id, recipientEmail, requireOtp })
       ]
     );
 
@@ -1299,6 +2253,101 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
   } catch (err: any) {
     console.error('[Creatives API] Share Link Error:', err);
     res.status(500).json({ success: false, message: 'Failed to generate share link', error: err.message });
+  }
+});
+
+// Agency directly dispatches creative review invite via Gmail
+router.post('/:id/proofs/:proofId/send-email', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { id, proofId } = req.params;
+  const { recipientEmail, recipientName, personalMessage, expiresInDays = 14 } = req.body;
+
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    res.status(400).json({ success: false, message: 'A valid client recipient email is required.' });
+    return;
+  }
+
+  try {
+    const cleanEmail = recipientEmail.trim().toLowerCase();
+    const cleanName = recipientName?.trim();
+
+    // Generate secure share link bound to this client email
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashProofToken(rawToken);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    const insertRes = await db.query(
+      `INSERT INTO creative_share_links (
+        organization_id, creative_id, proof_id, token_hash,
+        created_by, expires_at, allow_comments, allow_approvals,
+        recipient_email, recipient_name, require_otp
+      ) VALUES ($1, $2, $3, $4, $5, $6, true, true, $7, $8, true)
+      RETURNING id, expires_at, recipient_email, recipient_name, created_at`,
+      [orgId, id, proofId, tokenHash, userId, expiresAt, cleanEmail, cleanName || null]
+    );
+
+    // Fetch creative & org name
+    const cRes = await db.query(
+      `SELECT c.name, o.name as org_name FROM creatives c JOIN organizations o ON c.organization_id = o.id WHERE c.id = $1`,
+      [id]
+    );
+    const creativeName = cRes.rows[0]?.name || 'Creative Deliverable';
+    const agencyName = cRes.rows[0]?.org_name || 'OptiVir CRM';
+
+    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/proof/${rawToken}`;
+
+    // Send invitation email via Gmail
+    const sent = await EmailService.sendProofInviteEmail({
+      toEmail: cleanEmail,
+      recipientName: cleanName,
+      shareUrl,
+      creativeName,
+      agencyName,
+      personalMessage: personalMessage?.trim()
+    });
+
+    // Update creative status
+    await db.query(
+      `UPDATE creatives SET status = 'PENDING_CLIENT_APPROVAL', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Lock proof version
+    await db.query(
+      `UPDATE creative_proofs SET is_immutable = true, status = 'PENDING_CLIENT_APPROVAL' WHERE id = $1`,
+      [proofId]
+    );
+
+    // Audit Log
+    await db.query(
+      `INSERT INTO creative_audit_logs (
+        organization_id, creative_id, proof_id, action, actor_type, actor_id, actor_name, metadata
+      ) VALUES ($1, $2, $3, 'INVITE_EMAIL_SENT', 'INTERNAL_USER', $4, $5, $6)`,
+      [
+        orgId,
+        id,
+        proofId,
+        userId,
+        `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email,
+        JSON.stringify({ recipientEmail: cleanEmail, recipientName: cleanName, shareUrl })
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: `Review link successfully sent to ${cleanEmail} via Gmail.`,
+      shareLink: {
+        ...insertRes.rows[0],
+        shareUrl
+      },
+      emailSent: sent
+    });
+  } catch (err: any) {
+    console.error('[Send Email Proof Link Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to send review link via email', error: err.message });
   }
 });
 
@@ -1628,493 +2677,6 @@ router.post('/:id/proofs/:proofId/approvals', requireAuth, async (req: Authentic
     await client.query('ROLLBACK');
     console.error('[Creatives API] Approval Sign-off Error:', err);
     res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
-  } finally {
-    client.release();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 12. PUBLIC CLIENT PORTAL PROOFING ENDPOINTS (Zero internal CRM Auth required)
-// ---------------------------------------------------------------------------
-
-// Validate Token & Load Proof for Client
-router.get('/public/proofs/:token', async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params;
-
-  try {
-    const tokenHash = hashProofToken(token);
-
-    // 1. Validate Share Link
-    const linkRes = await db.query(
-      `SELECT
-        sl.*,
-        o.name as organization_name,
-        o.logo_url as organization_logo
-      FROM creative_share_links sl
-      JOIN organizations o ON sl.organization_id = o.id
-      WHERE sl.token_hash = $1`,
-      [tokenHash]
-    );
-
-    if (linkRes.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Invalid or expired proof link' });
-      return;
-    }
-
-    const shareLink = linkRes.rows[0];
-
-    // Check if revoked
-    if (shareLink.revoked_at) {
-      res.status(403).json({ success: false, message: 'This client proofing link has been revoked by the agency.' });
-      return;
-    }
-
-    // Check expiration
-    if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
-      res.status(403).json({ success: false, message: 'This client proofing link has expired.' });
-      return;
-    }
-
-    // Increment access count & update last_accessed_at
-    await db.query(
-      `UPDATE creative_share_links SET
-        access_count = access_count + 1,
-        last_accessed_at = NOW()
-      WHERE id = $1`,
-      [shareLink.id]
-    );
-
-    // 2. Fetch Creative & Proof Details
-    const creativeRes = await db.query(
-      `SELECT
-        c.id, c.name, c.description, c.campaign_name, c.target_platform,
-        c.ad_format, c.aspect_ratio, c.status, c.primary_ad_copy, c.headline,
-        c.call_to_action, c.destination_url, c.approval_due_at,
-        co.name as client_name
-      FROM creatives c
-      LEFT JOIN clients cl ON c.client_id = cl.id
-      LEFT JOIN companies co ON cl.company_id = co.id
-      WHERE c.id = $1`,
-      [shareLink.creative_id]
-    );
-
-    const creative = creativeRes.rows[0];
-
-    // 3. Fetch Proof Version
-    const proofRes = await db.query(
-      `SELECT * FROM creative_proofs WHERE id = $1`,
-      [shareLink.proof_id]
-    );
-
-    const proof = proofRes.rows[0];
-
-    // 4. Fetch Assets & Generate Short-Lived Signed Viewing URLs
-    const assetsRes = await db.query(
-      `SELECT * FROM creative_proof_assets WHERE proof_id = $1 ORDER BY slide_order ASC`,
-      [proof.id]
-    );
-
-    const assets = await Promise.all(
-      assetsRes.rows.map(async (asset) => {
-        // Clients strictly receive server-side watermarked deliverables directly from R2
-        const deliverableKey = await WatermarkService.getOrGenerateWatermarkedKey(asset);
-        const viewingUrl = await StorageService.generateViewingSignedUrl(deliverableKey, 7200); // 2 hours
-        const thumbnailUrl = asset.thumbnail_storage_key
-          ? await StorageService.generateViewingSignedUrl(asset.thumbnail_storage_key, 7200)
-          : viewingUrl;
-
-        return {
-          id: asset.id,
-          assetType: asset.asset_type,
-          slideOrder: asset.slide_order,
-          fileName: asset.file_name,
-          mimeType: asset.mime_type,
-          widthPx: asset.width_px,
-          heightPx: asset.height_px,
-          durationSeconds: asset.duration_seconds,
-          viewingUrl,
-          thumbnailUrl
-        };
-      })
-    );
-
-    // 5. Fetch Comments
-    const commentsRes = await db.query(
-      `SELECT
-        id, asset_id, author_name, is_client_comment, content,
-        pin_x_percent, pin_y_percent, timestamp_start_seconds,
-        timestamp_end_seconds, is_resolved, created_at
-      FROM creative_comments
-      WHERE proof_id = $1
-      ORDER BY created_at ASC`,
-      [proof.id]
-    );
-
-    // 6. Fetch Existing Approvals
-    const approvalsRes = await db.query(
-      `SELECT id, decision, approver_name, feedback_notes, signed_at
-       FROM creative_approvals
-       WHERE proof_id = $1
-       ORDER BY signed_at DESC`,
-      [proof.id]
-    );
-
-    res.json({
-      success: true,
-      shareLink: {
-        id: shareLink.id,
-        allowComments: shareLink.allow_comments,
-        allowApprovals: shareLink.allow_approvals,
-        expiresAt: shareLink.expires_at,
-        organizationName: shareLink.organization_name,
-        organizationLogo: shareLink.organization_logo
-      },
-      creative,
-      proof: {
-        id: proof.id,
-        versionNumber: proof.version_number,
-        title: proof.title,
-        changeSummary: proof.change_summary,
-        status: proof.status,
-        assets,
-        comments: commentsRes.rows,
-        approvals: approvalsRes.rows
-      }
-    });
-  } catch (err: any) {
-    console.error('[Public Proof API] Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to load client proof', error: err.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 12.5. PUBLIC CLIENT PROOF DOWNLOAD (STRICTLY WATERMARKED)
-// ---------------------------------------------------------------------------
-router.get('/public/proofs/:token/assets/:assetId/download', async (req: Request, res: Response): Promise<void> => {
-  const { token, assetId } = req.params;
-
-  try {
-    const tokenHash = hashProofToken(token);
-
-    const linkRes = await db.query(
-      `SELECT sl.* FROM creative_share_links sl
-       WHERE sl.token_hash = $1`,
-      [tokenHash]
-    );
-
-    if (linkRes.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Invalid or expired proof link' });
-      return;
-    }
-
-    const shareLink = linkRes.rows[0];
-    if (shareLink.revoked_at || (shareLink.expires_at && new Date(shareLink.expires_at) < new Date())) {
-      res.status(403).json({ success: false, message: 'This proof link is inactive or expired' });
-      return;
-    }
-
-    const assetRes = await db.query(
-      `SELECT * FROM creative_proof_assets WHERE id = $1 AND proof_id = $2`,
-      [assetId, shareLink.proof_id]
-    );
-
-    if (assetRes.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Proof asset not found' });
-      return;
-    }
-
-    const asset = assetRes.rows[0];
-
-    // Clients downloading proofs ALWAYS receive the watermarked file (video or image)
-    const watermarked = await WatermarkService.createWatermarkedAsset({
-      storageKey: asset.storage_key,
-      fileName: asset.file_name,
-      assetType: asset.asset_type,
-      mimeType: asset.mime_type
-    });
-
-    res.setHeader('Content-Type', watermarked.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${watermarked.fileName}"`);
-
-    const readStream = fs.createReadStream(watermarked.filePath);
-    readStream.pipe(res);
-    readStream.on('close', () => watermarked.cleanup());
-    readStream.on('error', (err) => {
-      console.error('[Public Download Stream Error]:', err);
-      watermarked.cleanup();
-    });
-  } catch (err: any) {
-    console.error('[Public Download API Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate watermarked proof download', error: err.message });
-  }
-});
-
-// Client submits a comment / pin annotation
-router.post('/public/proofs/:token/comments', async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params;
-  const {
-    assetId,
-    authorName,
-    authorEmail,
-    content,
-    pinXPercent,
-    pinYPercent,
-    timestampStartSeconds,
-    timestampEndSeconds
-  } = req.body;
-
-  if (!content || !authorName) {
-    res.status(400).json({ success: false, message: 'Name and comment content are required' });
-    return;
-  }
-
-  try {
-    const tokenHash = hashProofToken(token);
-    const linkRes = await db.query(
-      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
-      [tokenHash]
-    );
-
-    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
-      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
-      return;
-    }
-
-    const shareLink = linkRes.rows[0];
-
-    if (!shareLink.allow_comments) {
-      res.status(403).json({ success: false, message: 'Comments are disabled for this proofing link.' });
-      return;
-    }
-
-    const commentRes = await db.query(
-      `INSERT INTO creative_comments (
-        organization_id, proof_id, asset_id, author_name, author_email,
-        is_client_comment, content, pin_x_percent, pin_y_percent,
-        timestamp_start_seconds, timestamp_end_seconds
-      ) VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, $10)
-      RETURNING *`,
-      [
-        shareLink.organization_id,
-        shareLink.proof_id,
-        assetId || null,
-        authorName.trim(),
-        authorEmail?.trim() || null,
-        content.trim(),
-        pinXPercent !== undefined ? pinXPercent : null,
-        pinYPercent !== undefined ? pinYPercent : null,
-        timestampStartSeconds !== undefined ? timestampStartSeconds : null,
-        timestampEndSeconds !== undefined ? timestampEndSeconds : null
-      ]
-    );
-
-    // Audit Log
-    await db.query(
-      `INSERT INTO creative_audit_logs (
-        organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
-      ) VALUES ($1, $2, $3, 'COMMENT_ADDED', 'CLIENT', $4, $5, $6, $7)`,
-      [
-        shareLink.organization_id,
-        shareLink.creative_id,
-        shareLink.proof_id,
-        authorName.trim(),
-        authorEmail?.trim() || null,
-        JSON.stringify({ commentId: commentRes.rows[0].id, hasPin: pinXPercent !== undefined }),
-        req.ip
-      ]
-    );
-
-    res.status(201).json({
-      success: true,
-      comment: commentRes.rows[0]
-    });
-  } catch (err: any) {
-    console.error('[Public Proof API] Client Comment Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to post comment', error: err.message });
-  }
-});
-
-// Client legally signs off and APPROVES proof
-router.post('/public/proofs/:token/approve', async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params;
-  const { approverName, approverEmail, feedbackNotes } = req.body;
-
-  if (!approverName || !approverEmail) {
-    res.status(400).json({ success: false, message: 'Full name and email are required for legal sign-off.' });
-    return;
-  }
-
-  const client = await db.getClient();
-  try {
-    await client.query('BEGIN');
-
-    const tokenHash = hashProofToken(token);
-    const linkRes = await client.query(
-      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
-      [tokenHash]
-    );
-
-    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
-      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
-      await client.query('ROLLBACK');
-      return;
-    }
-
-    const shareLink = linkRes.rows[0];
-
-    if (!shareLink.allow_approvals) {
-      res.status(403).json({ success: false, message: 'Formal approval is disabled for this link.' });
-      await client.query('ROLLBACK');
-      return;
-    }
-
-    // Record formal approval
-    const approvalRes = await client.query(
-      `INSERT INTO creative_approvals (
-        organization_id, creative_id, proof_id, decision, feedback_notes,
-        approver_name, approver_email, ip_address, user_agent
-      ) VALUES ($1, $2, $3, 'APPROVED', $4, $5, $6, $7, $8)
-      RETURNING *`,
-      [
-        shareLink.organization_id,
-        shareLink.creative_id,
-        shareLink.proof_id,
-        feedbackNotes || 'Approved by client via Client Proofing Portal',
-        approverName.trim(),
-        approverEmail.trim(),
-        req.ip,
-        req.headers['user-agent']
-      ]
-    );
-
-    // Update Proof & Creative Status to APPROVED
-    await client.query(
-      `UPDATE creative_proofs SET status = 'APPROVED', is_immutable = true WHERE id = $1`,
-      [shareLink.proof_id]
-    );
-
-    await client.query(
-      `UPDATE creatives SET status = 'APPROVED', updated_at = NOW() WHERE id = $1`,
-      [shareLink.creative_id]
-    );
-
-    // Audit Log
-    await client.query(
-      `INSERT INTO creative_audit_logs (
-        organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
-      ) VALUES ($1, $2, $3, 'APPROVED', 'CLIENT', $4, $5, $6, $7)`,
-      [
-        shareLink.organization_id,
-        shareLink.creative_id,
-        shareLink.proof_id,
-        approverName.trim(),
-        approverEmail.trim(),
-        JSON.stringify({ decision: 'APPROVED', approvalId: approvalRes.rows[0].id }),
-        req.ip
-      ]
-    );
-
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      success: true,
-      message: 'Creative proof approved successfully!',
-      approval: approvalRes.rows[0]
-    });
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error('[Public Proof API] Client Approval Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
-  } finally {
-    client.release();
-  }
-});
-
-// Client REQUESTS CHANGES on proof
-router.post('/public/proofs/:token/request-changes', async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params;
-  const { reviewerName, reviewerEmail, changeNotes } = req.body;
-
-  if (!reviewerName || !changeNotes) {
-    res.status(400).json({ success: false, message: 'Name and change request details are required.' });
-    return;
-  }
-
-  const client = await db.getClient();
-  try {
-    await client.query('BEGIN');
-
-    const tokenHash = hashProofToken(token);
-    const linkRes = await client.query(
-      `SELECT * FROM creative_share_links WHERE token_hash = $1`,
-      [tokenHash]
-    );
-
-    if (linkRes.rows.length === 0 || linkRes.rows[0].revoked_at || (linkRes.rows[0].expires_at && new Date(linkRes.rows[0].expires_at) < new Date())) {
-      res.status(403).json({ success: false, message: 'Invalid, expired, or revoked proof session' });
-      await client.query('ROLLBACK');
-      return;
-    }
-
-    const shareLink = linkRes.rows[0];
-
-    // Record change request decision
-    const approvalRes = await client.query(
-      `INSERT INTO creative_approvals (
-        organization_id, creative_id, proof_id, decision, feedback_notes,
-        approver_name, approver_email, ip_address, user_agent
-      ) VALUES ($1, $2, $3, 'CHANGES_REQUESTED', $4, $5, $6, $7, $8)
-      RETURNING *`,
-      [
-        shareLink.organization_id,
-        shareLink.creative_id,
-        shareLink.proof_id,
-        changeNotes.trim(),
-        reviewerName.trim(),
-        reviewerEmail?.trim() || 'client@external.com',
-        req.ip,
-        req.headers['user-agent']
-      ]
-    );
-
-    // Update status to CHANGES_REQUESTED
-    await client.query(
-      `UPDATE creative_proofs SET status = 'CHANGES_REQUESTED' WHERE id = $1`,
-      [shareLink.proof_id]
-    );
-
-    await client.query(
-      `UPDATE creatives SET status = 'CHANGES_REQUESTED', updated_at = NOW() WHERE id = $1`,
-      [shareLink.creative_id]
-    );
-
-    // Audit Log
-    await client.query(
-      `INSERT INTO creative_audit_logs (
-        organization_id, creative_id, proof_id, action, actor_type, actor_name, actor_email, metadata, ip_address
-      ) VALUES ($1, $2, $3, 'CHANGES_REQUESTED', 'CLIENT', $4, $5, $6, $7)`,
-      [
-        shareLink.organization_id,
-        shareLink.creative_id,
-        shareLink.proof_id,
-        reviewerName.trim(),
-        reviewerEmail?.trim() || null,
-        JSON.stringify({ decision: 'CHANGES_REQUESTED', notes: changeNotes }),
-        req.ip
-      ]
-    );
-
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      success: true,
-      message: 'Change request submitted successfully to the creative team.',
-      approval: approvalRes.rows[0]
-    });
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error('[Public Proof API] Request Changes Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to record change request', error: err.message });
   } finally {
     client.release();
   }
