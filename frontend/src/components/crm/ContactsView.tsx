@@ -33,6 +33,7 @@ import {
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 
 interface ContactItem {
   id: string;
@@ -88,6 +89,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingContact, setDeletingContact] = useState<ContactItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'newest' | 'name' | 'company'>('newest');
@@ -536,12 +538,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedContacts.length} contacts?`)) {
-                    setContacts(contacts.filter((c) => !selectedContacts.includes(c.id)));
-                    setSelectedContacts([]);
-                  }
-                }}
+                onClick={() => setShowBulkDeleteModal(true)}
                 className="flex items-center gap-1 px-3 py-1 rounded bg-[#DC2626] hover:bg-[#B91C1C] font-semibold transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -902,6 +899,25 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Contacts Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        title={`Delete ${selectedContacts.length} Contacts`}
+        badge={`${selectedContacts.length} Selected`}
+        description={`Are you sure you want to delete ${selectedContacts.length} selected contacts?`}
+        subDescription="This will remove the contacts from the CRM directory."
+        confirmText={`Delete ${selectedContacts.length} Contacts`}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          setContacts(contacts.filter((c) => !selectedContacts.includes(c.id)));
+          setSelectedContacts([]);
+          showToast(`Deleted ${selectedContacts.length} contacts`);
+          setShowBulkDeleteModal(false);
+        }}
+        onClose={() => setShowBulkDeleteModal(false)}
+      />
     </div>
   );
 };

@@ -260,6 +260,13 @@ router.post(
             return;
           }
           const cleanDomain = domain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+          // SSRF Protection: Ensure domain has valid public hostname format and disallow loopback/private subnets
+          if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(cleanDomain) ||
+              /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|localhost|::1)/i.test(cleanDomain)) {
+            res.status(400).json({ success: false, message: 'Invalid store domain format. Private and loopback domains are strictly prohibited for security.' });
+            return;
+          }
           const apiRes = await fetch(`https://${cleanDomain}/admin/api/2024-01/shop.json`, {
             headers: { 'X-Shopify-Access-Token': token.trim(), 'Content-Type': 'application/json' }
           }).catch(() => ({ ok: false } as any));

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getActualStorageEstimate, StorageEstimateData } from '@/lib/storage-estimate';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 
 export const AVAILABLE_CRM_MODULES = [
   { id: 'dashboard', label: 'Dashboard', desc: 'Overview & metrics' },
@@ -91,9 +92,16 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const { user, activePersona, updateCurrentUser } = useAuth();
-  // Strictly enforce Executive Owner role: Only optivirads@gmail.com, isOwner === true, or role === 'owner'
-  const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
-  const isSuperAdminEmail = user?.email?.toLowerCase() === 'optivirads@gmail.com';
+  // Strictly enforce Executive Owner role: optivirads@gmail.com, abhinandc97@gmail.com, isOwner === true, or super_admin
+  const isMasterOwner =
+    Boolean(user?.isOwner) ||
+    user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
+    user?.email?.toLowerCase() === 'abhinandc97@gmail.com' ||
+    user?.role === 'owner' ||
+    user?.role === 'super_admin';
+  const isSuperAdminEmail =
+    user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
+    user?.email?.toLowerCase() === 'abhinandc97@gmail.com';
   const isOwnerOrAdmin = isMasterOwner;
 
   // Active Sub-Navigation Tab
@@ -185,6 +193,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   // Remote Logout Session Confirmation Modal State
   const [logoutConfirmUser, setLogoutConfirmUser] = useState<any | null>(null);
   const [isLoggingOutSession, setIsLoggingOutSession] = useState(false);
+
+  // Unified Action Confirmation Modal State
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    subDescription?: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'danger' | 'warning' | 'info' | 'primary';
+    badge?: string;
+    details?: { label: string; value: React.ReactNode }[];
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   // Self Service Password Change State (In Security tab)
   const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
@@ -2153,8 +2180,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                 </div>
 
                 {/* Users Table */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left text-xs min-w-[920px]">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
                       <tr>
                         <th className="py-3 px-4">User &amp; Email ID</th>
@@ -2163,7 +2190,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <th className="py-3 px-4">Authorized Modules</th>
                         <th className="py-3 px-4">Logged-In System</th>
                         <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
+                        <th className="py-3 px-4 text-right min-w-[200px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2241,10 +2268,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 ) : isUniversal ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-300 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800">
                                     <ShieldCheck className="w-3 h-3" /> Full Access (All 13 Modules)
-                                  </span>
-                                ) : u.role === 'coo' ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
-                                    <Shield className="w-3 h-3" /> All Modules (Excl. Master Billing/Security)
                                   </span>
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
@@ -2332,61 +2355,93 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                   )}
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <td className="py-2.5 px-4 text-right whitespace-nowrap min-w-[180px]">
                                 {isMasterOwner ? (
-                                  <>
-                                    {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
-                                      <button
-                                        onClick={() => {
-                                          setEditingUser(u);
-                                          setEditRole(u.role || 'sales_lead');
-                                          setEditDesignation(u.designation || '');
-                                          setEditAllowedTabs(u.allowed_tabs || ['*']);
-                                          setEditIsClientOnly(!!u.clientId || u.role === 'client_portal');
-                                          setEditSelectedClientId(u.clientId || (clientsList[0]?.id || ''));
-                                          setShowEditPermissionsModal(true);
-                                        }}
-                                        className="text-blue-500 hover:text-blue-400 font-semibold text-xs mr-3 cursor-pointer"
-                                        title="Edit Module Permissions"
-                                      >
-                                        Permissions
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => {
-                                        setResettingUser(u);
-                                        setAdminNewPassword('');
-                                        setShowResetPasswordModal(true);
-                                      }}
-                                      className="text-amber-500 hover:text-amber-400 font-semibold text-xs mr-3 cursor-pointer"
-                                      title="Reset User Password"
-                                    >
-                                      Reset Password
-                                    </button>
-                                    {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
-                                      <button
-                                        onClick={async () => {
-                                          const displayName = u.name || u.email;
-                                          if (!confirm(`Are you sure you want to remove ${displayName} from the workspace?`)) return;
-                                          try {
-                                            if (u.id && !u.id.startsWith('usr-')) {
-                                              await api.deleteSettingsUser(u.id);
-                                              await loadUsers();
+                                  <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                                    {/* Permissions Button in its own aligned column */}
+                                    <div className="w-16 text-right">
+                                      {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingUser(u);
+                                            setEditRole(u.role || 'sales_lead');
+                                            setEditDesignation(u.designation || '');
+                                            const rawTabs = u.allowed_tabs || [];
+                                            if (rawTabs.includes('*') || u.is_owner || u.role === 'super_admin' || u.role === 'owner') {
+                                              setEditAllowedTabs(AVAILABLE_CRM_MODULES.map(m => m.id));
                                             } else {
-                                              setUsersList(prev => prev.filter(item => item.id !== u.id));
+                                              setEditAllowedTabs(rawTabs.length > 0 ? rawTabs : ['dashboard']);
                                             }
-                                            showToast(`Removed ${displayName} from directory`);
-                                          } catch (err: any) {
-                                            showToast(`Failed to remove ${displayName}: ${err.message}`, 'error');
-                                          }
+                                            setEditIsClientOnly(!!u.clientId || u.role === 'client_portal');
+                                            setEditSelectedClientId(u.clientId || (clientsList[0]?.id || ''));
+                                            setShowEditPermissionsModal(true);
+                                          }}
+                                          className="text-blue-500 hover:text-blue-400 font-semibold text-xs cursor-pointer hover:underline"
+                                          title="Edit Module Permissions"
+                                        >
+                                          Permissions
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {/* Reset Password & Remove stacked vertically in the exact same column */}
+                                    <div className="flex flex-col items-end gap-1 min-w-[95px]">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setResettingUser(u);
+                                          setAdminNewPassword('');
+                                          setShowResetPasswordModal(true);
                                         }}
-                                        className="text-rose-500 hover:text-rose-400 font-semibold text-xs cursor-pointer ml-3"
-                                        title="Remove User"
+                                        className="text-amber-500 hover:text-amber-400 font-semibold text-xs cursor-pointer hover:underline leading-tight"
+                                        title="Reset User Password"
                                       >
-                                        Remove
+                                        Reset Password
                                       </button>
-                                    )}
-                                  </>
+                                      {u.email?.toLowerCase() !== 'optivirads@gmail.com' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const displayName = u.name || u.email;
+                                            setConfirmModalConfig({
+                                              isOpen: true,
+                                              title: 'Remove User from Workspace',
+                                              badge: (u.role || 'Member').toUpperCase(),
+                                              description: `Are you sure you want to remove ${displayName} from the workspace?`,
+                                              subDescription: 'This user will immediately lose access to all CRM modules, client portals, and assigned deliverables. This action cannot be undone automatically.',
+                                              confirmText: 'Remove User',
+                                              variant: 'danger',
+                                              details: [
+                                                { label: 'Name', value: displayName },
+                                                { label: 'Email', value: u.email },
+                                                { label: 'Role', value: (u.role || 'user').toUpperCase() },
+                                                ...(u.designation ? [{ label: 'Designation', value: u.designation }] : []),
+                                              ],
+                                              onConfirm: async () => {
+                                                try {
+                                                  if (u.id && !u.id.startsWith('usr-')) {
+                                                    await api.deleteSettingsUser(u.id);
+                                                    await loadUsers();
+                                                  } else {
+                                                    setUsersList(prev => prev.filter(item => item.id !== u.id));
+                                                  }
+                                                  showToast(`Removed ${displayName} from directory`);
+                                                  setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                } catch (err: any) {
+                                                  showToast(`Failed to remove ${displayName}: ${err.message}`, 'error');
+                                                }
+                                              },
+                                            });
+                                          }}
+                                          className="text-rose-500 hover:text-rose-400 font-semibold text-[11px] cursor-pointer hover:underline leading-tight"
+                                          title="Remove User"
+                                        >
+                                          Remove
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <span className="text-[10px] text-slate-400 italic">Owner Protected</span>
                                 )}
@@ -3297,16 +3352,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             {pod.membersCount || pod.members_count || 3} Specialists
                           </span>
                           <button
-                            onClick={async () => {
-                              if (confirm(`Are you sure you want to delete pod "${pod.name}"?`)) {
-                                try {
-                                  await api.deleteSettingsTeam(pod.id);
-                                  showToast(`Pod "${pod.name}" deleted [200 OK]`);
-                                  loadTeams();
-                                } catch (err: any) {
-                                  showToast(`Failed to delete pod: ${err.message}`);
-                                }
-                              }
+                            onClick={() => {
+                              setConfirmModalConfig({
+                                isOpen: true,
+                                title: 'Delete Team Pod',
+                                description: `Are you sure you want to delete pod "${pod.name}"?`,
+                                subDescription: 'Pod members will remain in the workspace, but this squad grouping and sprint assignments will be removed.',
+                                confirmText: 'Delete Pod',
+                                variant: 'danger',
+                                onConfirm: async () => {
+                                  try {
+                                    await api.deleteSettingsTeam(pod.id);
+                                    showToast(`Pod "${pod.name}" deleted [200 OK]`);
+                                    loadTeams();
+                                    setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                  } catch (err: any) {
+                                    showToast(`Failed to delete pod: ${err.message}`, 'error');
+                                  }
+                                },
+                              });
                             }}
                             className="p-1 text-slate-400 hover:text-rose-500 transition cursor-pointer"
                             title="Delete Pod"
@@ -3452,9 +3516,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            if (confirm('Are you sure you want to sign out this device?')) {
-                              api.logout().finally(() => window.location.reload());
-                            }
+                            setConfirmModalConfig({
+                              isOpen: true,
+                              title: 'Sign Out Device',
+                              description: 'Are you sure you want to end this active session and sign out from this device?',
+                              subDescription: 'You will need to sign in again with your credentials to access the workspace.',
+                              confirmText: 'Sign Out',
+                              variant: 'warning',
+                              onConfirm: async () => {
+                                setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                api.logout().finally(() => window.location.reload());
+                              },
+                            });
                           }}
                           className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg cursor-pointer"
                         >
@@ -3800,20 +3873,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         </div>
 
                         <button
-                          onClick={async () => {
+                          onClick={() => {
                             if (pipelineStages.length <= 2) {
-                              showToast('A pipeline requires at least 2 stages');
+                              showToast('A pipeline requires at least 2 stages', 'error');
                               return;
                             }
-                            if (confirm(`Delete stage "${stage.name}"?`)) {
-                              try {
-                                await api.deleteSettingsStage(stage.id);
-                                showToast(`Stage "${stage.name}" deleted [200 OK]`);
-                                loadPipelines();
-                              } catch (err: any) {
-                                showToast(`Failed to delete stage: ${err.message}`);
-                              }
-                            }
+                            setConfirmModalConfig({
+                              isOpen: true,
+                              title: 'Delete Pipeline Stage',
+                              description: `Are you sure you want to delete stage "${stage.name}"?`,
+                              subDescription: 'Deals or leads currently in this stage should be moved prior to deletion.',
+                              confirmText: 'Delete Stage',
+                              variant: 'danger',
+                              onConfirm: async () => {
+                                try {
+                                  await api.deleteSettingsStage(stage.id);
+                                  showToast(`Stage "${stage.name}" deleted [200 OK]`);
+                                  loadPipelines();
+                                  setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                } catch (err: any) {
+                                  showToast(`Failed to delete stage: ${err.message}`, 'error');
+                                }
+                              },
+                            });
                           }}
                           className="p-1.5 text-slate-400 hover:text-rose-500 transition cursor-pointer"
                           title="Delete Stage"
@@ -3952,16 +4034,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <button
-                                onClick={async () => {
-                                  if (confirm(`Delete custom field "${cf.name || cf.field_name}"?`)) {
-                                    try {
-                                      await api.deleteCustomFieldDefinition(cf.id);
-                                      showToast(`Custom field "${cf.name || cf.field_name}" deleted [200 OK]`);
-                                      loadCustomFields();
-                                    } catch (err: any) {
-                                      showToast(`Failed to delete custom field: ${err.message}`);
-                                    }
-                                  }
+                                onClick={() => {
+                                  setConfirmModalConfig({
+                                    isOpen: true,
+                                    title: 'Delete Custom Field',
+                                    description: `Are you sure you want to delete custom field "${cf.name || cf.field_name}"?`,
+                                    subDescription: 'Existing records will no longer display or record this field value.',
+                                    confirmText: 'Delete Field',
+                                    variant: 'danger',
+                                    onConfirm: async () => {
+                                      try {
+                                        await api.deleteCustomFieldDefinition(cf.id);
+                                        showToast(`Custom field "${cf.name || cf.field_name}" deleted [200 OK]`);
+                                        loadCustomFields();
+                                        setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                      } catch (err: any) {
+                                        showToast(`Failed to delete custom field: ${err.message}`, 'error');
+                                      }
+                                    },
+                                  });
                                 }}
                                 className="text-rose-500 hover:text-rose-700 cursor-pointer text-xs"
                               >
@@ -4099,16 +4190,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                         <span className="text-[10px] text-slate-400">{tag.usageCount || tag.usage_count || 0} uses</span>
                       </div>
                       <button
-                        onClick={async () => {
-                          if (confirm(`Delete tag "${tag.name}"?`)) {
-                            try {
-                              await api.deleteSystemTag(tag.id);
-                              showToast(`Tag "${tag.name}" deleted [200 OK]`);
-                              loadTags();
-                            } catch (err: any) {
-                              showToast(`Failed to delete tag: ${err.message}`);
-                            }
-                          }
+                        onClick={() => {
+                          setConfirmModalConfig({
+                            isOpen: true,
+                            title: 'Delete System Tag',
+                            description: `Are you sure you want to delete tag "${tag.name}"?`,
+                            confirmText: 'Delete Tag',
+                            variant: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                await api.deleteSystemTag(tag.id);
+                                showToast(`Tag "${tag.name}" deleted [200 OK]`);
+                                loadTags();
+                                setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                              } catch (err: any) {
+                                showToast(`Failed to delete tag: ${err.message}`, 'error');
+                              }
+                            },
+                          });
                         }}
                         className="text-slate-400 hover:text-rose-500 cursor-pointer"
                         title="Delete Tag"
@@ -4160,16 +4259,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                             SAC {srv.sacCode || srv.sac_code || '998361'}
                           </span>
                           <button
-                            onClick={async () => {
-                              if (confirm(`Delete service "${srv.name}"?`)) {
-                                try {
-                                  await api.deleteService(srv.id);
-                                  showToast(`Service "${srv.name}" deleted [200 OK]`);
-                                  loadServices();
-                                } catch (err: any) {
-                                  showToast(`Failed to delete service: ${err.message}`);
-                                }
-                              }
+                            onClick={() => {
+                              setConfirmModalConfig({
+                                isOpen: true,
+                                title: 'Delete Service Offering',
+                                description: `Are you sure you want to delete service "${srv.name}"?`,
+                                subDescription: 'Associated rate cards and proposal templates may need manual re-assignment.',
+                                confirmText: 'Delete Service',
+                                variant: 'danger',
+                                onConfirm: async () => {
+                                  try {
+                                    await api.deleteService(srv.id);
+                                    showToast(`Service "${srv.name}" deleted [200 OK]`);
+                                    loadServices();
+                                    setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                  } catch (err: any) {
+                                    showToast(`Failed to delete service: ${err.message}`, 'error');
+                                  }
+                                },
+                              });
                             }}
                             className="text-slate-400 hover:text-rose-500 transition cursor-pointer p-1"
                             title="Delete Service"
@@ -4329,16 +4437,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button
-                              onClick={async () => {
-                                if (confirm(`Delete lead source "${src.name}"?`)) {
-                                  try {
-                                    await api.deleteLeadSource(src.id);
-                                    showToast(`Lead source "${src.name}" deleted [200 OK]`);
-                                    loadLeadSources();
-                                  } catch (err: any) {
-                                    showToast(`Failed to delete lead source: ${err.message}`);
-                                  }
-                                }
+                              onClick={() => {
+                                setConfirmModalConfig({
+                                  isOpen: true,
+                                  title: 'Delete Lead Source',
+                                  description: `Are you sure you want to delete lead source "${src.name}"?`,
+                                  subDescription: 'Existing leads with this source will retain their source attribution, but it will no longer be available for new intake.',
+                                  confirmText: 'Delete Source',
+                                  variant: 'danger',
+                                  onConfirm: async () => {
+                                    try {
+                                      await api.deleteLeadSource(src.id);
+                                      showToast(`Lead source "${src.name}" deleted [200 OK]`);
+                                      loadLeadSources();
+                                      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                    } catch (err: any) {
+                                      showToast(`Failed to delete lead source: ${err.message}`, 'error');
+                                    }
+                                  },
+                                });
                               }}
                               className="text-rose-500 hover:text-rose-700 cursor-pointer text-xs"
                             >
@@ -4479,16 +4596,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                           Edit Content
                         </button>
                         <button
-                          onClick={async () => {
-                            if (confirm(`Delete template "${tmpl.name}"?`)) {
-                              try {
-                                await api.deleteDocumentTemplate(tmpl.id);
-                                showToast(`Template "${tmpl.name}" deleted [200 OK]`);
-                                loadDocumentTemplates();
-                              } catch (err: any) {
-                                showToast(`Failed to delete template: ${err.message}`);
-                              }
-                            }
+                          onClick={() => {
+                            setConfirmModalConfig({
+                              isOpen: true,
+                              title: 'Delete Document Template',
+                              description: `Are you sure you want to delete template "${tmpl.name}"?`,
+                              subDescription: 'Existing generated proposals will not be affected, but this template will no longer be available for new documents.',
+                              confirmText: 'Delete Template',
+                              variant: 'danger',
+                              onConfirm: async () => {
+                                try {
+                                  await api.deleteDocumentTemplate(tmpl.id);
+                                  showToast(`Template "${tmpl.name}" deleted [200 OK]`);
+                                  loadDocumentTemplates();
+                                  setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+                                } catch (err: any) {
+                                  showToast(`Failed to delete template: ${err.message}`, 'error');
+                                }
+                              },
+                            });
                           }}
                           className="p-1.5 text-slate-400 hover:text-rose-500 transition cursor-pointer"
                           title="Delete Template"
@@ -6189,6 +6315,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* Global In-App Action Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalConfig.isOpen}
+        title={confirmModalConfig.title}
+        description={confirmModalConfig.description}
+        subDescription={confirmModalConfig.subDescription}
+        confirmText={confirmModalConfig.confirmText}
+        cancelText={confirmModalConfig.cancelText}
+        variant={confirmModalConfig.variant}
+        badge={confirmModalConfig.badge}
+        details={confirmModalConfig.details}
+        onConfirm={confirmModalConfig.onConfirm}
+        onClose={() => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

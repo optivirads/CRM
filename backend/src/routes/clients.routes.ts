@@ -25,13 +25,24 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     let whereClause = `WHERE c.organization_id = $1 AND c.deleted_at IS NULL`;
     const params: any[] = [orgId];
 
-    // Scoping for client-specific portal users or when user explicitly filters "My Clients"
+    // Scoping for client-specific portal users, "myOnly" filter, or "accessibleOnly" filter
+    const isGlobal = Boolean(req.user?.isOwner) || ['owner', 'super_admin', 'admin', 'coo', 'operations_lead'].includes((req.user?.role || '').toLowerCase());
+
     if (req.user?.clientId) {
       params.push(req.user.clientId);
       whereClause += ` AND c.id = $${params.length}`;
-    } else if (myOnly === 'true') {
+    } else if (myOnly === 'true' || (!isGlobal && req.query.accessibleOnly === 'true')) {
       params.push(userId);
-      whereClause += ` AND (c.account_manager_id = $${params.length} OR $${params.length} = ANY(c.assigned_team_ids) OR c.created_by = $${params.length})`;
+      const uidIdx = params.length;
+      whereClause += ` AND (
+        c.account_manager_id = $${uidIdx} 
+        OR c.account_assistant_id = $${uidIdx}
+        OR $${uidIdx}::uuid = ANY(COALESCE(c.account_assistant_ids, '{}'))
+        OR $${uidIdx} = ANY(COALESCE(c.assigned_team_ids, '{}')) 
+        OR c.created_by = $${uidIdx}
+        OR EXISTS (SELECT 1 FROM client_assistants ca WHERE ca.client_id = c.id AND ca.user_id = $${uidIdx})
+        OR EXISTS (SELECT 1 FROM organization_users ou WHERE ou.user_id = $${uidIdx} AND ou.organization_id = $1 AND ou.client_id = c.id)
+      )`;
     } else if (accountManagerId) {
       params.push(accountManagerId);
       whereClause += ` AND c.account_manager_id = $${params.length}`;

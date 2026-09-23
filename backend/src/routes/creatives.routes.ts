@@ -9,6 +9,7 @@ import { WatermarkService } from '../services/watermark.service';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service';
+import { otpRateLimiter } from '../middleware/rateLimiter';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -26,7 +27,10 @@ function hashProofToken(token: string): string {
 
 // Client Proof OTP Session Helpers
 function signClientProofSession(tokenHash: string, email: string, name?: string): string {
-  const secret = process.env.JWT_SECRET || 'optivir_crm_enterprise_jwt_secret_key_2026';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable must be configured.');
+  }
   return jwt.sign(
     {
       scope: 'client_proof',
@@ -43,7 +47,8 @@ function verifyClientProofSession(sessionToken: string | undefined, tokenHash: s
   if (!sessionToken) return null;
   try {
     const cleanToken = sessionToken.startsWith('Bearer ') ? sessionToken.slice(7) : sessionToken;
-    const secret = process.env.JWT_SECRET || 'optivir_crm_enterprise_jwt_secret_key_2026';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
     const decoded = jwt.verify(cleanToken, secret) as any;
     if (decoded.scope === 'client_proof' && decoded.tokenHash === tokenHash) {
       return { email: decoded.email, name: decoded.name };
@@ -278,9 +283,9 @@ function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tabl
 // ---------------------------------------------------------------------------
 
 // 12.1. Request OTP for Client Proof Portal
-router.post('/public/proofs/:token/request-otp', async (req: Request, res: Response): Promise<void> => {
+router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const { token } = req.params;
-  const { email, name } = req.body;
+  let { email, name } = req.body;
 
   if (!email || !email.includes('@')) {
     res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
@@ -290,9 +295,11 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
   try {
     const tokenHash = hashProofToken(token);
     const linkRes = await db.query(
-      `SELECT sl.*, c.name as creative_name, o.name as organization_name
+      `SELECT sl.*, c.name as creative_name, c.client_id, cl.company_id, co.name as client_name, o.name as organization_name
        FROM creative_share_links sl
        JOIN creatives c ON sl.creative_id = c.id
+       LEFT JOIN clients cl ON c.client_id = cl.id
+       LEFT JOIN companies co ON cl.company_id = co.id
        JOIN organizations o ON sl.organization_id = o.id
        WHERE sl.token_hash = $1`,
       [tokenHash]
@@ -306,8 +313,59 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
     const shareLink = linkRes.rows[0];
     const clientEmail = email.trim().toLowerCase();
 
-    // Generate secure 6-digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Verify client authorization against registered client contacts
+    if (shareLink.company_id) {
+      let isAuthorized = false;
+
+      // Check 1: Recipient email on share link
+      if (shareLink.recipient_email && shareLink.recipient_email.trim().toLowerCase() === clientEmail) {
+        isAuthorized = true;
+      }
+
+      // Check 2: Database contacts for this client company
+      if (!isAuthorized) {
+        const contactsRes = await db.query(
+          `SELECT email, first_name, last_name FROM contacts
+           WHERE (company_id = $1 OR company_id IN (SELECT id FROM companies WHERE LOWER(TRIM(name)) = $2))
+             AND deleted_at IS NULL AND email IS NOT NULL AND email != ''`,
+          [shareLink.company_id, (shareLink.client_name || '').trim().toLowerCase()]
+        );
+
+        if (contactsRes.rows.length > 0) {
+          const allowedEmails = contactsRes.rows.map((r: any) => r.email.toLowerCase().trim());
+          if (allowedEmails.includes(clientEmail)) {
+            isAuthorized = true;
+            if (!name) {
+              const match = contactsRes.rows.find((r: any) => r.email.toLowerCase().trim() === clientEmail);
+              if (match) name = `${match.first_name || ''} ${match.last_name || ''}`.trim();
+            }
+          } else {
+            // Corporate domain matching
+            const freeDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'];
+            const inputDomain = clientEmail.split('@')[1];
+            if (inputDomain && !freeDomains.includes(inputDomain)) {
+              const companyDomains = allowedEmails
+                .map((e: string) => e.split('@')[1])
+                .filter((d: string) => d && !freeDomains.includes(d));
+              if (companyDomains.includes(inputDomain)) {
+                isAuthorized = true;
+              }
+            }
+          }
+
+          if (!isAuthorized) {
+            res.status(403).json({
+              success: false,
+              message: `Access restricted: "${email}" is not listed as an authorized contact for ${shareLink.client_name || 'this client'}. Please select from the client contact list or contact your account manager.`
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    // Generate cryptographically secure 6-digit OTP
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
 
     // Store in database with 10-minute expiry
     await db.query(
@@ -344,7 +402,7 @@ router.post('/public/proofs/:token/request-otp', async (req: Request, res: Respo
 });
 
 // 12.2. Verify OTP & Issue Client Proof Session Token
-router.post('/public/proofs/:token/verify-otp', async (req: Request, res: Response): Promise<void> => {
+router.post('/public/proofs/:token/verify-otp', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const { token } = req.params;
   const { email, otp, name } = req.body;
 
@@ -369,24 +427,50 @@ router.post('/public/proofs/:token/verify-otp', async (req: Request, res: Respon
     const clientEmail = email.trim().toLowerCase();
     const cleanOtp = otp.toString().trim();
 
-    // Verify OTP record
-    const otpRes = await db.query(
+    // Fetch active OTP record for this share link and email
+    const activeOtpRes = await db.query(
       `SELECT * FROM creative_proof_otps
-       WHERE share_link_id = $1 AND LOWER(email) = $2 AND otp_code = $3 AND verified_at IS NULL AND expires_at > NOW()
+       WHERE share_link_id = $1 AND LOWER(email) = $2 AND verified_at IS NULL AND expires_at > NOW()
        ORDER BY created_at DESC LIMIT 1`,
-      [shareLink.id, clientEmail, cleanOtp]
+      [shareLink.id, clientEmail]
     );
 
-    if (otpRes.rows.length === 0) {
-      await db.query(
-        `UPDATE creative_proof_otps SET attempts = attempts + 1 WHERE share_link_id = $1 AND LOWER(email) = $2`,
-        [shareLink.id, clientEmail]
-      );
-      res.status(400).json({ success: false, message: 'Invalid or expired verification code. Please request a new code.' });
+    if (activeOtpRes.rows.length === 0) {
+      res.status(400).json({ success: false, message: 'No active verification code found or code has expired. Please request a new code.' });
       return;
     }
 
-    const otpRecord = otpRes.rows[0];
+    const otpRecord = activeOtpRes.rows[0];
+
+    // Check maximum attempts limit (Lockout after 5 failed tries)
+    if ((otpRecord.attempts || 0) >= 5) {
+      await db.query(`UPDATE creative_proof_otps SET expires_at = NOW() WHERE id = $1`, [otpRecord.id]);
+      res.status(429).json({
+        success: false,
+        message: 'Too many incorrect attempts. This verification code has been invalidated for security. Please request a new code.'
+      });
+      return;
+    }
+
+    // Verify OTP code match
+    if (otpRecord.otp_code !== cleanOtp) {
+      const updatedAttempts = (otpRecord.attempts || 0) + 1;
+      await db.query(
+        `UPDATE creative_proof_otps SET attempts = $1 WHERE id = $2`,
+        [updatedAttempts, otpRecord.id]
+      );
+      const remaining = Math.max(0, 5 - updatedAttempts);
+      if (remaining === 0) {
+        await db.query(`UPDATE creative_proof_otps SET expires_at = NOW() WHERE id = $1`, [otpRecord.id]);
+      }
+      res.status(400).json({
+        success: false,
+        message: remaining > 0
+          ? `Invalid verification code. ${remaining} attempt(s) remaining.`
+          : 'Too many incorrect attempts. This code has been invalidated. Please request a new code.'
+      });
+      return;
+    }
 
     // Mark verified
     await db.query(
@@ -456,7 +540,7 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
         c.id, c.name, c.description, c.campaign_name, c.target_platform,
         c.ad_format, c.aspect_ratio, c.status, c.primary_ad_copy, c.headline,
         c.call_to_action, c.destination_url, c.approval_due_at,
-        co.name as client_name
+        co.id as company_id, co.name as client_name
       FROM creatives c
       LEFT JOIN clients cl ON c.client_id = cl.id
       LEFT JOIN companies co ON cl.company_id = co.id
@@ -472,10 +556,51 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
     verifiedClient = verifyClientProofSession(sessionHeader, tokenHash);
 
     if (shareLink.require_otp !== false && !verifiedClient) {
+      const authorizedContacts: Array<{
+        id: string;
+        name: string;
+        email: string;
+        designation?: string;
+        isDecisionMaker?: boolean;
+      }> = [];
+
+      if (creative?.company_id) {
+        const contactsRes = await db.query(
+          `SELECT id, first_name, last_name, email, designation, role, is_decision_maker
+           FROM contacts
+           WHERE (company_id = $1 OR company_id IN (SELECT id FROM companies WHERE LOWER(TRIM(name)) = $2))
+             AND deleted_at IS NULL AND email IS NOT NULL AND email != ''
+           ORDER BY is_decision_maker DESC, first_name ASC`,
+          [creative.company_id, (creative.client_name || '').trim().toLowerCase()]
+        );
+
+        for (const c of contactsRes.rows) {
+          authorizedContacts.push({
+            id: c.id,
+            name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+            email: c.email.toLowerCase().trim(),
+            designation: c.designation || c.role || 'Client Contact',
+            isDecisionMaker: !!c.is_decision_maker,
+          });
+        }
+      }
+
+      if (shareLink.recipient_email && !authorizedContacts.some(c => c.email.toLowerCase() === shareLink.recipient_email.toLowerCase())) {
+        authorizedContacts.unshift({
+          id: 'share-recipient',
+          name: shareLink.recipient_name || 'Invited Contact',
+          email: shareLink.recipient_email.toLowerCase().trim(),
+          designation: 'Invited Recipient',
+          isDecisionMaker: true,
+        });
+      }
+
       // Return minimal public preview info so frontend shows the OTP Login gate
       res.json({
         success: true,
         requireOtp: true,
+        clientName: creative?.client_name,
+        authorizedContacts,
         shareLink: {
           id: shareLink.id,
           allowComments: shareLink.allow_comments,
@@ -2592,6 +2717,53 @@ router.patch('/comments/:commentId/resolve', requireAuth, async (req: Authentica
   } catch (err: any) {
     console.error('[Creatives API] Resolve Comment Error:', err);
     res.status(500).json({ success: false, message: 'Failed to update comment resolution', error: err.message });
+  }
+});
+
+// Delete Comment & Spatial Pin
+router.delete('/comments/:commentId', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const { commentId } = req.params;
+
+  try {
+    const delRes = await db.query(
+      `DELETE FROM creative_comments
+       WHERE id = $1 AND organization_id = $2
+       RETURNING *`,
+      [commentId, orgId]
+    );
+
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Comment not found' });
+      return;
+    }
+
+    const deleted = delRes.rows[0];
+
+    // Audit Log
+    const authorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'Agency Team';
+    await db.query(
+      `INSERT INTO creative_audit_logs (
+        organization_id, proof_id, action, actor_type, actor_id, actor_name, metadata
+      ) VALUES ($1, $2, 'COMMENT_DELETED', 'INTERNAL_USER', $3, $4, $5)`,
+      [
+        orgId,
+        deleted.proof_id,
+        userId,
+        authorName,
+        JSON.stringify({ commentId, deletedAuthor: deleted.author_name })
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully',
+      deletedCommentId: commentId
+    });
+  } catch (err: any) {
+    console.error('[Creatives API] Delete Comment Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete comment', error: err.message });
   }
 });
 

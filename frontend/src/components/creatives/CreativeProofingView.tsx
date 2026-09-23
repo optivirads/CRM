@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Palette,
   Layers,
@@ -97,6 +98,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -387,6 +389,26 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       }
     } catch (err) {
       console.error('Failed to resolve comment:', err);
+    }
+  };
+
+  // Delete Comment & Spatial Pin
+  const handleDeleteComment = (commentId: string) => {
+    setDeletingCommentId(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!deletingCommentId) return;
+    try {
+      await api.deleteCreativeComment(deletingCommentId);
+      if (activeCreativeId) {
+        const res = await api.getCreativeDetails(activeCreativeId);
+        if (res.success) setActiveCreativeDetails(res);
+      }
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -1725,12 +1747,21 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           )}
                         </div>
 
-                        <button
-                          onClick={() => handleToggleResolveComment(c.id, c.is_resolved)}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded transition ${c.is_resolved ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-500'}`}
-                        >
-                          {c.is_resolved ? 'Resolved ✓' : 'Mark Resolved'}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleResolveComment(c.id, c.is_resolved)}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded transition ${c.is_resolved ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-500'}`}
+                          >
+                            {c.is_resolved ? 'Resolved ✓' : 'Mark Resolved'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteComment(c.id)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
+                            title="Delete Annotation"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 whitespace-pre-wrap">
@@ -2391,6 +2422,19 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         </div>,
         document.body
       )}
+
+      {/* Delete Feedback Annotation Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingCommentId}
+        title="Delete Annotation Pin"
+        description="Are you sure you want to delete this feedback annotation and pin?"
+        subDescription="This thread and all associated feedback notes will be removed from the canvas."
+        confirmText="Delete Annotation"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDeleteComment}
+        onClose={() => setDeletingCommentId(null)}
+      />
     </div>
   );
 };

@@ -22,7 +22,8 @@ import {
   Layers,
   Image as ImageIcon,
   Download,
-  LogOut
+  LogOut,
+  User
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
@@ -461,6 +462,9 @@ export default function ClientProofingPortalPage() {
                       className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-rose-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
                     />
                   </div>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    Enter your work email address. A one-time verification code will be sent to your inbox.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1047,7 +1051,7 @@ export default function ClientProofingPortalPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Sarah Jenkins"
+                  placeholder="Your Full Name"
                   value={approverName}
                   onChange={(e) => setApproverName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
@@ -1067,7 +1071,7 @@ export default function ClientProofingPortalPage() {
                   <input
                     type="email"
                     required
-                    placeholder="s.jenkins@clientcompany.com"
+                    placeholder="name@company.com"
                     value={approverEmail}
                     onChange={(e) => setApproverEmail(e.target.value)}
                     className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
@@ -1126,7 +1130,7 @@ export default function ClientProofingPortalPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Sarah Jenkins"
+                  placeholder="Your Full Name"
                   value={approverName}
                   onChange={(e) => setApproverName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"
@@ -1145,7 +1149,7 @@ export default function ClientProofingPortalPage() {
                 ) : (
                   <input
                     type="email"
-                    placeholder="s.jenkins@clientcompany.com"
+                    placeholder="name@company.com"
                     value={approverEmail}
                     onChange={(e) => setApproverEmail(e.target.value)}
                     className="w-full px-3 py-2 bg-[#060B13] border border-slate-700 rounded-xl text-xs text-white"

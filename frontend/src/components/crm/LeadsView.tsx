@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Users2,
   Plus,
@@ -80,6 +81,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [deletingLead, setDeletingLead] = useState<LeadDetailData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteLeadsModal, setShowBulkDeleteLeadsModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   const fetchLeads = async () => {
@@ -291,9 +293,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedLeads.length === 0) return;
-    if (!confirm(`Permanently delete ${selectedLeads.length} selected lead records from the database?`)) return;
+    setShowBulkDeleteLeadsModal(true);
+  };
+
+  const confirmBulkDeleteLeads = async () => {
     try {
       setIsDeleting(true);
       await Promise.all(selectedLeads.map((id) => api.deleteLead(id)));
@@ -304,6 +309,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
       showToast(err?.message || 'Failed to delete selected leads', 'error');
     } finally {
       setIsDeleting(false);
+      setShowBulkDeleteLeadsModal(false);
     }
   };
 
@@ -1385,6 +1391,21 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Leads Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteLeadsModal}
+        title={`Delete ${selectedLeads.length} Lead Records`}
+        badge={`${selectedLeads.length} Selected`}
+        description={`Are you sure you want to permanently delete ${selectedLeads.length} selected lead records from the database?`}
+        subDescription="All qualification notes, call logs, and stage progression history will be removed."
+        confirmText={`Delete ${selectedLeads.length} Leads`}
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmBulkDeleteLeads}
+        onClose={() => setShowBulkDeleteLeadsModal(false)}
+      />
     </div>
   );
 };

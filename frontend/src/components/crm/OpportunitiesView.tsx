@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Sparkles,
   Layers,
@@ -83,6 +84,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
   const [isCreating, setIsCreating] = useState(false);
   const [deletingOp, setDeletingOp] = useState<OpportunityRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOption, setSortOption] = useState<'newest' | 'value' | 'company'>('newest');
@@ -575,12 +577,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedOps.length} opportunities?`)) {
-                    setOpportunities(opportunities.filter((o) => !selectedOps.includes(o.id)));
-                    setSelectedOps([]);
-                  }
-                }}
+                onClick={() => setShowBulkDeleteModal(true)}
                 className="px-3 py-1 rounded bg-[#DC2626] hover:bg-[#B91C1C] font-semibold transition"
               >
                 Delete ({selectedOps.length})
@@ -915,6 +912,25 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({ onNavigate
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Deals Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        title={`Delete ${selectedOps.length} Opportunities`}
+        badge={`${selectedOps.length} Selected`}
+        description={`Are you sure you want to delete ${selectedOps.length} selected deal opportunities?`}
+        subDescription="Pipeline totals and revenue forecasts will update automatically upon deletion."
+        confirmText={`Delete ${selectedOps.length} Deals`}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          setOpportunities(opportunities.filter((o) => !selectedOps.includes(o.id)));
+          setSelectedOps([]);
+          showToast(`Deleted ${selectedOps.length} opportunities`);
+          setShowBulkDeleteModal(false);
+        }}
+        onClose={() => setShowBulkDeleteModal(false)}
+      />
     </div>
   );
 };

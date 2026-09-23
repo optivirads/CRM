@@ -5,6 +5,7 @@ import { useToast } from '@/lib/toast-context';
 import { useAuth } from '@/lib/auth-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Briefcase,
   Building2,
@@ -206,6 +207,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [isCreating, setIsCreating] = useState(false);
   const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteClientsModal, setShowBulkDeleteClientsModal] = useState(false);
 
   // Edit Client Drawer/Modal State
   const [showEditClientModal, setShowEditClientModal] = useState(false);
@@ -567,9 +569,12 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedClients.length === 0) return;
-    if (!confirm(`Delete ${selectedClients.length} selected clients from the database?`)) return;
+    setShowBulkDeleteClientsModal(true);
+  };
+
+  const confirmBulkDeleteClients = async () => {
     try {
       setIsDeleting(true);
       await Promise.all(selectedClients.map((id) => api.deleteClient(id)));
@@ -580,6 +585,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
       showToast(err?.message || 'Failed to delete selected clients', 'error');
     } finally {
       setIsDeleting(false);
+      setShowBulkDeleteClientsModal(false);
     }
   };
 
@@ -2494,6 +2500,21 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           <div className="text-xs font-medium">{toastMessage}</div>
         </div>
       )}
+
+      {/* Bulk Delete Clients Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteClientsModal}
+        title={`Delete ${selectedClients.length} Client Accounts`}
+        badge={`${selectedClients.length} Selected`}
+        description={`Are you sure you want to delete ${selectedClients.length} selected client accounts from the database?`}
+        subDescription="All associated deliverables, invoices, and campaign telemetry links will be archived."
+        confirmText={`Delete ${selectedClients.length} Clients`}
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmBulkDeleteClients}
+        onClose={() => setShowBulkDeleteClientsModal(false)}
+      />
     </div>
   );
 };

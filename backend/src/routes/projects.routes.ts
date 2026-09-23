@@ -2,12 +2,19 @@ import { Router, Response } from 'express';
 import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
+import {
+  userHasClientAccess,
+  userIsConcernedWithTask,
+  getUserAccessibleClientIds,
+  isGlobalLeadership
+} from '../utils/accessControl';
 
 const router = Router();
 
-// 1. Projects List with pagination
+// 1. Projects List with pagination & client-access scoping
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const { status, clientId } = req.query;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
@@ -21,12 +28,25 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       params.push(status);
       whereClause += ` AND p.status = $${params.length}`;
     }
+
     if (req.user?.clientId) {
       params.push(req.user.clientId);
       whereClause += ` AND p.client_id = $${params.length}`;
     } else if (clientId) {
       params.push(clientId);
       whereClause += ` AND p.client_id = $${params.length}`;
+    } else if (!isGlobalLeadership(req.user?.role, req.user?.isOwner)) {
+      // Scoped team members only see projects under clients they have access to or projects they are a member of
+      const accessibleClientIds = await getUserAccessibleClientIds(userId, orgId, req.user?.role, req.user?.isOwner);
+      if (Array.isArray(accessibleClientIds)) {
+        params.push(accessibleClientIds);
+        params.push(userId);
+        whereClause += ` AND (
+          p.client_id = ANY($${params.length - 1}::uuid[])
+          OR p.project_manager_id = $${params.length}
+          OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = $${params.length})
+        )`;
+      }
     }
 
     const countRes = await db.query(`
@@ -164,7 +184,8 @@ router.post('/team-members', requireAuth, async (req: AuthenticatedRequest, res:
 // 2. Tasks List (For Kanban & List views)
 router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
-  const { projectId, clientId, status, assigneeId, overdue } = req.query;
+  const userId = req.user!.id;
+  const { projectId, clientId, status, assigneeId, overdue, myConcerned } = req.query;
 
   try {
     let query = `
@@ -175,7 +196,8 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
         COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
         COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
         u.first_name as assignee_first, u.last_name as assignee_last,
-        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count
+        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count,
+        (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN clients c ON t.client_id = c.id
@@ -207,6 +229,21 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
     }
     if (overdue === 'true') {
       query += ` AND t.due_date < NOW() AND t.status != 'Completed'`;
+    }
+    if (myConcerned === 'true') {
+      params.push(userId);
+      const uidIdx = params.length;
+      query += ` AND (
+        t.assignee_id = $${uidIdx}
+        OR t.created_by = $${uidIdx}
+        OR p.project_manager_id = $${uidIdx}
+        OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $${uidIdx})
+        OR c.account_manager_id = $${uidIdx}
+        OR c.account_assistant_id = $${uidIdx}
+        OR $${uidIdx}::uuid = ANY(COALESCE(c.account_assistant_ids, '{}'))
+        OR $${uidIdx} = ANY(COALESCE(c.assigned_team_ids, '{}'))
+        OR EXISTS (SELECT 1 FROM client_assistants ca WHERE ca.client_id = t.client_id AND ca.user_id = $${uidIdx})
+      )`;
     }
 
     query += ` ORDER BY t.due_date ASC NULLS LAST;`;
@@ -249,7 +286,8 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         COALESCE(t.assignee_name, NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Unassigned') as assignee_name,
         COALESCE(t.assignee_role, ou.designation, 'Team Member') as assignee_role,
         u.first_name as assignee_first, u.last_name as assignee_last,
-        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count
+        (SELECT COUNT(*) FROM creatives WHERE task_id = t.id) as linked_creatives_count,
+        (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN organization_users ou ON ou.user_id = u.id AND ou.organization_id = t.organization_id
@@ -269,14 +307,14 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   }
 });
 
-// 3. Create Task
+// 3. Create Task (Client-access verified)
 router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const {
     title, description, project_id, client_id,
     assignee_id, assignee_name, assignee_role,
-    priority, due_date, assigned_date, start_date
+    priority, due_date, assigned_date, start_date, progress
   } = req.body;
 
   if (!title) {
@@ -284,20 +322,44 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
     return;
   }
 
+  // If a client is specified, verify that the creator has client access
+  if (client_id) {
+    const hasAccess = await userHasClientAccess(userId, orgId, client_id, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: You do not have permission to create tasks under this client.'
+      });
+      return;
+    }
+  }
+
   const effectiveAssignedDate = assigned_date || start_date || new Date().toISOString().split('T')[0];
+  const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+  const initialHistory = [{
+    from_status: null,
+    to_status: 'To Do',
+    changed_by: userId,
+    user_name: userFullName,
+    changed_at: new Date().toISOString(),
+    notes: 'Task created'
+  }];
 
   try {
     const result = await db.query(`
       INSERT INTO tasks (
         organization_id, title, description, project_id, client_id, assignee_id,
         assignee_name, assignee_role,
-        priority, status, assigned_date, start_date, due_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'To Do', $10, $10, $11, $12)
+        priority, status, progress, subtasks, stage_history,
+        assigned_date, start_date, due_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'To Do', $10, $11, $12, $13, $13, $14, $15)
       RETURNING *;
     `, [
       orgId, title, description || null, project_id || null, client_id || null,
       assignee_id || null, assignee_name || null, assignee_role || null,
-      priority || 'Medium', effectiveAssignedDate, due_date || null, userId
+      priority || 'Medium', Math.max(0, Math.min(100, Number(progress) || 0)),
+      JSON.stringify([]), JSON.stringify(initialHistory),
+      effectiveAssignedDate, due_date || null, userId
     ]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -306,12 +368,12 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// 4. Update Task Status (Kanban drag & drop)
+// 4. Update Task Status (Task Flow stage progression with history & concerned stakeholder check)
 router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const taskId = req.params.id;
-  const { status } = req.body;
+  const { status, notes } = req.body;
 
   if (!status) {
     res.status(400).json({ success: false, message: 'Status is required' });
@@ -327,15 +389,52 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
   else if (rawStatus === 'cancelled' || rawStatus === 'canceled') normalizedStatus = 'Cancelled';
 
   try {
+    // Verify that user is a concerned stakeholder
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.isConcerned) {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to update progress on this task. Only assigned members, project managers, client account managers, or administrators can update progress.'
+      });
+      return;
+    }
+
+    const currentTask = concern.task;
+    const currentHistory = Array.isArray(currentTask.stage_history) ? currentTask.stage_history : [];
+    const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+    const newHistoryEntry = {
+      from_status: currentTask.status,
+      to_status: normalizedStatus,
+      changed_by: userId,
+      user_name: userFullName,
+      changed_at: new Date().toISOString(),
+      notes: notes || `Moved to ${normalizedStatus}`
+    };
+    const updatedHistory = [...currentHistory, newHistoryEntry];
+
+    // Compute updated progress based on flow stage
+    let newProgress = currentTask.progress !== null && currentTask.progress !== undefined ? currentTask.progress : 0;
+    if (normalizedStatus === 'Completed') {
+      newProgress = 100;
+    } else if (normalizedStatus === 'Review' && newProgress < 75) {
+      newProgress = 80;
+    } else if (normalizedStatus === 'In Progress' && newProgress === 0) {
+      newProgress = 25;
+    } else if (normalizedStatus === 'To Do' && currentTask.status === 'Completed') {
+      newProgress = 0;
+    }
+
     const result = await db.query(`
       UPDATE tasks 
       SET 
         status = $1::varchar,
+        progress = $2,
+        stage_history = $3::jsonb,
         completed_at = CASE WHEN $1::varchar = 'Completed' THEN NOW() ELSE NULL END,
-        updated_by = $2
-      WHERE id = $3 AND organization_id = $4
+        updated_by = $4
+      WHERE id = $5 AND organization_id = $6
       RETURNING *;
-    `, [normalizedStatus, userId, taskId, orgId]);
+    `, [normalizedStatus, newProgress, JSON.stringify(updatedHistory), userId, taskId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Task not found' });
@@ -366,6 +465,13 @@ router.delete('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       res.status(404).json({ success: false, message: 'Task not found or already deleted' });
       return;
     }
+
+    // Cleanly unlink any creatives linked to this task
+    await db.query(`
+      UPDATE creatives
+      SET task_id = NULL
+      WHERE task_id = $1 AND organization_id = $2;
+    `, [taskId, orgId]);
 
     await recordAuditLog(orgId, userId, 'DELETE', 'tasks', taskId, null, null, req);
     res.json({ success: true, message: 'Task successfully deleted' });
@@ -400,7 +506,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// Create Project
+// Create Project (Strictly restricted to users with verified client access)
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
@@ -424,21 +530,21 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     }
 
     if (!resolvedClientId) {
-      const fallbackClient = await db.query('SELECT id FROM clients WHERE organization_id = $1 AND deleted_at IS NULL LIMIT 1;', [orgId]);
-      resolvedClientId = fallbackClient.rows[0]?.id;
+      res.status(400).json({
+        success: false,
+        message: 'A valid client company must be selected to create a project under.'
+      });
+      return;
     }
 
-    if (!resolvedClientId) {
-      // Create a default company and client for this project if none exist yet
-      const comp = await db.query(`
-        INSERT INTO companies (organization_id, name, created_by)
-        VALUES ($1, 'Internal Operations', $2) RETURNING id;
-      `, [orgId, userId]);
-      const newCl = await db.query(`
-        INSERT INTO clients (organization_id, company_id, created_by)
-        VALUES ($1, $2, $3) RETURNING id;
-      `, [orgId, comp.rows[0].id, userId]);
-      resolvedClientId = newCl.rows[0].id;
+    // Enforce strict client access check
+    const hasAccess = await userHasClientAccess(userId, orgId, resolvedClientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: You do not have permission to create projects under this client. Only team members with assigned client access can create projects.'
+      });
+      return;
     }
 
     const result = await db.query(`
@@ -497,7 +603,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-// General Update Task (Title, description, priority, due date, assigned date, assignee, project, client)
+// General Update Task (Title, description, priority, status, progress, subtasks, due date, assignee, etc.)
 router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
@@ -505,17 +611,64 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   const {
     title, description, priority, status, due_date,
     assigned_date, start_date, assignee_id, assignee_name, assignee_role,
-    project_id, client_id
+    project_id, client_id, progress, subtasks, notes
   } = req.body;
 
   try {
-    const current = await db.query('SELECT * FROM tasks WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [taskId, orgId]);
-    if (current.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Task not found' });
+    // 1. Verify user is a concerned stakeholder
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.isConcerned) {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to update this task. Only assigned members, project managers, client account managers, or administrators can make updates.'
+      });
       return;
     }
 
+    const currentTask = concern.task;
     const effectiveAssignedDate = assigned_date || start_date;
+
+    // 2. Handle subtasks & progress recalculation
+    let computedProgress = currentTask.progress;
+    let computedSubtasks = currentTask.subtasks;
+
+    if (subtasks !== undefined && Array.isArray(subtasks)) {
+      computedSubtasks = subtasks;
+      if (progress === undefined) {
+        if (subtasks.length > 0) {
+          const completedCount = subtasks.filter((s: any) => s.done).length;
+          computedProgress = Math.round((completedCount / subtasks.length) * 100);
+        }
+      } else {
+        computedProgress = Math.max(0, Math.min(100, Number(progress) || 0));
+      }
+    } else if (progress !== undefined) {
+      computedProgress = Math.max(0, Math.min(100, Number(progress) || 0));
+    }
+
+    // 3. Handle stage progression history if status is changing
+    let updatedHistory = Array.isArray(currentTask.stage_history) ? currentTask.stage_history : [];
+    let effectiveStatus = status || currentTask.status;
+
+    if (status && status !== currentTask.status) {
+      const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+      updatedHistory = [
+        ...updatedHistory,
+        {
+          from_status: currentTask.status,
+          to_status: status,
+          changed_by: userId,
+          user_name: userFullName,
+          changed_at: new Date().toISOString(),
+          notes: notes || `Status changed to ${status}`
+        }
+      ];
+
+      // Auto-set 100% progress when completed
+      if (status === 'Completed') {
+        computedProgress = 100;
+      }
+    }
 
     const updated = await db.query(`
       UPDATE tasks
@@ -532,6 +685,9 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
         start_date = COALESCE($9, start_date),
         project_id = CASE WHEN $13::boolean THEN $14::uuid ELSE project_id END,
         client_id = CASE WHEN $15::boolean THEN $16::uuid ELSE client_id END,
+        progress = COALESCE($17, progress),
+        subtasks = COALESCE($18::jsonb, subtasks),
+        stage_history = COALESCE($19::jsonb, stage_history),
         completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
         updated_by = $10
       WHERE id = $11 AND organization_id = $12
@@ -541,11 +697,197 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       assignee_id, assignee_name, assignee_role, effectiveAssignedDate,
       userId, taskId, orgId,
       project_id !== undefined, project_id || null,
-      client_id !== undefined, client_id || null
+      client_id !== undefined, client_id || null,
+      computedProgress !== undefined ? computedProgress : null,
+      computedSubtasks !== undefined ? JSON.stringify(computedSubtasks) : null,
+      JSON.stringify(updatedHistory)
     ]);
 
-    await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, current.rows[0], updated.rows[0], req);
+    await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, currentTask, updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. Get Task Comments (Discussion Thread)
+router.get('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const taskId = req.params.id;
+
+  try {
+    const commentsRes = await db.query(`
+      SELECT 
+        tc.id,
+        tc.task_id,
+        tc.user_id,
+        tc.comment as text,
+        tc.created_at,
+        u.first_name,
+        u.last_name,
+        TRIM(CONCAT(u.first_name, ' ', u.last_name)) as author,
+        u.email,
+        COALESCE(ou.designation, r.name, 'Team Member') as role_name
+      FROM task_comments tc
+      JOIN users u ON tc.user_id = u.id
+      LEFT JOIN organization_users ou ON ou.user_id = u.id AND ou.organization_id = $1
+      LEFT JOIN roles r ON ou.role_id = r.id
+      WHERE tc.task_id = $2
+      ORDER BY tc.created_at ASC;
+    `, [orgId, taskId]);
+
+    res.json({ success: true, data: commentsRes.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 6. Post Task Comment (Only concerned stakeholders or admins)
+router.post('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const taskId = req.params.id;
+  const { comment } = req.body;
+
+  if (!comment || !comment.trim()) {
+    res.status(400).json({ success: false, message: 'Comment text is required' });
+    return;
+  }
+
+  try {
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.isConcerned) {
+      res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to post comments on this task. Only concerned stakeholders can participate.'
+      });
+      return;
+    }
+
+    const insertRes = await db.query(`
+      INSERT INTO task_comments (task_id, user_id, comment)
+      VALUES ($1, $2, $3)
+      RETURNING *;
+    `, [taskId, userId, comment.trim()]);
+
+    const authorName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+    res.status(201).json({
+      success: true,
+      data: {
+        ...insertRes.rows[0],
+        text: insertRes.rows[0].comment,
+        author: authorName,
+        first_name: req.user?.firstName,
+        last_name: req.user?.lastName,
+        email: req.user?.email,
+        role_name: req.user?.role || 'Team Member'
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 7. Get Task Stakeholders (Concerned parties: Assignee, Creator, PM, AM, Assistants)
+router.get('/tasks/:id/stakeholders', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const taskId = req.params.id;
+
+  try {
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.task) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const task = concern.task;
+    const stakeholders: any[] = [];
+    const addedIds = new Set<string>();
+
+    // Assignee
+    if (task.assignee_id) {
+      const uRes = await db.query('SELECT id, first_name, last_name, email FROM users WHERE id = $1;', [task.assignee_id]);
+      if (uRes.rows.length > 0) {
+        stakeholders.push({
+          id: uRes.rows[0].id,
+          name: `${uRes.rows[0].first_name} ${uRes.rows[0].last_name}`.trim(),
+          email: uRes.rows[0].email,
+          role: 'Task Assignee',
+          is_current_user: uRes.rows[0].id === userId
+        });
+        addedIds.add(uRes.rows[0].id);
+      }
+    }
+
+    // Creator
+    if (task.created_by && !addedIds.has(task.created_by)) {
+      const uRes = await db.query('SELECT id, first_name, last_name, email FROM users WHERE id = $1;', [task.created_by]);
+      if (uRes.rows.length > 0) {
+        stakeholders.push({
+          id: uRes.rows[0].id,
+          name: `${uRes.rows[0].first_name} ${uRes.rows[0].last_name}`.trim(),
+          email: uRes.rows[0].email,
+          role: 'Task Creator',
+          is_current_user: uRes.rows[0].id === userId
+        });
+        addedIds.add(uRes.rows[0].id);
+      }
+    }
+
+    // Project Manager
+    if (task.project_manager_id && !addedIds.has(task.project_manager_id)) {
+      const uRes = await db.query('SELECT id, first_name, last_name, email FROM users WHERE id = $1;', [task.project_manager_id]);
+      if (uRes.rows.length > 0) {
+        stakeholders.push({
+          id: uRes.rows[0].id,
+          name: `${uRes.rows[0].first_name} ${uRes.rows[0].last_name}`.trim(),
+          email: uRes.rows[0].email,
+          role: 'Project Manager',
+          is_current_user: uRes.rows[0].id === userId
+        });
+        addedIds.add(uRes.rows[0].id);
+      }
+    }
+
+    // Client Account Manager
+    if (task.account_manager_id && !addedIds.has(task.account_manager_id)) {
+      const uRes = await db.query('SELECT id, first_name, last_name, email FROM users WHERE id = $1;', [task.account_manager_id]);
+      if (uRes.rows.length > 0) {
+        stakeholders.push({
+          id: uRes.rows[0].id,
+          name: `${uRes.rows[0].first_name} ${uRes.rows[0].last_name}`.trim(),
+          email: uRes.rows[0].email,
+          role: 'Client Account Manager',
+          is_current_user: uRes.rows[0].id === userId
+        });
+        addedIds.add(uRes.rows[0].id);
+      }
+    }
+
+    // Client Assistant
+    if (task.account_assistant_id && !addedIds.has(task.account_assistant_id)) {
+      const uRes = await db.query('SELECT id, first_name, last_name, email FROM users WHERE id = $1;', [task.account_assistant_id]);
+      if (uRes.rows.length > 0) {
+        stakeholders.push({
+          id: uRes.rows[0].id,
+          name: `${uRes.rows[0].first_name} ${uRes.rows[0].last_name}`.trim(),
+          email: uRes.rows[0].email,
+          role: 'Client Assistant',
+          is_current_user: uRes.rows[0].id === userId
+        });
+        addedIds.add(uRes.rows[0].id);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        isConcerned: concern.isConcerned,
+        userRoleInTask: concern.roleInTask,
+        stakeholders
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

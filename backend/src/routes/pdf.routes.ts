@@ -1,7 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 
 const router = Router();
 
@@ -202,18 +203,34 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
     return String(val).replace(/₹/g, 'Rs. ');
   };
 
-  const proposalTitle = params.title || params.name || 'Kerala Launch — Social Media & Meta Ads';
-  const clientName = params.client || params.client_name || 'Hayras Coconut Oil';
-  const brandName = params.brand || params.brand_name || 'Chakkil Aattiya Velichenna (Wood-Pressed Coconut Oil)';
-  const contactPerson = params.contact_person || params.contact || 'Shanavas';
-  const validTill = params.valid_until || params.valid_till || '17/09/2026';
-  const regionNiche = params.target_market || params.region || 'Kerala food & wellness';
-  const month1Goal = params.month1_target || params.month1_goal || '250-400L';
-  const month3Goal = params.month3_target || params.month3_goal || '2,500L';
+  const proposalTitle = params.title || params.name || 'Commercial Proposal & SOW';
+  const clientName = params.client || params.client_name || 'Client Organization';
+  let brandName = params.brand || params.brand_name || '';
 
-  const managementFee = cleanCurrency(params.management_fee || (params.subtotal ? `Rs. ${Number(params.subtotal).toLocaleString('en-IN')}` : 'Rs. 15,000'));
-  const metaAdSpend = cleanCurrency(params.meta_ad_spend || 'Rs. 12,000 to start, up to Rs. 15,000');
-  const totalInvestment = cleanCurrency(params.total_investment || params.contractValue || 'Rs. 27,000 - 30,000');
+  // Clean brand name to avoid repetitive "SOW for Client — Client" artifacts
+  let displayBrand = brandName;
+  if (displayBrand.toLowerCase().startsWith('sow for')) {
+    displayBrand = displayBrand.replace(/^sow\s+for\s+/i, '').trim();
+  }
+  if (displayBrand.includes('—')) {
+    const parts = displayBrand.split('—').map((s: string) => s.trim());
+    if (parts.length > 1 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
+      displayBrand = parts[0];
+    }
+  }
+  if (displayBrand.toLowerCase() === clientName.toLowerCase()) {
+    displayBrand = '';
+  }
+
+  const contactPerson = params.contact_person || params.contact || 'Client Partner';
+  const validTill = params.valid_until || params.valid_till || '30 days from issue';
+  const regionNiche = params.target_market || params.region || '';
+  const month1Goal = params.month1_target || params.month1_goal || '';
+  const month3Goal = params.month3_target || params.month3_goal || '';
+
+  const managementFee = cleanCurrency(params.management_fee || (params.subtotal ? `Rs. ${Number(params.subtotal).toLocaleString('en-IN')}` : (params.amount ? `Rs. ${Number(params.amount).toLocaleString('en-IN')}` : 'Rs. 20,000')));
+  const metaAdSpend = cleanCurrency(params.meta_ad_spend || 'Billed directly to Meta ad account');
+  const totalInvestment = cleanCurrency(params.total_investment || params.contractValue || managementFee);
 
   const advanceAmt = cleanCurrency(params.advance_amount || 'Rs. 6,000');
   const m2Amt = cleanCurrency(params.milestone2_amount || 'Rs. 4,500');
@@ -246,11 +263,11 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.fillColor(FONT_DARK).fontSize(14).font('Helvetica-Bold').text(proposalTitle, 45, topY, { width: 405 });
   topY += doc.heightOfString(proposalTitle, { width: 405 }) + 4;
 
-  const prepSubtitle = `Prepared for ${clientName}${brandName && brandName !== clientName ? ` — ${brandName}` : ''}`;
+  const prepSubtitle = `Prepared for ${clientName}${displayBrand ? ` — ${displayBrand}` : ''}`;
   doc.fillColor(FONT_MUTED).fontSize(9).font('Helvetica-Oblique').text(prepSubtitle, 45, topY, { width: 405 });
   topY += doc.heightOfString(prepSubtitle, { width: 405 }) + 3;
 
-  const agencySubtitle = `By OptiVirAds — helping ${regionNiche} brands grow online`;
+  const agencySubtitle = params.agency_subtitle || params.tagline || (regionNiche ? `By OptiVirAds — helping ${regionNiche} brands grow online` : 'By OptiVirAds — Performance Marketing & Creative Growth');
   doc.fillColor(FONT_MUTED).fontSize(8.5).font('Helvetica-Oblique').text(agencySubtitle, 45, topY, { width: 405 });
   topY += doc.heightOfString(agencySubtitle, { width: 405 }) + 3;
 
@@ -262,7 +279,15 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.fillColor(FONT_DARK).fontSize(10).font('Helvetica-Bold').text(`Dear ${contactPerson},`, 45, y);
   y += 16;
 
-  const introText = `Below is a plan built specifically around what you shared — your stock, your order process, and your ${regionNiche.split(' ')[0]} launch goal of ${month1Goal} in Month 1, scaling toward ${month3Goal} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`;
+  let introText = params.executive_summary || params.salutation_intro || params.intro_text || '';
+  if (!introText) {
+    if (regionNiche && (month1Goal || month3Goal)) {
+      introText = `Below is a plan built specifically around what you shared — your stock, your order process, and your ${regionNiche.split(' ')[0]} launch goal of ${month1Goal || 'target phase'} in Month 1, scaling toward ${month3Goal || 'scale phase'} by Month 3. This isn't a generic package; it's mapped to where your business already stands, and where marketing needs to pick up.`;
+    } else {
+      introText = `Below is a strategic growth plan tailored to your business objectives, operational workflow, and target scale. This roadmap is mapped directly to where your business stands today and where marketing execution will drive measurable results.`;
+    }
+  }
+
   doc.fillColor(FONT_DARK).fontSize(9.5).font('Helvetica').text(introText, 45, y, { width: 505, lineGap: 3.5 });
   y += doc.heightOfString(introText, { width: 505, lineGap: 3.5 }) + 18;
 
@@ -271,13 +296,27 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 10;
-  const planIntro = "You're not starting from zero — past traction proves the product works. The focus is visibility, high-converting creative messaging, and a consistent lead flow into direct communication channels. The growth roadmap:";
+  const planIntro = params.plan_intro || "You're not starting from zero — past traction proves the product works. The focus is visibility, high-converting creative messaging, and a consistent lead flow into direct communication channels. The growth roadmap:";
   doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(planIntro, 45, y, { width: 505, lineGap: 3 });
   y += doc.heightOfString(planIntro, { width: 505, lineGap: 3 }) + 12;
 
-  const planBullets = [
+  let parsedPlanBullets: string[] = [];
+  if (Array.isArray(params.plan_bullets)) {
+    parsedPlanBullets = params.plan_bullets;
+  } else if (typeof params.plan_bullets === 'string' && params.plan_bullets.trim()) {
+    try {
+      const parsed = JSON.parse(params.plan_bullets);
+      if (Array.isArray(parsed)) parsedPlanBullets = parsed;
+    } catch {
+      parsedPlanBullets = params.plan_bullets.split('\n').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+
+  const planBullets = parsedPlanBullets.length > 0 ? parsedPlanBullets : [
     '5-8 reels/month — process, purity & craft story, product usage, and real customer reviews, tuned to peak audience engagement. Reel script and creative direction provided.',
-    `Meta ads built on top-performing creative angles, targeted to ${regionNiche.split(' ')[0]} health-conscious buyers, with product variants tested separately to maximize conversions`,
+    regionNiche
+      ? `Meta ads built on top-performing creative angles, targeted to ${regionNiche.split(' ')[0]} health-conscious buyers, with product variants tested separately to maximize conversions`
+      : 'Meta ads built on top-performing creative angles and targeted high-converting audience segments to maximize conversions',
     'Direct messaging conversion funnel — every ad and reel routes to dedicated WhatsApp/DM channels with structured response templates, so no lead sits unanswered',
     'Weekly Monday report: reach, leads generated, and feedback conversion data — so we optimize on real performance metrics, not guesses'
   ];
@@ -295,13 +334,18 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 10;
-  const scopeIntro = 'Keeping scope clear upfront ensures full transparency and aligned expectations:';
+  const scopeIntro = params.scope_intro || 'Keeping scope clear upfront ensures full transparency and aligned expectations:';
   doc.fillColor(FONT_DARK).fontSize(9.2).font('Helvetica').text(scopeIntro, 45, y, { width: 505 });
   y += doc.heightOfString(scopeIntro, { width: 505 }) + 12;
 
+  let incScope = params.included_scope;
+  if (Array.isArray(incScope)) incScope = incScope.join(', ');
+  let excScope = params.excluded_scope;
+  if (Array.isArray(excScope)) excScope = excScope.join(', ');
+
   const scopeBullets = [
-    'Included: full content strategy, reel scripting & video editing, Meta ad setup & optimization, direct funnel workflow, weekly telemetry reporting, up to 2 revision rounds per asset.',
-    'Not included: on-site videography shoots (client provides raw footage/photos), Meta media ad spend (billed directly by Meta to client ad account), third-party influencer payments.',
+    `Included: ${incScope || 'full content strategy, reel scripting & video editing, Meta ad setup & optimization, direct funnel workflow, weekly telemetry reporting, up to 2 revision rounds per asset.'}`,
+    `Not included: ${excScope || 'on-site videography shoots (client provides raw footage/photos), Meta media ad spend (billed directly by Meta to client ad account), third-party influencer payments.'}`,
     'Additional scope items or custom shoots can be quoted separately whenever needed.'
   ];
   scopeBullets.forEach(pt => {
@@ -360,7 +404,8 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   y += 24;
 
   y += 8;
-  const invNote = "We start ad spend at Rs. 12,000 in Week 1. Based on real performance data by Day 10, we'll recommend whether to hold or scale to Rs. 15,000 for Weeks 3-4 — you approve any increase before it happens. This fits inside your Rs. 25,000-30,000 budget, and ad spend stays in your Meta account, fully visible and in your control at all times. Management fee is inclusive of tax (inclusive of GST).";
+  const defaultInvNote = "We start ad spend at Rs. 12,000 in Week 1. Based on real performance data by Day 10, we'll recommend whether to hold or scale to Rs. 15,000 for Weeks 3-4 — you approve any increase before it happens. This fits inside your Rs. 25,000-30,000 budget, and ad spend stays in your Meta account, fully visible and in your control at all times. Management fee is inclusive of tax (inclusive of GST).";
+  const invNote = cleanCurrency(params.investment_note || params.ad_spend_note || defaultInvNote);
   doc.fillColor(FONT_MUTED).fontSize(8.2).font('Helvetica-Oblique').text(invNote, 45, y, { width: 505, lineGap: 2.2 });
   y += doc.heightOfString(invNote, { width: 505, lineGap: 2.2 }) + 14;
 
@@ -370,7 +415,18 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
-  const termsBullets = [
+  let parsedTerms: string[] = [];
+  if (Array.isArray(params.engagement_terms)) {
+    parsedTerms = params.engagement_terms;
+  } else if (typeof params.engagement_terms === 'string' && params.engagement_terms.trim()) {
+    try {
+      const p = JSON.parse(params.engagement_terms);
+      if (Array.isArray(p)) parsedTerms = p;
+    } catch {
+      parsedTerms = params.engagement_terms.split('\n').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  const termsBullets = parsedTerms.length > 0 ? parsedTerms : [
     `40% (${advanceAmt}) advance to begin content calendar and ad account setup`,
     `30% (${m2Amt}) on day 15, once first batch of content and ads are live`,
     `30% (${m3Amt}) on day 30, on delivery of the final report`,
@@ -393,7 +449,18 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
 
-  const timelineBullets = [
+  let parsedTimeline: string[] = [];
+  if (Array.isArray(params.timeline_bullets)) {
+    parsedTimeline = params.timeline_bullets;
+  } else if (typeof params.timeline_bullets === 'string' && params.timeline_bullets.trim()) {
+    try {
+      const p = JSON.parse(params.timeline_bullets);
+      if (Array.isArray(p)) parsedTimeline = p;
+    } catch {
+      parsedTimeline = params.timeline_bullets.split('\n').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  const timelineBullets = parsedTimeline.length > 0 ? parsedTimeline : [
     'Week 1: Content calendar, first reels, WhatsApp funnel + ad account setup',
     'Week 2-3: Ads live, daily posting, lead flow into WhatsApp, mid-point optimization',
     'Week 4: Full report + clear go/no-go recommendation for Month 2 scale-up the selling volume.'
@@ -411,11 +478,11 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
   y += 15;
   doc.rect(45, y, 505, 0.75).fill('#374151');
   y += 8;
-  const nextStep1 = "If this works for you, reply 'yes' and send the advance — we'll have the content calendar with you within 24 hours.";
+  const nextStep1 = params.next_step_text || params.next_step || "If this works for you, reply 'yes' and send the advance — we'll have the content calendar with you within 24 hours.";
   doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica').text(nextStep1, 45, y, { width: 505 });
   y += doc.heightOfString(nextStep1, { width: 505 }) + 4;
 
-  const nextStep2 = `Looking forward to taking ${brandName}'s ${regionNiche.split(' ')[0]} launch as seriously as its UAE success.`;
+  const nextStep2 = params.next_step_note || (displayBrand ? `Looking forward to accelerating ${displayBrand}'s market growth and customer acquisition.` : 'Looking forward to accelerating your market growth and customer acquisition.');
   doc.fillColor(FONT_DARK).fontSize(9).font('Helvetica-Oblique').text(nextStep2, 45, y, { width: 505 });
   y += doc.heightOfString(nextStep2, { width: 505 }) + 14;
 
@@ -614,9 +681,9 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   const confirmationNumber = params.number || params.code || params.id || 'OVA-2026-001';
   const confirmationDate = params.date || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
   const proposalDate = params.proposal_date || '17/08/2026';
-  const clientName = params.client || params.client_name || 'Hayras Coconut Oil';
-  const brandName = params.brand || params.brand_name || 'Chakkinal Aattiya Velichenna';
-  const targetRegion = params.target_market || params.region || 'Kerala';
+  const clientName = params.client || params.client_name || params.company_name || 'Client Organization';
+  const brandName = params.brand || params.brand_name || clientName || 'Client Brand';
+  const targetRegion = params.target_market || params.region || 'Target Market';
 
   const managementFee = cleanCurrency(params.management_fee || (params.subtotal ? `Rs. ${Number(params.subtotal).toLocaleString('en-IN')}` : 'Rs. 15,000'));
   const metaAdSpend = cleanCurrency(params.meta_ad_spend || 'Rs. 12,000 to start, up to Rs. 15,000');
@@ -884,8 +951,34 @@ async function generateAgreementPDF(params: any, orgData?: any): Promise<Buffer>
   return promise;
 }
 
+// Authentication middleware for PDF generation (supports header or ?token= query param)
+function requirePdfAuth(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  const queryToken = req.query.token as string | undefined;
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.split(' ')[1]
+    : queryToken;
+
+  if (!token) {
+    res.status(401).json({ success: false, message: 'Authentication token required to generate corporate documents' });
+    return;
+  }
+
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ success: false, message: 'Server configuration error: JWT_SECRET not configured' });
+      return;
+    }
+    jwt.verify(token, secret);
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid or expired authentication token' });
+  }
+}
+
 // Router handler for /api/pdf/:type
-router.get('/:type', async (req: Request, res: Response) => {
+router.get('/:type', requirePdfAuth, async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
     const queryData = req.query as Record<string, any>;
@@ -925,8 +1018,9 @@ router.get('/:type', async (req: Request, res: Response) => {
         return;
     }
 
+    const safeFilename = filename.replace(/[\r\n"\\/]/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
     res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Cache-Control', 'no-cache');
     res.status(200).send(pdfBuffer);

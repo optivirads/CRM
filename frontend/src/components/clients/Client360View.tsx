@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast, ToastType } from '@/lib/toast-context';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Building2,
   Briefcase,
@@ -141,6 +142,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
   const [isLoggingSpend, setIsLoggingSpend] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+  const [deletingCampaign, setDeletingCampaign] = useState<any | null>(null);
   const [spendPlatform, setSpendPlatform] = useState<string>('Meta');
   const [spendCampaignName, setSpendCampaignName] = useState<string>('Meta Lead Gen & High-Intent Retainer');
   const [spendAmount, setSpendAmount] = useState<string>('15000');
@@ -2347,20 +2349,7 @@ export const Client360View: React.FC<Client360ViewProps> = ({
                             <span>Ad Creatives</span>
                           </button>
                           <button
-                            onClick={async () => {
-                              if (!confirm(`Are you sure you want to delete campaign "${camp.name}"? This action will remove the campaign and its ad telemetry from this client.`)) return;
-                              try {
-                                const res = await api.deleteCampaign(camp.id);
-                                if (res?.success) {
-                                  showToast(`Campaign "${camp.name}" deleted successfully`);
-                                  setDbCampaigns(prev => prev.filter(c => c.id !== camp.id));
-                                } else {
-                                  showToast(res?.message || 'Failed to delete campaign', 'error');
-                                }
-                              } catch (err: any) {
-                                showToast(err.message || 'Error deleting campaign', 'error');
-                              }
-                            }}
+                            onClick={() => setDeletingCampaign(camp)}
                             className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-rose-200 dark:border-rose-900/40 cursor-pointer active:scale-95"
                             title="Delete Campaign"
                           >
@@ -6410,6 +6399,35 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           <div className="text-xs font-medium">{toastMessage}</div>
         </div>
       )}
+
+      {/* Delete Campaign Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingCampaign}
+        title="Delete Ad Campaign"
+        badge={deletingCampaign?.platform || 'Campaign'}
+        description={`Are you sure you want to delete campaign "${deletingCampaign?.name}"?`}
+        subDescription="This action will remove the campaign and its ad telemetry from this client."
+        confirmText="Delete Campaign"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deletingCampaign) return;
+          try {
+            const res = await api.deleteCampaign(deletingCampaign.id);
+            if (res?.success) {
+              showToast(`Campaign "${deletingCampaign.name}" deleted successfully`);
+              setDbCampaigns(prev => prev.filter(c => c.id !== deletingCampaign.id));
+            } else {
+              showToast(res?.message || 'Failed to delete campaign', 'error');
+            }
+          } catch (err: any) {
+            showToast(err.message || 'Error deleting campaign', 'error');
+          } finally {
+            setDeletingCampaign(null);
+          }
+        }}
+        onClose={() => setDeletingCampaign(null)}
+      />
     </div>
   );
 };

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/lib/toast-context';
 import { exportToCsv } from '@/lib/exportCsv';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   CheckSquare,
   Clock,
@@ -41,8 +42,16 @@ import {
   Film,
   Link as LinkIcon,
   Sparkles,
-  LayoutGrid
+  LayoutGrid,
+  ArrowRight,
+  ShieldCheck,
+  Flag,
+  Circle,
+  MessageSquare,
+  History,
+  Users
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 interface TasksViewProps {
@@ -50,6 +59,7 @@ interface TasksViewProps {
 }
 
 export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
+  const { user } = useAuth();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,6 +97,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [unlinkingCreative, setUnlinkingCreative] = useState<{ id: string; name: string } | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskCategory, setNewTaskCategory] = useState('Social Media Posters & Creatives');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -98,6 +110,20 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [taskComments, setTaskComments] = useState<Record<string, Array<{ id: string; author: string; initials: string; text: string; time: string }>>>({});
+
+  // Persisted Comments & Discussion Stream
+  const [commentsList, setCommentsList] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [isPostingComment, setIsPostingComment] = useState(false);
+
+  // Concerned Stakeholders State
+  const [stakeholderData, setStakeholderData] = useState<{ isConcerned: boolean; userRoleInTask: string; stakeholders: any[] } | null>(null);
+  const [loadingStakeholders, setLoadingStakeholders] = useState(false);
+
+  // Interactive Task Flow Transition State
+  const [showStatusTransitionModal, setShowStatusTransitionModal] = useState<{ taskId: string; targetStatus: string } | null>(null);
+  const [transitionNotes, setTransitionNotes] = useState('');
+  const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
 
   // Team Members & Assignee States
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -156,11 +182,50 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     }
   };
 
+  const fetchTaskComments = async (taskId: string) => {
+    if (!taskId) return;
+    try {
+      setLoadingComments(true);
+      const res = await api.getTaskComments(taskId);
+      if (res.success && Array.isArray(res.data)) {
+        setCommentsList(res.data);
+      } else {
+        setCommentsList([]);
+      }
+    } catch (err) {
+      console.warn('Failed to load task comments:', err);
+      setCommentsList([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const fetchStakeholders = async (taskId: string) => {
+    if (!taskId) return;
+    try {
+      setLoadingStakeholders(true);
+      const res = await api.getTaskStakeholders(taskId);
+      if (res.success && res.data) {
+        setStakeholderData(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load stakeholders:', err);
+    } finally {
+      setLoadingStakeholders(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTask?.id) {
       fetchTaskCreatives(activeTask.id);
+      fetchTaskComments(activeTask.id);
+      fetchStakeholders(activeTask.id);
+      setSubtasksState(Array.isArray(activeTask.subtasks) ? activeTask.subtasks : []);
     } else {
       setTaskCreatives([]);
+      setCommentsList([]);
+      setStakeholderData(null);
+      setSubtasksState([]);
     }
   }, [activeTask?.id]);
 
@@ -204,10 +269,14 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleUnlinkCreative = async (creativeId: string, creativeName: string) => {
-    if (!confirm(`Unlink creative "${creativeName}" from this task?`)) return;
+  const handleUnlinkCreative = (creativeId: string, creativeName: string) => {
+    setUnlinkingCreative({ id: creativeId, name: creativeName });
+  };
+
+  const confirmUnlinkCreative = async () => {
+    if (!unlinkingCreative) return;
     try {
-      const res = await api.linkCreativeToTask(creativeId, null);
+      const res = await api.linkCreativeToTask(unlinkingCreative.id, null);
       if (res.success) {
         showToast('Creative unlinked from task', 'success');
         if (activeTask?.id) {
@@ -217,6 +286,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to unlink creative', 'error');
+    } finally {
+      setUnlinkingCreative(null);
     }
   };
 
@@ -344,46 +415,79 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       const res = await api.getTasks();
       if (res.success && Array.isArray(res.data)) {
         const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        const mapped = res.data.map((t: any) => ({
-          id: t.id,
-          client_id: t.client_id,
-          project_id: t.project_id,
-          linked_creatives_count: parseInt(t.linked_creatives_count || '0', 10),
-          code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
-          title: t.title || 'Untitled Deliverable',
-          description: t.description || '',
-          subtasksCount: '0 Subtasks',
-          subtasksBadge: t.status === 'Completed' ? 'Completed' : (t.status === 'In Progress' ? 'In Progress' : 'Pending'),
-          clientName: t.company_name || 'Direct Client',
-          clientAvatar: (t.company_name || 'DC').substring(0, 2).toUpperCase(),
-          clientAvatarBg: 'bg-[#0A1628]',
-          project: t.project_name || 'Creative Workstream',
-          milestone: 'Active Deliverable',
-          assignee: t.assignee_name || (t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'OptiVir Admin'),
-          assigneeRole: t.assignee_role || 'Team Member',
-          assigneeInitials: (t.assignee_name || t.assignee_first || 'OA')
-            .split(' ')
-            .filter(Boolean)
-            .map((p: string) => p[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase(),
-          priority: t.priority || 'Medium',
-          status: t.status === 'Completed' ? 'Done' : (t.status === 'In Progress' ? 'In Progress' : 'To Do'),
-          statusBg: t.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-          currentDate: todayStr,
-          timeline: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
-          timelineStart: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
-          assignedDate: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
-          dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
-          timelineUrgent: t.priority === 'Urgent' || t.priority === 'High',
-          timeActual: '0.0h',
-          timeEst: '4.0h',
-          timePercent: t.status === 'Completed' ? 100 : 0
-        }));
+        const mapped = res.data.map((t: any) => {
+          const rawStatus = t.status || 'To Do';
+          const numericProgress = typeof t.progress === 'number' ? t.progress : (rawStatus === 'Completed' ? 100 : (rawStatus === 'Review' ? 80 : (rawStatus === 'In Progress' ? 25 : 0)));
+          const subtaskList = Array.isArray(t.subtasks) ? t.subtasks : [];
+          const stageHistory = Array.isArray(t.stage_history) ? t.stage_history : [];
+          const completedSubs = subtaskList.filter((s: any) => s.done).length;
+
+          let statusBg = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
+          if (rawStatus === 'Completed') {
+            statusBg = 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
+          } else if (rawStatus === 'In Progress') {
+            statusBg = 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
+          } else if (rawStatus === 'Review') {
+            statusBg = 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800';
+          } else if (rawStatus === 'Blocked') {
+            statusBg = 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800';
+          }
+
+          return {
+            id: t.id,
+            client_id: t.client_id,
+            project_id: t.project_id,
+            created_by: t.created_by,
+            assignee_id: t.assignee_id,
+            rawStatus,
+            progress: numericProgress,
+            subtasks: subtaskList,
+            stage_history: stageHistory,
+            comments_count: parseInt(t.comments_count || '0', 10),
+            linked_creatives_count: parseInt(t.linked_creatives_count || '0', 10),
+            code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
+            title: t.title || 'Untitled Deliverable',
+            description: t.description || '',
+            subtasksCount: subtaskList.length > 0 ? `${completedSubs}/${subtaskList.length} Subtasks` : '0 Subtasks',
+            subtasksBadge: rawStatus === 'Completed' ? 'Completed' : (rawStatus === 'In Progress' ? 'In Progress' : (rawStatus === 'Review' ? 'Review' : (rawStatus === 'Blocked' ? 'Blocked' : 'Pending'))),
+            clientName: t.company_name || 'Direct Client',
+            clientAvatar: (t.company_name || 'DC').substring(0, 2).toUpperCase(),
+            clientAvatarBg: 'bg-[#0A1628]',
+            project: t.project_name || 'Creative Workstream',
+            milestone: 'Active Deliverable',
+            assignee: t.assignee_name || (t.assignee_first ? `${t.assignee_first} ${t.assignee_last || ''}`.trim() : 'OptiVir Admin'),
+            assigneeRole: t.assignee_role || 'Team Member',
+            assigneeInitials: (t.assignee_name || t.assignee_first || 'OA')
+              .split(' ')
+              .filter(Boolean)
+              .map((p: string) => p[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase(),
+            priority: t.priority || 'Medium',
+            status: rawStatus === 'Completed' ? 'Done' : rawStatus,
+            statusBg,
+            currentDate: todayStr,
+            timeline: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
+            timelineStart: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
+            assignedDate: t.assigned_date ? new Date(t.assigned_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : todayStr),
+            dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date',
+            timelineUrgent: t.priority === 'Urgent' || t.priority === 'High',
+            timeActual: '0.0h',
+            timeEst: '4.0h',
+            timePercent: numericProgress
+          };
+        });
         setTasks(mapped);
-        if (mapped.length > 0 && !activeTask) {
+        if (activeTask) {
+          const fresh = mapped.find((m: any) => m.id === activeTask.id);
+          if (fresh) {
+            setActiveTask(fresh);
+            setSubtasksState(fresh.subtasks);
+          }
+        } else if (mapped.length > 0) {
           setActiveTask(mapped[0]);
+          setSubtasksState(mapped[0].subtasks);
         }
       }
     } catch (err: any) {
@@ -464,9 +568,12 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedTasks.length === 0) return;
-    if (!confirm(`Delete ${selectedTasks.length} selected tasks from database?`)) return;
+    setShowBulkDeleteModal(true);
+  };
+
+  const confirmBulkDelete = async () => {
     try {
       setIsDeleting(true);
       await Promise.all(selectedTasks.map((id) => api.deleteTask(id)));
@@ -477,6 +584,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       showToast(err?.message || 'Failed to delete tasks', 'error');
     } finally {
       setIsDeleting(false);
+      setShowBulkDeleteModal(false);
     }
   };
 
@@ -519,11 +627,127 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     );
   };
 
-  const toggleSubtask = (id: string) => {
-    setSubtasksState((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, done: !s.done } : s))
-    );
+  const handleAdvanceStatus = async (taskId: string, targetStatus: string, notes?: string) => {
+    try {
+      setIsUpdatingProgress(true);
+      const res = await api.updateTaskStatus(taskId, targetStatus, notes);
+      if (res.success) {
+        showToast(`Task status transitioned to "${targetStatus}"`, 'success');
+        setShowStatusTransitionModal(null);
+        setTransitionNotes('');
+        await fetchTasks();
+        if (activeTask?.id === taskId) {
+          fetchTaskComments(taskId);
+          fetchStakeholders(taskId);
+        }
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update status. Only concerned stakeholders can update progress.', 'error');
+    } finally {
+      setIsUpdatingProgress(false);
+    }
   };
+
+  const handleUpdateProgress = async (taskId: string, newProgress: number) => {
+    try {
+      setIsUpdatingProgress(true);
+      const res = await api.updateTask(taskId, { progress: newProgress });
+      if (res.success) {
+        showToast(`Task progress updated to ${newProgress}%`, 'success');
+        setActiveTask((prev: any) => prev ? { ...prev, progress: newProgress, timePercent: newProgress } : null);
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update progress', 'error');
+    } finally {
+      setIsUpdatingProgress(false);
+    }
+  };
+
+  const handleToggleSubtask = async (subId: string) => {
+    if (!activeTask?.id) return;
+    const updated = subtasksState.map((s: any) => (s.id === subId ? { ...s, done: !s.done } : s));
+    setSubtasksState(updated);
+    const completedCount = updated.filter((s: any) => s.done).length;
+    const autoProgress = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : activeTask.progress;
+    try {
+      const res = await api.updateTask(activeTask.id, { subtasks: updated, progress: autoProgress });
+      if (res.success) {
+        setActiveTask((prev: any) => ({ ...prev, subtasks: updated, progress: autoProgress, timePercent: autoProgress }));
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update subtask', 'error');
+    }
+  };
+
+  const handleAddSubtask = async (title: string, hours: string = '1.0h') => {
+    if (!activeTask?.id || !title.trim()) return;
+    const newSub = { id: `s-${Date.now()}`, title: title.trim(), hours, done: false };
+    const updated = [...subtasksState, newSub];
+    setSubtasksState(updated);
+    try {
+      const res = await api.updateTask(activeTask.id, { subtasks: updated });
+      if (res.success) {
+        showToast('Subtask added', 'success');
+        setActiveTask((prev: any) => ({ ...prev, subtasks: updated }));
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to add subtask', 'error');
+    }
+  };
+
+  const handleDeleteSubtask = async (subId: string) => {
+    if (!activeTask?.id) return;
+    const updated = subtasksState.filter((s: any) => s.id !== subId);
+    setSubtasksState(updated);
+    try {
+      const res = await api.updateTask(activeTask.id, { subtasks: updated });
+      if (res.success) {
+        showToast('Subtask removed', 'info');
+        setActiveTask((prev: any) => ({ ...prev, subtasks: updated }));
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to remove subtask', 'error');
+    }
+  };
+
+  const handlePostComment = async () => {
+    if (!activeTask?.id || !newComment.trim()) return;
+    try {
+      setIsPostingComment(true);
+      const res = await api.createTaskComment(activeTask.id, newComment.trim());
+      if (res.success && res.data) {
+        setCommentsList((prev) => [res.data, ...prev]);
+        setNewComment('');
+        showToast('Comment posted to task discussion stream', 'success');
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to post comment. You must be a concerned stakeholder.', 'error');
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
+  const isUserConcernedWithTask = (t: any) => {
+    if (!user) return false;
+    const userRole = (user.role || '').toLowerCase();
+    const isLeadership = user.isOwner || (user as any).is_owner || ['owner', 'super_admin', 'admin', 'coo', 'operations_lead'].includes(userRole);
+    if (isLeadership) return true;
+    if (t.assignee_id && t.assignee_id === user.id) return true;
+    if (t.created_by && t.created_by === user.id) return true;
+    const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || '';
+    if (userName && t.assignee?.toLowerCase().includes(userName.toLowerCase())) return true;
+    return false;
+  };
+
+  const myOpenTasksCount = tasks.filter(t => isUserConcernedWithTask(t) && t.rawStatus !== 'Completed').length;
+  const inProgressCount = tasks.filter(t => t.rawStatus === 'In Progress').length;
+  const reviewCount = tasks.filter(t => t.rawStatus === 'Review').length;
+  const completedCount = tasks.filter(t => t.rawStatus === 'Completed').length;
 
   // Filter tasks
   const filteredTasks = tasks.filter((t) => {
@@ -537,11 +761,13 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     const matchesAssignee = selectedAssignee === 'All' || t.assignee.includes(selectedAssignee);
     const matchesPriority = selectedPriority === 'All' || t.priority === selectedPriority;
 
-    if (activeFilterTab === 'my') return matchesSearch && t.assignee.includes('Alex');
+    if (activeFilterTab === 'my') return matchesSearch && isUserConcernedWithTask(t);
+    if (activeFilterTab === 'in_progress') return matchesSearch && t.rawStatus === 'In Progress';
+    if (activeFilterTab === 'review') return matchesSearch && t.rawStatus === 'Review';
     if (activeFilterTab === 'overdue') return matchesSearch && t.timeline.includes('Overdue');
     if (activeFilterTab === 'due_today') return matchesSearch && t.timeline.includes('Due Today');
     if (activeFilterTab === 'high') return matchesSearch && (t.priority === 'Urgent' || t.priority === 'High');
-    if (activeFilterTab === 'completed') return matchesSearch && t.status === 'Done';
+    if (activeFilterTab === 'completed') return matchesSearch && (t.status === 'Done' || t.rawStatus === 'Completed');
 
     return matchesSearch && matchesClient && matchesAssignee && matchesPriority;
   });
@@ -644,52 +870,52 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
               <span className="font-medium text-slate-600 dark:text-slate-400">MY OPEN TASKS</span>
               <CheckSquare className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">{tasks.length}</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">{myOpenTasksCount}</div>
             <div className="text-[11px] text-slate-400 font-medium mt-1 flex items-center gap-1">
-              <span>0 urgent / high priority</span>
+              <span>{tasks.filter(t => (t.priority === 'Urgent' || t.priority === 'High') && isUserConcernedWithTask(t)).length} high priority</span>
             </div>
           </div>
 
-          {/* Overdue */}
+          {/* In Progress */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-600 dark:text-slate-400">OVERDUE</span>
-              <AlertTriangle className="w-4 h-4 text-slate-400" />
+              <span className="font-medium text-slate-600 dark:text-slate-400">IN PROGRESS</span>
+              <Clock className="w-4 h-4 text-blue-500" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
-            <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
-              <span>No overdue tasks</span>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1.5">{inProgressCount}</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+              <span>Active execution</span>
             </div>
           </div>
 
-          {/* Due Today */}
+          {/* In Review */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">DUE TODAY</span>
-              <Calendar className="w-4 h-4 text-slate-400" />
+              <span className="font-medium text-slate-600 dark:text-slate-400">IN REVIEW</span>
+              <ShieldCheck className="w-4 h-4 text-purple-500" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
-            <div className="text-[11px] text-slate-400 mt-1">No tasks due today</div>
-          </div>
-
-          {/* Due This Week */}
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">DUE THIS WEEK</span>
-              <Calendar className="w-4 h-4 text-slate-400" />
-            </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
-            <div className="text-[11px] text-slate-400 mt-1">0 deliverables</div>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1.5">{reviewCount}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Pending QA / Client Approval</div>
           </div>
 
           {/* Completed (MTD) */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">COMPLETED (MTD)</span>
-              <CheckCircle2 className="w-4 h-4 text-slate-400" />
+              <span className="font-medium text-slate-600 dark:text-slate-400">COMPLETED</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">0</div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">0% on-time rate</div>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1.5">{completedCount}</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1">{tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0}% completion rate</div>
+          </div>
+
+          {/* Total Deliverables */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-600 dark:text-slate-400">TOTAL TASKS</span>
+              <Calendar className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">{tasks.length}</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1">Across all clients</div>
           </div>
         </div>
 
@@ -747,24 +973,24 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: 'all', label: `All Tasks (${tasks.length})` },
-              { id: 'my', label: 'My Tasks (0)' },
-              { id: 'overdue', label: 'Overdue (0)' },
-              { id: 'due_today', label: 'Due Today (0)' },
-              { id: 'high', label: 'High Priority (0)' },
-              { id: 'completed', label: 'Completed (0)' },
+              { id: 'my', label: `My Tasks (${myOpenTasksCount})` },
+              { id: 'in_progress', label: `In Progress (${inProgressCount})` },
+              { id: 'review', label: `In Review (${reviewCount})` },
+              { id: 'high', label: `High Priority (${tasks.filter(t => t.priority === 'Urgent' || t.priority === 'High').length})` },
+              { id: 'completed', label: `Completed (${completedCount})` },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveFilterTab(tab.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   activeFilterTab === tab.id
                     ? 'bg-[#0A1628] text-white shadow-xs'
                     : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1032,10 +1258,23 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                           </td>
 
                           {/* Status */}
-                          <td className="p-3.5">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${task.statusBg}`}>
-                              {task.status}
-                            </span>
+                          <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={task.rawStatus}
+                              onChange={(e) => {
+                                const targetStatus = e.target.value;
+                                if (targetStatus !== task.rawStatus) {
+                                  setShowStatusTransitionModal({ taskId: task.id, targetStatus });
+                                }
+                              }}
+                              className={`text-[11px] font-semibold py-1 px-2 rounded-lg border cursor-pointer outline-none transition ${task.statusBg}`}
+                            >
+                              <option value="To Do">To Do</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Review">Review</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Blocked">Blocked</option>
+                            </select>
                           </td>
 
                           {/* Timeline */}
@@ -1119,6 +1358,115 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Kanban Board View */}
+        {viewMode === 'kanban' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in">
+            {[
+              { id: 'To Do', label: 'To Do', color: 'border-slate-300 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300' },
+              { id: 'In Progress', label: 'In Progress', color: 'border-blue-300 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300' },
+              { id: 'Review', label: 'In Review', color: 'border-purple-300 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300' },
+              { id: 'Completed', label: 'Completed', color: 'border-emerald-300 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300' },
+            ].map((col) => {
+              const columnTasks = filteredTasks.filter(t => t.rawStatus === col.id);
+              return (
+                <div
+                  key={col.id}
+                  className="bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 flex flex-col min-h-[500px]"
+                >
+                  <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
+                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${
+                        col.id === 'Completed' ? 'bg-emerald-500' : col.id === 'Review' ? 'bg-purple-500' : col.id === 'In Progress' ? 'bg-blue-500' : 'bg-slate-400'
+                      }`} />
+                      <span>{col.label}</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                      {columnTasks.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1 overflow-y-auto">
+                    {columnTasks.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs italic">
+                        No tasks in {col.label}
+                      </div>
+                    ) : (
+                      columnTasks.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => {
+                            setActiveTask(t);
+                            setViewMode('detail');
+                          }}
+                          className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs hover:shadow-md transition cursor-pointer space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <span className="text-[10px] font-mono font-bold text-slate-400">{t.code}</span>
+                            <div className="flex items-center gap-1">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                t.priority === 'Urgent' || t.priority === 'High'
+                                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                {t.priority}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingTask(t);
+                                }}
+                                title="Delete task"
+                                className="p-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-2">
+                            {t.title}
+                          </h4>
+
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {t.clientName}
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-slate-400">
+                              <span>Progress</span>
+                              <span className="font-mono font-bold">{t.progress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
+                                style={{ width: `${t.progress}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[10px] text-slate-500">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <div className="w-5 h-5 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[9px]">
+                                {t.assigneeInitials}
+                              </div>
+                              <span className="truncate">{t.assignee}</span>
+                            </div>
+                            {t.dueDate && (
+                              <span className="text-slate-400">{t.dueDate}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1252,6 +1600,199 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
               </div>
             </div>
 
+            {/* Interactive Task Flow Pipeline Stepper */}
+            <div className="bg-slate-50 dark:bg-slate-800/80 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Task Flow Pipeline
+                    </h3>
+                    {activeTask.rawStatus === 'Blocked' && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 animate-pulse">
+                        ⚠️ BLOCKED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Deliverable progresses through 4 verified stages. All concerned stakeholders can view and update state.
+                  </p>
+                </div>
+
+                {/* Stakeholder Authorization Badge */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {stakeholderData?.isConcerned ? (
+                    <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Stakeholder Access: {stakeholderData.userRoleInTask || 'Concerned Member'} (Can Update Flow)</span>
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Observer Mode (Stakeholders only can advance)</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Pipeline Stepper Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {[
+                  { stage: 'To Do', label: '1. To Do', icon: Circle, desc: 'Scope defined' },
+                  { stage: 'In Progress', label: '2. In Progress', icon: Play, desc: 'Under active work' },
+                  { stage: 'Review', label: '3. In Review', icon: CheckSquare, desc: 'Client & QA review' },
+                  { stage: 'Completed', label: '4. Completed', icon: CheckCircle2, desc: 'Approved & delivered' },
+                ].map(({ stage, label, icon: Icon, desc }, idx) => {
+                  const isCurrent = activeTask.rawStatus === stage;
+                  const stageOrder = ['To Do', 'In Progress', 'Review', 'Completed'];
+                  const currentIndex = stageOrder.indexOf(activeTask.rawStatus);
+                  const isPast = currentIndex > idx;
+
+                  return (
+                    <button
+                      key={stage}
+                      type="button"
+                      onClick={() => {
+                        if (activeTask.rawStatus !== stage) {
+                          setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: stage });
+                        }
+                      }}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                        isCurrent
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-500/30'
+                          : isPast
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs flex items-center gap-1.5">
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{label}</span>
+                        </span>
+                        {isCurrent && (
+                          <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                        )}
+                        {isPast && (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 font-bold" />
+                        )}
+                      </div>
+                      <span className={`text-[10px] ${isCurrent ? 'text-rose-100' : 'text-slate-400'}`}>
+                        {desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Stage Action & Blocked Toggle */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {activeTask.rawStatus === 'To Do' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'In Progress' })}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>Start Working → Move to In Progress</span>
+                    </button>
+                  )}
+                  {activeTask.rawStatus === 'In Progress' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'Review' })}
+                      className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span>Submit Deliverable → Move to Review</span>
+                    </button>
+                  )}
+                  {activeTask.rawStatus === 'Review' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'Completed' })}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Approve & Complete Deliverable ✓</span>
+                    </button>
+                  )}
+                  {activeTask.rawStatus === 'Completed' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'In Progress' })}
+                      className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reopen Deliverable (In Progress)</span>
+                    </button>
+                  )}
+
+                  {/* Blocked Button Toggle */}
+                  {activeTask.rawStatus !== 'Blocked' ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'Blocked' })}
+                      className="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100 text-xs font-medium transition cursor-pointer"
+                    >
+                      <span>Flag as Blocked...</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusTransitionModal({ taskId: activeTask.id, targetStatus: 'In Progress' })}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <span>Unblock & Resume In Progress</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Stage History Count */}
+                <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{activeTask.stage_history?.length || 0} stage transitions logged</span>
+                </div>
+              </div>
+
+              {/* Numeric Progress Bar & Quick Presets */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Completion Progress</span>
+                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-sm">
+                      {activeTask.progress}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    {[0, 25, 50, 75, 100].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        disabled={isUpdatingProgress}
+                        onClick={() => handleUpdateProgress(activeTask.id, preset)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                          activeTask.progress === preset
+                            ? 'bg-[#0A1628] text-white shadow-2xs'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        {preset}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 transition-all duration-300"
+                    style={{ width: `${activeTask.progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
             {/* 70/30 Split Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* LEFT 70%: Scope, Subtasks, Dependencies, Discussion */}
@@ -1276,7 +1817,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                       onClick={() => {
                         const newSub = prompt('New subtask title:');
                         if (newSub && newSub.trim()) {
-                          setSubtasksState([...subtasksState, { id: `s-${Date.now()}`, title: newSub.trim(), hours: '1.0h', done: false }]);
+                          handleAddSubtask(newSub.trim());
                         }
                       }}
                       className="text-rose-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
@@ -1301,21 +1842,33 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                         {subtasksState.map((sub) => (
                           <div
                             key={sub.id}
-                            onClick={() => toggleSubtask(sub.id)}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition text-xs"
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition text-xs"
                           >
-                            <div className="flex items-center gap-2.5">
+                            <div
+                              onClick={() => handleToggleSubtask(sub.id)}
+                              className="flex items-center gap-2.5 cursor-pointer flex-1"
+                            >
                               <input
                                 type="checkbox"
                                 checked={sub.done}
-                                onChange={() => toggleSubtask(sub.id)}
-                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                onChange={() => handleToggleSubtask(sub.id)}
+                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                               />
                               <span className={sub.done ? 'line-through text-slate-400' : 'font-medium text-slate-800 dark:text-slate-200'}>
                                 {sub.title}
                               </span>
                             </div>
-                            <span className="text-[11px] font-semibold text-slate-400">{sub.hours}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-slate-400">{sub.hours || '1.0h'}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSubtask(sub.id)}
+                                title="Remove subtask"
+                                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1586,7 +2139,15 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
 
                 {/* 4. Activity & Discussion */}
                 <div className="space-y-4 pt-2">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500">Activity &amp; Discussion</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Activity &amp; Discussion</span>
+                    </h3>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {commentsList.length} Comments • {activeTask.stage_history?.length || 0} Stage Updates
+                    </span>
+                  </div>
 
                   {/* Comment Editor */}
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700 space-y-2">
@@ -1594,66 +2155,155 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                       rows={3}
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Leave a note, creative feedback, or deliverable status update..."
-                      className="w-full text-xs bg-transparent border-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400 resize-none"
+                      placeholder={
+                        stakeholderData?.isConcerned
+                          ? "Leave a note, creative feedback, or deliverable status update..."
+                          : "Stakeholder discussion (Observer read-only mode)..."
+                      }
+                      disabled={Boolean(stakeholderData && !stakeholderData.isConcerned)}
+                      className="w-full text-xs bg-transparent border-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400 resize-none disabled:opacity-50"
                     ></textarea>
                     <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <span className="text-[11px] text-slate-400">Press Post Comment to save to task log</span>
+                      <span className="text-[11px] text-slate-400">
+                        {stakeholderData?.isConcerned
+                          ? "Concerned stakeholders will be notified of updates"
+                          : "You must be a stakeholder or assignee to post"}
+                      </span>
                       <button
-                        onClick={() => {
-                          if (newComment.trim()) {
-                            const newEntry = {
-                              id: `c-${Date.now()}`,
-                              author: 'You (Team)',
-                              initials: 'YO',
-                              text: newComment.trim(),
-                              time: 'Just now'
-                            };
-                            setTaskComments((prev) => ({
-                              ...prev,
-                              [activeTask.id]: [...(prev[activeTask.id] || []), newEntry]
-                            }));
-                            showToast('Comment posted successfully', 'success');
-                            setNewComment('');
-                          }
-                        }}
-                        className="px-4 py-1.5 bg-[#0A1628] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                        type="button"
+                        disabled={Boolean(isPostingComment || !newComment.trim() || (stakeholderData && !stakeholderData.isConcerned))}
+                        onClick={handlePostComment}
+                        className="px-4 py-1.5 bg-[#0A1628] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                       >
-                        Post Comment
+                        <Send className="w-3 h-3" />
+                        <span>{isPostingComment ? 'Posting...' : 'Post Comment'}</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Comments Thread */}
+                  {/* Combined Timeline & Comments Stream */}
                   <div className="space-y-3 text-xs">
-                    {(taskComments[activeTask.id] || []).length > 0 ? (
-                      (taskComments[activeTask.id] || []).map((c) => (
+                    {/* Stage Transition History Events */}
+                    {activeTask.stage_history && activeTask.stage_history.length > 0 && (
+                      <div className="space-y-2 pb-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                          <History className="w-3 h-3 text-slate-400" />
+                          <span>Stage History</span>
+                        </div>
+                        {activeTask.stage_history.map((h: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2.5"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-rose-600/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                              <History className="w-3 h-3" />
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900 dark:text-white text-[11px]">
+                                  Stage Transition: <span className="text-rose-600">{h.stage}</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : 'Recently'}
+                                </span>
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-400 text-[11px]">
+                                by <span className="font-semibold">{h.user_name || 'Stakeholder'}</span>
+                                {h.notes && <span> &mdash; &ldquo;{h.notes}&rdquo;</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Persisted Discussion Comments */}
+                    {loadingComments ? (
+                      <div className="py-4 text-center text-slate-400 text-xs">Loading comments...</div>
+                    ) : commentsList.length > 0 ? (
+                      commentsList.map((c: any) => (
                         <div key={c.id} className="flex items-start gap-3">
                           <div className="w-7 h-7 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                            {c.initials}
+                            {c.author_initials || (c.author_name || 'U').slice(0, 2).toUpperCase()}
                           </div>
                           <div className="space-y-1 flex-1">
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-900 dark:text-white">{c.author}</span>
-                              <span className="text-[10px] text-slate-400">{c.time}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-white">{c.author_name || 'Team Member'}</span>
+                                {c.author_role && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    {c.author_role}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400">
+                                {c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : 'Just now'}
+                              </span>
                             </div>
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                              {c.text}
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                              {c.comment}
                             </div>
                           </div>
                         </div>
                       ))
                     ) : (
                       <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-                        No activity or comments posted yet. Leave an update or note above.
+                        No team discussion posted yet. Leave an update or note above.
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT 30%: Time Tracking Stopwatch & Connected CRM Entities */}
+              {/* RIGHT 30%: Concerned Stakeholders, Time Tracking Stopwatch & Connected CRM Entities */}
               <div className="lg:col-span-4 space-y-6">
+                {/* 0. Concerned Stakeholders Directory */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-slate-400" />
+                      <span>Concerned Stakeholders</span>
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {stakeholderData?.stakeholders?.length || 1} Total
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                    <span>Your Access Level:</span>
+                    <strong className="text-slate-900 dark:text-white font-bold">
+                      {stakeholderData?.userRoleInTask || (stakeholderData?.isConcerned ? 'Stakeholder' : 'Observer')}
+                    </strong>
+                  </div>
+
+                  <div className="space-y-2 pt-1 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                    {loadingStakeholders ? (
+                      <div className="text-center py-3 text-slate-400 text-xs">Loading stakeholders...</div>
+                    ) : stakeholderData?.stakeholders && stakeholderData.stakeholders.length > 0 ? (
+                      stakeholderData.stakeholders.map((s: any, idx: number) => (
+                        <div key={s.id || idx} className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-full bg-[#0A1628] text-white flex items-center justify-center font-bold text-[9px] shrink-0">
+                              {(s.name || s.email || 'U').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 dark:text-white truncate">{s.name || s.email}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{s.role || 'Member'}</div>
+                            </div>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+                            {s.relationship || 'Stakeholder'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-slate-400 text-center py-2 text-xs">
+                        Assignee: {activeTask.assignee}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* 1. Time Tracking Stopwatch */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center justify-between text-xs">
@@ -1767,9 +2417,17 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                   </button>
                   <button
                     onClick={() => showToast(`Task ${activeTask.code} moved to archive`, 'info')}
-                    className="w-full text-left py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-rose-600 font-medium transition cursor-pointer"
+                    className="w-full text-left py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-medium transition cursor-pointer"
                   >
                     Archive Task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingTask(activeTask)}
+                    className="w-full text-left py-2 px-3 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-rose-600 font-bold transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Deliverable</span>
                   </button>
                 </div>
               </div>
@@ -2410,6 +3068,189 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Interactive Status Transition Notes Modal */}
+      {showStatusTransitionModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-rose-600" />
+                <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">
+                  Advance Flow: &quot;{showStatusTransitionModal.targetStatus}&quot;
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStatusTransitionModal(null);
+                  setTransitionNotes('');
+                }}
+                className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-600 dark:text-slate-400">
+                You are moving this deliverable to{' '}
+                <strong className="text-rose-600 dark:text-rose-400 font-bold">
+                  {showStatusTransitionModal.targetStatus}
+                </strong>
+                . This change will be logged in stage history and visible to all concerned stakeholders.
+              </p>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                  Transition Notes (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={transitionNotes}
+                  onChange={(e) => setTransitionNotes(e.target.value)}
+                  placeholder="e.g. Uploaded final proofs for client sign-off, or why deliverable is paused..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#E2E6EC] dark:border-[#152238]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStatusTransitionModal(null);
+                    setTransitionNotes('');
+                  }}
+                  className="px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isUpdatingProgress}
+                  onClick={() =>
+                    handleAdvanceStatus(
+                      showStatusTransitionModal.taskId,
+                      showStatusTransitionModal.targetStatus,
+                      transitionNotes
+                    )
+                  }
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isUpdatingProgress ? 'Updating...' : 'Confirm Transition'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Task Confirmation Modal */}
+      {deletingTask && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#0B1727] dark:text-white">Delete Deliverable / Task</h3>
+                  <p className="text-[11px] text-slate-500">Permanently remove task from pipeline</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingTask(null)}
+                className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-mono font-bold text-slate-400">{deletingTask.code || 'TASK'}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {deletingTask.priority || 'Medium'} Priority
+                  </span>
+                </div>
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-snug">
+                  {deletingTask.title}
+                </h4>
+                <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                  <span>Client: <strong>{deletingTask.clientName || 'Assigned Client'}</strong></span>
+                  {deletingTask.projectName && (
+                    <>
+                      <span>•</span>
+                      <span>Project: <strong>{deletingTask.projectName}</strong></span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {deletingTask.linkedCreativesCount > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] flex items-start gap-2">
+                  <span className="font-bold shrink-0">⚠️ Note:</span>
+                  <span>This deliverable has {deletingTask.linkedCreativesCount} linked creative proof(s). Deleting the task will unlink the proofs without deleting the creative files.</span>
+                </div>
+              )}
+
+              <p className="text-slate-600 dark:text-slate-400">
+                Are you sure you want to delete this deliverable? This action will remove it from the active sprint pipeline.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#E2E6EC] dark:border-[#152238]">
+                <button
+                  type="button"
+                  onClick={() => setDeletingTask(null)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteTask}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeleting ? 'Deleting...' : 'Delete Deliverable'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Tasks Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        title={`Delete ${selectedTasks.length} Deliverables`}
+        badge={`${selectedTasks.length} Selected`}
+        description={`Are you sure you want to permanently delete ${selectedTasks.length} selected tasks from the database?`}
+        subDescription="Associated creative proof files will be unlinked safely so no artwork or media assets are destroyed."
+        confirmText={`Delete ${selectedTasks.length} Deliverables`}
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmBulkDelete}
+        onClose={() => setShowBulkDeleteModal(false)}
+      />
+
+      {/* Unlink Creative Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!unlinkingCreative}
+        title="Unlink Creative Asset"
+        description={`Are you sure you want to unlink creative "${unlinkingCreative?.name}" from this deliverable?`}
+        subDescription="The creative remains intact and safe in the asset library, but will no longer be attached to this task."
+        confirmText="Unlink Creative"
+        cancelText="Keep Linked"
+        variant="warning"
+        onConfirm={confirmUnlinkCreative}
+        onClose={() => setUnlinkingCreative(null)}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
 import {
   Bell,
   CheckCircle2,
@@ -40,17 +41,18 @@ interface NotificationsViewProps {
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate }) => {
   // Main Page Filter Tabs
-  const [mainTab, setMainTab] = useState('All (0)');
+  const [mainTab, setMainTab] = useState('All');
 
   // Floating Panel Visibility & Drawer State
   const [showFloatingPanel, setShowFloatingPanel] = useState(true);
-  const [drawerTab, setDrawerTab] = useState<'All (0)' | 'Unread (0)' | 'Action Required (0)'>('All (0)');
+  const [drawerTab, setDrawerTab] = useState<'All' | 'Unread' | 'Action Required'>('All');
   const [drawerEmptyState, setDrawerEmptyState] = useState(false);
 
   // Modals & Preferences
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [notifPage, setNotifPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -63,6 +65,81 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   // Notification items state for Floating Drawer (Matching Image 1 right panel)
   const [drawerNotifications, setDrawerNotifications] = useState<any[]>([]);
 
+  // Fetch real activities from database (includes proposal acceptances & system events)
+  const fetchActivities = async () => {
+    try {
+      setIsLoading(true);
+      const res = await api.getActivities();
+      if (res?.success && Array.isArray(res.data)) {
+        const rows = res.data;
+
+        // Map to tableNotifications
+        const mappedTable = rows.map((a: any) => {
+          const isProposal = a.type === 'PROPOSAL_ACCEPTED';
+          let meta: any = {};
+          if (typeof a.metadata === 'string') {
+            try { meta = JSON.parse(a.metadata); } catch (e) {}
+          } else if (typeof a.metadata === 'object' && a.metadata !== null) {
+            meta = a.metadata;
+          }
+
+          return {
+            id: a.id,
+            dotColor: isProposal ? 'bg-emerald-500' : 'bg-blue-500',
+            type: isProposal ? 'PROPOSAL ACCEPTED' : (a.type || 'SYSTEM ALERT'),
+            typeColor: isProposal
+              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+              : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300',
+            subject: a.subject || 'Activity Record',
+            reference: a.description || '',
+            badge: isProposal ? 'COMMERCIAL SIGNED' : 'ACTIVITY',
+            time: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+            statusText: a.read_at ? 'Settled' : 'Active',
+            category: isProposal ? 'Commercial & Sales' : 'General',
+            unread: !a.read_at,
+            proposalId: meta.proposal_id
+          };
+        });
+
+        // Map to drawerNotifications
+        const mappedDrawer = rows.map((a: any) => {
+          const isProposal = a.type === 'PROPOSAL_ACCEPTED';
+          let meta: any = {};
+          if (typeof a.metadata === 'string') {
+            try { meta = JSON.parse(a.metadata); } catch (e) {}
+          } else if (typeof a.metadata === 'object' && a.metadata !== null) {
+            meta = a.metadata;
+          }
+
+          return {
+            id: a.id,
+            unread: !a.read_at,
+            title: a.subject || 'Notification',
+            desc: a.description || '',
+            code: meta.proposal_number || (isProposal ? 'PROPOSAL SOW' : 'ACTIVITY'),
+            time: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+            category: isProposal ? 'Action Required' : 'General',
+            iconBg: isProposal ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950' : 'bg-blue-100 text-blue-700 dark:bg-blue-950',
+            actionPrimary: isProposal ? { label: 'View Proposal', nav: 'proposals', red: false } : undefined,
+            actionSecondary: { label: 'Mark Read' },
+            proposalId: meta.proposal_id
+          };
+        });
+
+        setTableNotifications(mappedTable);
+        setDrawerNotifications(mappedDrawer);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications/activities:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActivities();
+  }, []);
+
   const toggleReadDrawerItem = (id: string) => {
     setDrawerNotifications(prev =>
       prev.map(n => n.id === id ? { ...n, unread: !n.unread } : n)
@@ -74,9 +151,21 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     showToast('All drawer notifications marked as read');
   };
 
+  const unreadCount = drawerNotifications.filter(n => n.unread).length;
+  const actionRequiredCount = drawerNotifications.filter(n => n.category === 'Action Required').length;
+
   const filteredDrawerNotifications = drawerNotifications.filter(n => {
-    if (drawerTab === 'Unread (0)') return n.unread;
-    if (drawerTab === 'Action Required (0)') return n.category === 'Action Required (0)';
+    if (drawerTab === 'Unread') return n.unread;
+    if (drawerTab === 'Action Required') return n.category === 'Action Required';
+    return true;
+  });
+
+  const filteredTableNotifications = tableNotifications.filter(row => {
+    if (mainTab === 'Unread') return row.unread;
+    if (mainTab === 'Action Required') return row.category === 'Action Required' || row.badge === 'COMMERCIAL SIGNED';
+    if (mainTab === 'Commercial & Sales') return row.category === 'Commercial & Sales';
+    if (mainTab === 'Finance') return row.category === 'Finance';
+    if (mainTab === 'Projects') return row.category === 'Projects';
     return true;
   });
 
@@ -162,15 +251,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             </div>
 
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">00</span>
+              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">
+                {String(unreadCount).padStart(2, '0')}
+              </span>
               <span className="text-xs font-bold text-slate-500">
-                +0 since 09:15 AM
+                {unreadCount > 0 ? `${unreadCount} unread notices` : 'All caught up'}
               </span>
             </div>
 
             <div className="mt-2 text-[11px] flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
               <span className="text-slate-500">Requires immediate triage</span>
-              <span className="font-bold text-slate-500">0 High Priority</span>
+              <span className="font-bold text-slate-500">{unreadCount} Alerts</span>
             </div>
           </div>
 
@@ -184,15 +275,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             </div>
 
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">00</span>
+              <span className="text-3xl font-bold text-[#0B1727] dark:text-white tracking-tight">
+                {String(actionRequiredCount).padStart(2, '0')}
+              </span>
               <span className="text-xs text-slate-500">
-                Pending Signature/Settle
+                {actionRequiredCount > 0 ? `${actionRequiredCount} Action Item${actionRequiredCount > 1 ? 's' : ''}` : 'Pending Signature/Settle'}
               </span>
             </div>
 
             <div className="mt-2 text-[11px] flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">0 Overdue Invoice • 0 Milestones</span>
-              <span className="font-bold text-slate-500">0 Escalate</span>
+              <span className="text-slate-500">Proposal Signoffs & Escalate</span>
+              <span className="font-bold text-slate-500">{actionRequiredCount} Active</span>
             </div>
           </div>
 
@@ -221,26 +314,26 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         {/* 3. Main Filter Strip */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#E2E6EC] dark:border-[#152238]">
           {[
-            'All (0)',
-            'Unread (0)',
-            'Action Required (0)',
-            'Finance (0)',
-            'Commercial & Sales (0)',
-            'Projects (0)'
+            { key: 'All', label: `All (${tableNotifications.length})` },
+            { key: 'Unread', label: `Unread (${unreadCount})` },
+            { key: 'Action Required', label: `Action Required (${actionRequiredCount})` },
+            { key: 'Finance', label: `Finance (0)` },
+            { key: 'Commercial & Sales', label: `Commercial & Sales (${tableNotifications.filter(n => n.category === 'Commercial & Sales').length})` },
+            { key: 'Projects', label: `Projects (0)` }
           ].map((tab) => (
             <button
-              key={tab}
+              key={tab.key}
               onClick={() => {
-                setMainTab(tab);
-                showToast(`Filter: ${tab}`);
+                setMainTab(tab.key);
+                showToast(`Filter: ${tab.key}`);
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                mainTab === tab
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                mainTab === tab.key
                   ? 'bg-[#0A1628] dark:bg-[#112440] text-white shadow-xs'
                   : 'bg-white dark:bg-[#0B1424] text-[#64748B] dark:text-[#94A3B8] border border-[#E2E6EC] dark:border-[#152238] hover:text-[#0B1727]'
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -259,7 +352,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#152238]">
-                {tableNotifications.length === 0 ? (
+                {filteredTableNotifications.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-16 text-slate-400">
                       <Bell className="w-10 h-10 mx-auto mb-2 opacity-30" />
@@ -268,8 +361,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                     </td>
                   </tr>
                 ) : (
-                  tableNotifications.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition">
+                  filteredTableNotifications.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => {
+                        if (row.type === 'PROPOSAL ACCEPTED' && onNavigate) onNavigate('proposals');
+                      }}
+                      className={`hover:bg-slate-50/70 dark:hover:bg-[#111E34]/50 transition ${row.type === 'PROPOSAL ACCEPTED' ? 'cursor-pointer' : ''}`}
+                    >
                       <td className="p-3.5 text-center">
                         <span className={`inline-block w-2 h-2 rounded-full ${row.dotColor}`}></span>
                       </td>
@@ -283,8 +382,20 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                       <td className="p-3.5">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div>
-                            <div className="font-bold text-[#0B1727] dark:text-white text-xs">
-                              {row.subject}
+                            <div className="font-bold text-[#0B1727] dark:text-white text-xs flex items-center gap-2">
+                              <span>{row.subject}</span>
+                              {row.type === 'PROPOSAL ACCEPTED' && onNavigate && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onNavigate('proposals');
+                                  }}
+                                  className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>View Proposal</span>
+                                  <ChevronRight className="w-2.5 h-2.5" />
+                                </button>
+                              )}
                             </div>
                             <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5">
                               {row.reference}
@@ -293,7 +404,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
                           {row.badge && (
                             <div className="flex items-center gap-3 shrink-0 text-xs">
-                              <span className="text-rose-600 font-semibold">{row.badge}</span>
+                              <span className="text-emerald-600 font-semibold">{row.badge}</span>
                               <span className="text-slate-400">{row.time}</span>
                               <span className="text-slate-400 font-medium">{row.statusText}</span>
                             </div>
@@ -395,17 +506,21 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
             {/* Drawer Sub-tabs */}
             <div className="bg-slate-100 dark:bg-[#0A101C] p-1.5 flex gap-1 text-[11px] border-b border-slate-200 dark:border-slate-800">
-              {(['All (0)', 'Unread (0)', 'Action Required (0)'] as const).map((t) => (
+              {[
+                { key: 'All', label: `All (${drawerNotifications.length})` },
+                { key: 'Unread', label: `Unread (${unreadCount})` },
+                { key: 'Action Required', label: `Action (${actionRequiredCount})` }
+              ].map((t) => (
                 <button
-                  key={t}
-                  onClick={() => setDrawerTab(t as any)}
-                  className={`flex-1 py-1 rounded-md font-semibold text-center transition ${
-                    drawerTab === t
+                  key={t.key}
+                  onClick={() => setDrawerTab(t.key as any)}
+                  className={`flex-1 py-1 rounded-md font-semibold text-center transition cursor-pointer ${
+                    drawerTab === t.key
                       ? 'bg-white dark:bg-[#111E34] text-[#0B1727] dark:text-white shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  {t}
+                  {t.label}
                 </button>
               ))}
             </div>

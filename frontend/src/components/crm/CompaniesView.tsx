@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
   Building2,
   TrendingUp,
@@ -78,6 +79,7 @@ export const CompaniesView: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingCompany, setDeletingCompany] = useState<CompanyRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -547,12 +549,7 @@ export const CompaniesView: React.FC = () => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedCompanies.length} companies?`)) {
-                    setCompanies(companies.filter((c) => !selectedCompanies.includes(c.id)));
-                    setSelectedCompanies([]);
-                  }
-                }}
+                onClick={() => setShowBulkDeleteModal(true)}
                 className="px-3 py-1 rounded bg-[#DC2626] hover:bg-[#B91C1C] font-semibold transition"
               >
                 Delete ({selectedCompanies.length})
@@ -884,6 +881,25 @@ export const CompaniesView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Companies Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        title={`Delete ${selectedCompanies.length} Companies`}
+        badge={`${selectedCompanies.length} Selected`}
+        description={`Are you sure you want to delete ${selectedCompanies.length} selected company records?`}
+        subDescription="This will remove the organizations from the active directory."
+        confirmText={`Delete ${selectedCompanies.length} Companies`}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          setCompanies(companies.filter((c) => !selectedCompanies.includes(c.id)));
+          setSelectedCompanies([]);
+          showToast(`Deleted ${selectedCompanies.length} companies`);
+          setShowBulkDeleteModal(false);
+        }}
+        onClose={() => setShowBulkDeleteModal(false)}
+      />
     </div>
   );
 };

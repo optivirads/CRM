@@ -470,32 +470,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccessTab = (tabId: string): boolean => {
-    // 1. Master Owner / Super Admin / COO
-    if (user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.email?.toLowerCase() === 'abhinandc97@gmail.com' || user?.isOwner || user?.role === 'super_admin' || user?.role === 'coo') {
+    // 1. Master Owner / Super Admin
+    const isMasterOwner =
+      user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
+      user?.email?.toLowerCase() === 'abhinandc97@gmail.com' ||
+      Boolean(user?.isOwner) ||
+      user?.role === 'super_admin' ||
+      user?.role === 'owner';
+
+    if (isMasterOwner) {
       return true;
     }
-    // 2. Active persona role COO or Owner
-    if (activePersona?.role === 'coo' || activePersona?.role === 'owner') {
-      return true;
-    }
-    // 3. Client-restricted user: strictly limit to client-facing modules
+
+    // 2. Client-restricted user: strictly limit to client-facing modules
     if (user?.clientId) {
       const clientAllowed = ['dashboard', 'clients', 'client-360', 'projects', 'tasks', 'marketing', 'finance', 'reports', 'documents', 'notifications'];
       if (!clientAllowed.includes(tabId)) return false;
     }
-    // 4. User specific allowed_tabs from database
+
+    // 3. User specific allowed_tabs from database takes primary precedence for non-master accounts
     if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
       if (user.allowed_tabs.includes('*')) return true;
       return user.allowed_tabs.includes(tabId);
     }
-    // 5. Fallback persona check
+
+    // 4. Fallback persona check
     if (!activePersona) return true;
     if (activePersona.role === 'owner' || activePersona.allowedTabs.includes('*')) return true;
     return activePersona.allowedTabs.includes(tabId);
   };
 
   const can = (resource: string, action: string): boolean => {
-    const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
+    const isMasterOwner =
+      Boolean(user?.isOwner) ||
+      user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
+      user?.email?.toLowerCase() === 'abhinandc97@gmail.com' ||
+      user?.role === 'owner' ||
+      user?.role === 'super_admin';
 
     // Strict Rule: Only primary owner optivirads@gmail.com can create users or assign permissions
     if (resource === 'user_management' || resource === 'users_admin') {

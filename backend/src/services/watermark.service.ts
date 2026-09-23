@@ -89,9 +89,13 @@ export class WatermarkService {
             .videoFilters(videoFilters)
             .outputOptions([
               '-c:v libx264',
-              '-preset ultrafast',
-              '-crf 24',
-              '-c:a copy',
+              '-preset medium',
+              '-crf 30',
+              '-tune film',
+              '-maxrate 2M',
+              '-bufsize 4M',
+              '-c:a aac',
+              '-b:a 96k',
               '-movflags +faststart'
             ]);
         } else {

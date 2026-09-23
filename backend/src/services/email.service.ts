@@ -2,6 +2,16 @@ import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
+function escapeHtml(str?: string | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 interface SendOtpParams {
   toEmail: string;
   otpCode: string;
@@ -18,6 +28,19 @@ interface SendInviteParams {
   personalMessage?: string;
 }
 
+interface SendDocumentInviteParams {
+  toEmail: string;
+  recipientName?: string;
+  shareUrl: string;
+  documentTitle: string;
+  documentType: string;
+  documentNumber?: string;
+  totalAmount?: string | number;
+  agencyName?: string;
+  personalMessage?: string;
+}
+
+
 interface TeamNotificationParams {
   type: 'COMMENT' | 'APPROVED' | 'CHANGES_REQUESTED';
   creative: {
@@ -31,6 +54,25 @@ interface TeamNotificationParams {
   commentContent?: string;
   feedbackNotes?: string;
   recipients: Array<{ email: string; name?: string; role: 'CREATOR' | 'MANAGER' | 'TEAM' }>;
+}
+
+export interface ProposalAcceptedNotificationParams {
+  proposal: {
+    id: string;
+    number: string;
+    title: string;
+    clientName: string;
+    brandName?: string;
+    amount?: string | number;
+    managementFee?: string | number;
+    advanceAmount?: string | number;
+  };
+  decision?: 'APPROVED' | 'ACCEPTED';
+  approverName: string;
+  approverEmail: string;
+  feedbackNotes?: string;
+  recipients: Array<{ email: string; name?: string; role?: string }>;
+  agencyName?: string;
 }
 
 export class EmailService {
@@ -85,10 +127,14 @@ export class EmailService {
 
     const subject = `[${otpCode}] Your Access Code for Creative Review: ${creativeName}`;
 
+    const safeCreative = escapeHtml(creativeName);
+    const safeBrand = escapeHtml(brandName);
+    const safeAgency = escapeHtml(agencyName || brandName);
+
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
         <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px;">${brandName}</h2>
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px;">${safeBrand}</h2>
           <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Client Creative Proofing & Sign-Off Portal</p>
         </div>
         <div style="padding: 32px;">
@@ -97,7 +143,7 @@ export class EmailService {
           </p>
           <div style="background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
             <div style="font-size: 12px; color: #FCA5A5; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Creative Deliverable</div>
-            <div style="font-size: 15px; color: #FFFFFF; font-weight: 700; margin-top: 2px;">${creativeName}</div>
+            <div style="font-size: 15px; color: #FFFFFF; font-weight: 700; margin-top: 2px;">${safeCreative}</div>
           </div>
           
           <div style="text-align: center; margin: 32px 0;">
@@ -113,7 +159,7 @@ export class EmailService {
           </p>
         </div>
         <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B; text-align: center;">
-          Secured by ${agencyName} • Single-session client authentication
+          Secured by ${safeAgency} • Single-session client authentication
         </div>
       </div>
     `;
@@ -144,7 +190,203 @@ export class EmailService {
   }
 
   /**
-   * 2. Send Direct Review Invitation Link to Client via Gmail
+   * 1b. Send OTP Verification Email to Client for Document Review (Proposal/Agreement/Quotation/Invoice)
+   */
+  public static async sendDocumentOtpEmail({
+    toEmail,
+    otpCode,
+    documentTitle,
+    documentType,
+    agencyName,
+  }: {
+    toEmail: string;
+    otpCode: string;
+    documentTitle: string;
+    documentType: string;
+    agencyName?: string;
+  }): Promise<boolean> {
+    const transporter = this.getTransporter();
+    const fromName = process.env.GMAIL_FROM_NAME || agencyName || 'Opti CRM';
+    const brandName = agencyName || process.env.GMAIL_FROM_NAME || 'Opti CRM';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
+
+    const typeLabel = (documentType || 'document').charAt(0).toUpperCase() + (documentType || 'document').slice(1);
+    const subject = `[${otpCode}] Your Access Code for ${typeLabel} Review: ${documentTitle}`;
+
+    const safeTitle = escapeHtml(documentTitle);
+    const safeBrand = escapeHtml(brandName);
+    const safeAgency = escapeHtml(agencyName || brandName);
+    const safeType = escapeHtml(typeLabel);
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px;">${safeBrand}</h2>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Client Document Review & Approval Portal</p>
+        </div>
+        <div style="padding: 32px;">
+          <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #CBD5E1;">
+            You have received this verification code to access and review the following ${safeType.toLowerCase()}:
+          </p>
+          <div style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
+            <div style="font-size: 12px; color: #93C5FD; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${safeType}</div>
+            <div style="font-size: 15px; color: #FFFFFF; font-weight: 700; margin-top: 2px;">${safeTitle}</div>
+          </div>
+          
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="font-size: 12px; color: #94A3B8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Your One-Time Verification Code</div>
+            <div style="display: inline-block; background: #0F172A; border: 2px solid #2563EB; border-radius: 12px; padding: 14px 36px; font-size: 32px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 8px; color: #FFFFFF; text-shadow: 0 0 12px rgba(37, 99, 235, 0.6);">
+              ${otpCode}
+            </div>
+            <div style="font-size: 11px; color: #64748B; margin-top: 8px;">Valid for 10 minutes • Do not share this code</div>
+          </div>
+
+          <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #94A3B8;">
+            Enter this 6-digit code on the review portal to view the document, and submit your official approval or request changes.
+          </p>
+        </div>
+        <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B; text-align: center;">
+          Secured by ${safeAgency} • Single-session client authentication
+        </div>
+      </div>
+    `;
+
+    if (!transporter) {
+      console.error('[Gmail Service] Gmail transporter not initialized. Ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in .env');
+      return false;
+    }
+
+    try {
+      const sendPromise = transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent,
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+
+      console.log(`[Gmail Service] Successfully dispatched document OTP email to: ${toEmail}`);
+      return true;
+    } catch (err: any) {
+      console.error(`[Gmail Service] Error sending document OTP email to ${toEmail}:`, err.message);
+      return false;
+    }
+  }
+
+  /**
+   * 2. Send Direct Document Review & Approval Invitation Link to Client via Gmail
+   */
+  public static async sendDocumentInviteEmail({
+    toEmail,
+    recipientName,
+    shareUrl,
+    documentTitle,
+    documentType,
+    documentNumber,
+    totalAmount,
+    agencyName,
+    personalMessage,
+  }: SendDocumentInviteParams): Promise<boolean> {
+    const transporter = this.getTransporter();
+    const fromName = process.env.GMAIL_FROM_NAME || agencyName || 'Opti CRM';
+    const brandName = agencyName || process.env.GMAIL_FROM_NAME || 'Opti CRM';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
+
+    const typeLabel = (documentType || 'document').charAt(0).toUpperCase() + (documentType || 'document').slice(1);
+    const subject = `Review & Digital Signoff: ${typeLabel} ${documentNumber ? `(${documentNumber}) ` : ''}- ${documentTitle} | ${brandName}`;
+
+    const safeBrand = escapeHtml(brandName);
+    const safeRecipient = escapeHtml(recipientName || 'there');
+    const safeTitle = escapeHtml(documentTitle);
+    const safeNumber = escapeHtml(documentNumber || '');
+    const safeAgency = escapeHtml(agencyName || brandName);
+    const safePersonalMessage = escapeHtml(personalMessage);
+    const safeType = escapeHtml(typeLabel);
+    const safeAmount = totalAmount ? escapeHtml(typeof totalAmount === 'number' ? `₹${totalAmount.toLocaleString('en-IN')}` : String(totalAmount)) : '';
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px;">${safeBrand}</h2>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Commercial & Engagement Operations</p>
+        </div>
+        <div style="padding: 32px;">
+          <p style="margin: 0 0 16px; font-size: 14px; color: #CBD5E1;">
+            Hello ${safeRecipient},
+          </p>
+          <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #CBD5E1;">
+            <strong>${safeBrand}</strong> has dispatched the following official <strong>${safeType.toLowerCase()}</strong> for your review and digital signoff:
+          </p>
+
+          <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
+            <div style="font-size: 11px; color: #93C5FD; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+              ${safeType} Document ${safeNumber ? `• ${safeNumber}` : ''}
+            </div>
+            <div style="font-size: 16px; color: #FFFFFF; font-weight: 700;">${safeTitle}</div>
+            ${safeAmount ? `<div style="margin-top: 8px; font-size: 13px; color: #E2E8F0;"><span style="color: #94A3B8;">Commercial Value:</span> <strong style="color: #34D399;">${safeAmount}</strong></div>` : ''}
+          </div>
+
+          ${
+            safePersonalMessage
+              ? `<div style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid #2563EB; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px; font-size: 13px; color: #E2E8F0; line-height: 1.5; font-style: italic;">
+                  "${safePersonalMessage}"
+                </div>`
+              : ''
+          }
+
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${shareUrl}" target="_blank" style="display: inline-block; background: #2563EB; color: #FFFFFF; font-weight: 700; font-size: 14px; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);">
+              Review & Approve ${safeType} →
+            </a>
+            <div style="font-size: 11px; color: #94A3B8; margin-top: 10px;">
+              Requires a one-time OTP sent to this email upon opening
+            </div>
+          </div>
+
+          <p style="margin: 0; font-size: 12px; color: #64748B; line-height: 1.5;">
+            Or copy and paste this link into your browser:<br />
+            <a href="${shareUrl}" style="color: #60A5FA; word-break: break-all; font-size: 11px;">${shareUrl}</a>
+          </p>
+        </div>
+        <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B; text-align: center;">
+          Sent via ${safeAgency} • Secured Client Portal with OTP Signoff
+        </div>
+      </div>
+    `;
+
+    if (!transporter) {
+      console.log(`\n================== [GMAIL SERVICE: DOCUMENT INVITE] ==================`);
+      console.log(`To: ${toEmail} (${recipientName || 'Client'})`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Share URL: ${shareUrl}`);
+      console.log(`======================================================================\n`);
+      return true;
+    }
+
+    try {
+      const sendPromise = transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent,
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`[Gmail Service] Successfully dispatched document invite to: ${toEmail}`);
+      return true;
+    } catch (err: any) {
+      console.error(`[Gmail Service] Error sending document invite to ${toEmail}:`, err.message);
+      return false;
+    }
+  }
+
+  /**
+   * 3. Send Direct Review Invitation Link to Client via Gmail
    */
   public static async sendProofInviteEmail({
     toEmail,
@@ -161,29 +403,35 @@ export class EmailService {
 
     const subject = `Review & Approval Request: ${creativeName} | ${brandName}`;
 
+    const safeBrand = escapeHtml(brandName);
+    const safeRecipient = escapeHtml(recipientName || 'there');
+    const safeCreative = escapeHtml(creativeName);
+    const safeAgency = escapeHtml(agencyName || brandName);
+    const safePersonalMessage = escapeHtml(personalMessage);
+
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
         <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${brandName}</h2>
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${safeBrand}</h2>
           <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Creative Delivery & Approval Portal</p>
         </div>
         <div style="padding: 32px;">
           <p style="margin: 0 0 16px; font-size: 14px; color: #CBD5E1;">
-            Hello ${recipientName || 'there'},
+            Hello ${safeRecipient},
           </p>
           <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #CBD5E1;">
-            The creative team at <strong>${brandName}</strong> has prepared a new deliverable ready for your review and approval:
+            The creative team at <strong>${safeBrand}</strong> has prepared a new deliverable ready for your review and approval:
           </p>
 
           <div style="background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;">
             <div style="font-size: 12px; color: #FCA5A5; font-weight: 600; text-transform: uppercase;">Deliverable for Review</div>
-            <div style="font-size: 16px; color: #FFFFFF; font-weight: 700; margin-top: 4px;">${creativeName}</div>
+            <div style="font-size: 16px; color: #FFFFFF; font-weight: 700; margin-top: 4px;">${safeCreative}</div>
           </div>
 
           ${
-            personalMessage
+            safePersonalMessage
               ? `<div style="background: rgba(255, 255, 255, 0.05); border-left: 3px solid #DC2626; padding: 12px 16px; border-radius: 4px; margin-bottom: 24px; font-size: 13px; color: #E2E8F0; font-style: italic;">
-                  "${personalMessage}"
+                  "${safePersonalMessage}"
                 </div>`
               : ''
           }
@@ -203,7 +451,7 @@ export class EmailService {
           </p>
         </div>
         <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B; text-align: center;">
-          Sent via ${agencyName} • Secured Client Portal
+          Sent via ${safeAgency} • Secured Client Portal
         </div>
       </div>
     `;
@@ -282,11 +530,20 @@ export class EmailService {
       headlineText = `${clientName} reviewed the creative and requested revision changes.`;
     }
 
+    const safeCreativeName = escapeHtml(creative.name);
+    const safeCampaignName = escapeHtml(creative.campaign_name);
+    const safeClientName = escapeHtml(clientName);
+    const safeClientEmail = escapeHtml(clientEmail);
+    const safeComment = escapeHtml(commentContent);
+    const safeFeedback = escapeHtml(feedbackNotes);
+    const safeHeadline = escapeHtml(headlineText);
+    const safeFromName = escapeHtml(fromName);
+
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
         <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${fromName}</h2>
+            <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${safeFromName}</h2>
             <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Creator & Manager Notification</p>
           </div>
         </div>
@@ -297,26 +554,26 @@ export class EmailService {
           </div>
 
           <h3 style="margin: 0 0 8px; font-size: 18px; color: #FFFFFF; font-weight: 700;">
-            ${headlineText}
+            ${safeHeadline}
           </h3>
 
           <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 18px; margin: 20px 0;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               <tr>
                 <td style="color: #94A3B8; padding: 6px 0; width: 35%;">Creative:</td>
-                <td style="color: #FFFFFF; font-weight: 600; padding: 6px 0;">${creative.name}</td>
+                <td style="color: #FFFFFF; font-weight: 600; padding: 6px 0;">${safeCreativeName}</td>
               </tr>
               ${
-                creative.campaign_name
+                safeCampaignName
                   ? `<tr>
                       <td style="color: #94A3B8; padding: 6px 0;">Campaign:</td>
-                      <td style="color: #CBD5E1; padding: 6px 0;">${creative.campaign_name}</td>
+                      <td style="color: #CBD5E1; padding: 6px 0;">${safeCampaignName}</td>
                     </tr>`
                   : ''
               }
               <tr>
                 <td style="color: #94A3B8; padding: 6px 0;">Client Signer:</td>
-                <td style="color: #CBD5E1; padding: 6px 0;">${clientName} (${clientEmail})</td>
+                <td style="color: #CBD5E1; padding: 6px 0;">${safeClientName} (${safeClientEmail})</td>
               </tr>
               <tr>
                 <td style="color: #94A3B8; padding: 6px 0;">Timestamp:</td>
@@ -326,13 +583,13 @@ export class EmailService {
           </div>
 
           ${
-            commentContent || feedbackNotes
+            safeComment || safeFeedback
               ? `<div style="margin: 20px 0;">
                   <div style="font-size: 12px; color: #94A3B8; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">
                     ${type === 'COMMENT' ? 'Client Comment Content' : 'Approval Feedback / Notes'}:
                   </div>
                   <div style="background: #060B13; border-left: 3px solid ${badgeColor}; padding: 14px 18px; border-radius: 4px; font-size: 13px; color: #F1F5F9; line-height: 1.6;">
-                    "${commentContent || feedbackNotes}"
+                    "${safeComment || safeFeedback}"
                   </div>
                 </div>`
               : ''
@@ -346,7 +603,7 @@ export class EmailService {
         </div>
 
         <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B;">
-          Delivered to Creator & Project Manager: ${uniqueRecipients.map(r => `${r.name || r.role} (${r.email})`).join(', ')}
+          Delivered to Creator & Project Manager: ${uniqueRecipients.map(r => `${escapeHtml(r.name) || r.role} (${escapeHtml(r.email)})`).join(', ')}
         </div>
       </div>
     `;
@@ -401,18 +658,22 @@ export class EmailService {
 
     const subject = `[${otpCode}] Security Verification Code for ${actionTitle} | ${fromName}`;
 
+    const safeUser = escapeHtml(userName || 'User');
+    const safeAction = escapeHtml(actionTitle);
+    const safeFromName = escapeHtml(fromName);
+
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
         <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${fromName} Security Center</h2>
+          <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${safeFromName} Security Center</h2>
           <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Security Verification Code</p>
         </div>
         <div style="padding: 32px;">
           <p style="margin: 0 0 16px; font-size: 14px; color: #CBD5E1;">
-            Hello ${userName || 'User'},
+            Hello ${safeUser},
           </p>
           <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #CBD5E1;">
-            A request was initiated for <strong>${actionTitle}</strong> on your Opti CRM account. Use the one-time verification code below to authorize this operation:
+            A request was initiated for <strong>${safeAction}</strong> on your Opti CRM account. Use the one-time verification code below to authorize this operation:
           </p>
 
           <div style="text-align: center; margin: 32px 0;">
@@ -450,6 +711,160 @@ export class EmailService {
       return true;
     } catch (err: any) {
       console.error(`[Gmail Service] Error sending security OTP to ${toEmail}:`, err.message);
+      return false;
+    }
+  }
+
+  /**
+   * 5. Send Proposal Accepted Email Notification to the Client Managing Team
+   */
+  public static async sendProposalAcceptedNotification({
+    proposal,
+    decision = 'ACCEPTED',
+    approverName,
+    approverEmail,
+    feedbackNotes,
+    recipients,
+    agencyName,
+  }: ProposalAcceptedNotificationParams): Promise<boolean> {
+    const transporter = this.getTransporter();
+    const fromName = agencyName || process.env.GMAIL_FROM_NAME || 'OptiVir Ads';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+    // Filter unique recipients and always guarantee optivirads@gmail.com is included
+    const recipientMap = new Map<string, { email: string; name?: string; role?: string }>();
+    recipientMap.set('optivirads@gmail.com', { email: 'optivirads@gmail.com', name: 'OptiVir Ads Owner', role: 'OWNER' });
+
+    for (const r of recipients) {
+      if (r.email && r.email.includes('@')) {
+        const cleanEmail = r.email.trim().toLowerCase();
+        if (!recipientMap.has(cleanEmail)) {
+          recipientMap.set(cleanEmail, { email: cleanEmail, name: r.name, role: r.role });
+        }
+      }
+    }
+
+    const uniqueRecipients = Array.from(recipientMap.values());
+    const recipientEmails = uniqueRecipients.map(r => r.email);
+
+    const safeAgency = escapeHtml(fromName);
+    const safeClient = escapeHtml(proposal.clientName);
+    const safeBrand = escapeHtml(proposal.brandName || '');
+    const safeTitle = escapeHtml(proposal.title);
+    const safeNumber = escapeHtml(proposal.number);
+    const safeApprover = escapeHtml(approverName);
+    const safeApproverEmail = escapeHtml(approverEmail);
+    const safeFeedback = escapeHtml(feedbackNotes);
+    const amountVal = proposal.managementFee || proposal.amount;
+    const safeAmount = amountVal ? escapeHtml(typeof amountVal === 'number' ? `₹${amountVal.toLocaleString('en-IN')}` : String(amountVal)) : '₹20,000';
+    const crmUrl = `${frontendUrl}/?tab=proposals&id=${proposal.id}`;
+
+    const subject = `🎉 [ACCEPTED] Proposal ${safeNumber} (${safeTitle}) accepted by ${safeClient} | ${safeAgency}`;
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; background: #0B1424; color: #F8FAFC; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="padding: 24px 32px; background: linear-gradient(135deg, #064E3B, #0F172A); border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 style="margin: 0; font-size: 18px; color: #FFFFFF; font-weight: 800;">${safeAgency}</h2>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #6EE7B7;">Commercial Milestone Notification</p>
+          </div>
+        </div>
+
+        <div style="padding: 32px;">
+          <div style="display: inline-block; background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; padding: 6px 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 16px;">
+            ✓ PROPOSAL OFFICIALLY ACCEPTED
+          </div>
+
+          <h3 style="margin: 0 0 10px; font-size: 20px; color: #FFFFFF; font-weight: 800; line-height: 1.3;">
+            ${safeClient}${safeBrand ? ` (${safeBrand})` : ''} has accepted the commercial proposal!
+          </h3>
+          <p style="margin: 0 0 20px; font-size: 13px; color: #94A3B8; line-height: 1.5;">
+            The proposal document has been officially approved and accepted. The terms, commercial investment, and roadmap deliverables are now binding and locked in the CRM.
+          </p>
+
+          <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 20px; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr>
+                <td style="color: #94A3B8; padding: 6px 0; width: 38%;">Proposal SOW:</td>
+                <td style="color: #FFFFFF; font-weight: 700; padding: 6px 0;">${safeTitle} (${safeNumber})</td>
+              </tr>
+              <tr>
+                <td style="color: #94A3B8; padding: 6px 0;">Client Account:</td>
+                <td style="color: #CBD5E1; font-weight: 600; padding: 6px 0;">${safeClient}${safeBrand ? ` — ${safeBrand}` : ''}</td>
+              </tr>
+              <tr>
+                <td style="color: #94A3B8; padding: 6px 0;">Monthly Management Fee:</td>
+                <td style="color: #34D399; font-weight: 800; font-size: 15px; padding: 6px 0;">${safeAmount} / month</td>
+              </tr>
+              <tr>
+                <td style="color: #94A3B8; padding: 6px 0;">Accepted By:</td>
+                <td style="color: #CBD5E1; padding: 6px 0;"><strong>${safeApprover}</strong> (${safeApproverEmail})</td>
+              </tr>
+              <tr>
+                <td style="color: #94A3B8; padding: 6px 0;">Timestamp:</td>
+                <td style="color: #CBD5E1; padding: 6px 0;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</td>
+              </tr>
+            </table>
+          </div>
+
+          ${
+            safeFeedback
+              ? `<div style="margin: 20px 0;">
+                  <div style="font-size: 12px; color: #94A3B8; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">
+                    Client Feedback / Notes:
+                  </div>
+                  <div style="background: #060B13; border-left: 3px solid #10B981; padding: 14px 18px; border-radius: 4px; font-size: 13px; color: #F1F5F9; line-height: 1.6;">
+                    "${safeFeedback}"
+                  </div>
+                </div>`
+              : ''
+          }
+
+          <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 14px 16px; margin: 20px 0; font-size: 12px; color: #FDE68A; line-height: 1.5;">
+            🔒 <strong>Governance & Locking Notice:</strong> This proposal is now locked in the Accepted state. Any further modifications to this document or alteration of its status can only be performed by the account owner (<strong>optivirads@gmail.com</strong>).
+          </div>
+
+          <div style="text-align: center; margin: 30px 0 16px;">
+            <a href="${crmUrl}" target="_blank" style="display: inline-block; background: #059669; color: #FFFFFF; font-weight: 700; font-size: 14px; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.35);">
+              Open Accepted Proposal in CRM →
+            </a>
+          </div>
+        </div>
+
+        <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B;">
+          Delivered to Managing Team: ${uniqueRecipients.map(r => `${escapeHtml(r.name) || r.role} (${escapeHtml(r.email)})`).join(', ')}
+        </div>
+      </div>
+    `;
+
+    if (!transporter) {
+      console.log(`\n================== [GMAIL NOTIFICATION: PROPOSAL ACCEPTED] ==================`);
+      console.log(`To (Client Managing Team): ${recipientEmails.join(', ')}`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Proposal: ${proposal.number} - ${proposal.title}`);
+      console.log(`Client: ${proposal.clientName}`);
+      console.log(`Amount: ${safeAmount}`);
+      console.log(`CRM Link: ${crmUrl}`);
+      console.log(`=============================================================================\n`);
+      return true;
+    }
+
+    try {
+      const sendPromise = transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: recipientEmails.join(', '),
+        subject,
+        html: htmlContent,
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`[Gmail Service] Proposal accepted notification delivered to team (${recipientEmails.join(', ')})`);
+      return true;
+    } catch (err: any) {
+      console.error(`[Gmail Service] Error sending proposal accepted email:`, err.message);
       return false;
     }
   }

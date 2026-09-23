@@ -34,13 +34,11 @@ export function createRateLimiter(options: RateLimiterOptions) {
   if (cleanupInterval.unref) cleanupInterval.unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const ip =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.ip ||
-      'unknown';
+    // Rely on Express's configured proxy trust (app.set('trust proxy', 1))
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
-    // Allow unlimited requests in local development or for loopback
-    if (process.env.NODE_ENV === 'development' || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost') {
+    // Allow unlimited requests in unit testing
+    if (process.env.NODE_ENV === 'test') {
       next();
       return;
     }
@@ -83,4 +81,10 @@ export const integrationTestRateLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
   maxRequests: 15,
   message: 'Too many integration test requests. Please wait before testing again.'
+});
+
+export const otpRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 15,
+  message: 'Too many verification code attempts. Please wait 15 minutes before trying again.'
 });

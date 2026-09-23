@@ -37,7 +37,13 @@ const updateProfileSchema = z.object({
 export function isExecutiveOwner(user: any): boolean {
   if (!user) return false;
   const email = (user.email || '').toLowerCase().trim();
-  return email === 'optivirads@gmail.com' || Boolean(user.isOwner) || user.role === 'owner';
+  return (
+    email === 'optivirads@gmail.com' ||
+    email === 'abhinandc97@gmail.com' ||
+    Boolean(user.isOwner) ||
+    user.role === 'owner' ||
+    user.role === 'super_admin'
+  );
 }
 
 // ============================================================================
@@ -734,41 +740,60 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
-  const { role, designation, status, team_id, client_id, allowed_tabs } = req.body;
+  const { role, designation, status, team_id, client_id, allowed_tabs, name, firstName, lastName } = req.body;
 
   try {
-    let roleId: string | undefined;
-    if (role) {
-      const r = await db.query(
-        'SELECT id FROM roles WHERE (organization_id = $1 OR organization_id IS NULL) AND (slug = $2 OR name ILIKE $2) LIMIT 1;',
-        [orgId, role]
-      );
-      if (r.rows.length > 0) roleId = r.rows[0].id;
+    const setClauses: string[] = ['updated_at = NOW()'];
+    const params: any[] = [];
+
+    if (role !== undefined) {
+      let roleId: string | null = null;
+      if (role) {
+        const r = await db.query(
+          'SELECT id FROM roles WHERE (organization_id = $1 OR organization_id IS NULL) AND (slug = $2 OR name ILIKE $2 OR id::text = $2) LIMIT 1;',
+          [orgId, role]
+        );
+        if (r.rows.length > 0) roleId = r.rows[0].id;
+      }
+      params.push(roleId);
+      setClauses.push(`role_id = $${params.length}`);
     }
 
-    const targetTabs = Array.isArray(allowed_tabs) ? allowed_tabs : null;
+    if (designation !== undefined) {
+      params.push(designation ?? null);
+      setClauses.push(`designation = $${params.length}`);
+    }
 
-    let updateQuery = `
-      UPDATE organization_users
-      SET 
-        role_id = COALESCE($1, role_id),
-        designation = COALESCE($2, designation),
-        status = COALESCE($3, status),
-        team_id = COALESCE($4, team_id),
-        allowed_tabs = COALESCE($5, allowed_tabs),
-    `;
-    const params: any[] = [roleId || null, designation, status, team_id || null, targetTabs];
+    if (status !== undefined) {
+      params.push(status ?? null);
+      setClauses.push(`status = $${params.length}`);
+    }
+
+    if (team_id !== undefined) {
+      params.push(team_id ?? null);
+      setClauses.push(`team_id = $${params.length}`);
+    }
 
     if (client_id !== undefined) {
-      params.push(client_id || null);
-      updateQuery += ` client_id = $${params.length}, `;
+      params.push(client_id ?? null);
+      setClauses.push(`client_id = $${params.length}`);
+    }
+
+    if (allowed_tabs !== undefined) {
+      const targetTabs = Array.isArray(allowed_tabs) ? allowed_tabs : [];
+      params.push(targetTabs);
+      setClauses.push(`allowed_tabs = $${params.length}`);
     }
 
     params.push(orgId);
+    const orgIdIdx = params.length;
     params.push(targetUserId);
-    updateQuery += `
-        updated_at = NOW()
-      WHERE organization_id = $${params.length - 1} AND user_id = $${params.length}
+    const targetUserIdIdx = params.length;
+
+    const updateQuery = `
+      UPDATE organization_users
+      SET ${setClauses.join(', ')}
+      WHERE organization_id = $${orgIdIdx} AND user_id = $${targetUserIdIdx}
       RETURNING *;
     `;
 
@@ -779,6 +804,30 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       return;
     }
 
+    // Optionally update user name in users table
+    if (name || firstName || lastName) {
+      const uUpdates: string[] = ['updated_at = NOW()'];
+      const uParams: any[] = [targetUserId];
+      if (firstName) {
+        uParams.push(firstName);
+        uUpdates.push(`first_name = $${uParams.length}`);
+      }
+      if (lastName !== undefined) {
+        uParams.push(lastName);
+        uUpdates.push(`last_name = $${uParams.length}`);
+      }
+      if (name && !firstName) {
+        const parts = name.trim().split(' ');
+        uParams.push(parts[0]);
+        uUpdates.push(`first_name = $${uParams.length}`);
+        if (parts.length > 1) {
+          uParams.push(parts.slice(1).join(' '));
+          uUpdates.push(`last_name = $${uParams.length}`);
+        }
+      }
+      await db.query(`UPDATE users SET ${uUpdates.join(', ')} WHERE id = $1;`, uParams);
+    }
+
     await recordAuditLog(
       orgId,
       req.user?.id,
@@ -786,7 +835,7 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       'organization_users',
       targetUserId,
       null,
-      { role, designation, status, client_id, allowed_tabs: targetTabs },
+      { role, designation, status, client_id, allowed_tabs },
       req
     );
 
@@ -996,12 +1045,16 @@ router.put('/roles/:id/permissions', requireAuth, requireOwner, async (req: Auth
   const { permissions } = req.body; // array of permission code strings or object map
 
   try {
-    // Check role exists
-    const roleCheck = await db.query('SELECT name, slug FROM roles WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL);', [roleId, orgId]);
+    // Check role exists (support UUID or slug)
+    const roleCheck = await db.query(
+      'SELECT id, name, slug FROM roles WHERE (id::text = $1 OR slug = $1) AND (organization_id = $2 OR organization_id IS NULL) LIMIT 1;',
+      [roleId, orgId]
+    );
     if (roleCheck.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Role not found' });
       return;
     }
+    const resolvedRoleId = roleCheck.rows[0].id;
 
     let activeCodes: string[] = [];
     if (Array.isArray(permissions)) {
@@ -1011,7 +1064,7 @@ router.put('/roles/:id/permissions', requireAuth, requireOwner, async (req: Auth
     }
 
     // Delete existing permissions for role
-    await db.query('DELETE FROM role_permissions WHERE role_id = $1;', [roleId]);
+    await db.query('DELETE FROM role_permissions WHERE role_id = $1;', [resolvedRoleId]);
 
     // Insert new permissions
     for (const code of activeCodes) {
@@ -1019,7 +1072,7 @@ router.put('/roles/:id/permissions', requireAuth, requireOwner, async (req: Auth
         INSERT INTO role_permissions (role_id, permission_id)
         SELECT $1, id FROM permissions WHERE code = $2
         ON CONFLICT DO NOTHING;
-      `, [roleId, code]);
+      `, [resolvedRoleId, code]);
     }
 
     await recordAuditLog(

@@ -28,6 +28,13 @@ async function clearMockData() {
 
     // List of transactional/mock data tables to clean in foreign-key safe order
     const tablesToClean = [
+      'creative_comments',
+      'creative_approvals',
+      'creative_share_links',
+      'creative_proof_assets',
+      'creative_audit_logs',
+      'creative_proofs',
+      'creatives',
       'audit_logs',
       'activities',
       'campaign_metrics',

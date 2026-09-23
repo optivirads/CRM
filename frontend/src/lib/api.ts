@@ -192,7 +192,7 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>('/sales/services');
   }
 
-  async getClients(params: { status?: string; health?: string; search?: string; accountManagerId?: string; myOnly?: string; all?: string } = {}) {
+  async getClients(params: { status?: string; health?: string; search?: string; accountManagerId?: string; myOnly?: string; all?: string; accessibleOnly?: string } = {}) {
     const query = new URLSearchParams(params as any).toString();
     return this.request<{ success: boolean; data: any[] }>(`/clients${query ? `?${query}` : ''}`);
   }
@@ -334,7 +334,7 @@ class ApiClient {
     return this.request<{ success: boolean; data: any[] }>(`/projects${clientId ? `?clientId=${clientId}` : ''}`);
   }
 
-  async getTasks(params: { status?: string; projectId?: string; clientId?: string } = {}) {
+  async getTasks(params: { status?: string; projectId?: string; clientId?: string; myConcerned?: string } = {}) {
     const query = new URLSearchParams(params as any).toString();
     return this.request<{ success: boolean; data: any[] }>(`/projects/tasks${query ? `?${query}` : ''}`);
   }
@@ -346,11 +346,33 @@ class ApiClient {
     });
   }
 
-  async updateTaskStatus(id: string, status: string) {
+  async updateTaskStatus(id: string, status: string, notes?: string) {
     return this.request<{ success: boolean; data: any }>(`/projects/tasks/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, notes }),
     });
+  }
+
+  async getTaskComments(taskId: string) {
+    return this.request<{ success: boolean; data: any[] }>(`/projects/tasks/${taskId}/comments`);
+  }
+
+  async createTaskComment(taskId: string, comment: string) {
+    return this.request<{ success: boolean; data: any }>(`/projects/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  }
+
+  async getTaskStakeholders(taskId: string) {
+    return this.request<{
+      success: boolean;
+      data: {
+        isConcerned: boolean;
+        userRoleInTask: string;
+        stakeholders: any[];
+      };
+    }>(`/projects/tasks/${taskId}/stakeholders`);
   }
 
   async getTeamMembers() {
@@ -1398,6 +1420,12 @@ class ApiClient {
     });
   }
 
+  async deleteCreativeComment(commentId: string) {
+    return this.request<{ success: boolean; message: string; deletedCommentId: string }>(`/creatives/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async submitInternalApproval(id: string, proofId: string, payload: {
     decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
     feedbackNotes?: string;
@@ -1457,6 +1485,14 @@ class ApiClient {
     return this.request<{
       success: boolean;
       requireOtp?: boolean;
+      clientName?: string;
+      authorizedContacts?: Array<{
+        id: string;
+        name: string;
+        email: string;
+        designation?: string;
+        isDecisionMaker?: boolean;
+      }>;
       clientSession?: { email: string; name: string };
       shareLink?: any;
       creativeInfo?: any;
@@ -1518,6 +1554,107 @@ class ApiClient {
       body: JSON.stringify(payload),
     });
   }
+
+  // =====================================================================
+  // Document Portal API (OTP-Gated Client Approval for Proposals, etc.)
+  // =====================================================================
+
+  async generateDocumentShareLink(proposalId: string, payload?: {
+    recipientEmail?: string;
+    recipientName?: string;
+    documentType?: string;
+    expiresInDays?: number;
+    requireOtp?: boolean;
+    sendEmail?: boolean;
+    personalMessage?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      emailSent?: boolean;
+      emailError?: string;
+      shareLink: {
+        id: string;
+        token: string;
+        shareUrl: string;
+        expires_at: string;
+        recipient_email?: string;
+        recipient_name?: string;
+        require_otp?: boolean;
+      };
+    }>(`/sales/proposals/${proposalId}/share`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async getPublicDocument(token: string, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
+    return this.request<{
+      success: boolean;
+      requireOtp?: boolean;
+      clientName?: string;
+      authorizedContacts?: Array<{
+        id: string;
+        name: string;
+        email: string;
+        designation?: string;
+        isDecisionMaker?: boolean;
+      }>;
+      clientSession?: { email: string; name: string };
+      shareLink?: any;
+      document?: any;
+      approvals?: any[];
+      message?: string;
+    }>(`/sales/documents/public/${token}`, { headers });
+  }
+
+  async requestDocumentOtp(token: string, email: string, name?: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      emailSent: boolean;
+    }>(`/sales/documents/public/${token}/request-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, name }),
+    });
+  }
+
+  async verifyDocumentOtp(token: string, email: string, otp: string, name?: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      sessionToken: string;
+      client: { email: string; name: string };
+    }>(`/sales/documents/public/${token}/verify-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, name }),
+    });
+  }
+
+  async submitDocumentApproval(token: string, payload: {
+    decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+    approverName: string;
+    approverEmail: string;
+    feedbackNotes?: string;
+  }, sessionToken?: string) {
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers['x-client-session'] = sessionToken;
+    }
+    return this.request<{ success: boolean; approval: any; message?: string }>(`/sales/documents/public/${token}/approve`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  }
+
+  getDocumentPdfUrl(token: string): string {
+    return `${API_BASE_URL}/sales/documents/public/${token}/pdf`;
+  }
 }
 
 export const api = new ApiClient();
+

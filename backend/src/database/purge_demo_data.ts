@@ -92,6 +92,22 @@ async function purgeDemoData() {
     `);
     console.log(`  ✓ Removed ${delProposals.rowCount} demo proposals`);
 
+    // 8. Ensure creative comments and mock approvals are completely purged
+    const delCreativeComments = await client.query(`
+      DELETE FROM creative_comments
+      WHERE author_email IN ('client.test@company.com', 'strict.client@testcorp.com')
+         OR author_name ILIKE '%Sarah Jenkins%'
+         OR content ILIKE '%typography looks clean%';
+    `);
+    console.log(`  ✓ Removed ${delCreativeComments.rowCount} mock creative comments`);
+
+    const delCreativeApprovals = await client.query(`
+      DELETE FROM creative_approvals
+      WHERE approver_email IN ('client.test@company.com', 'strict.client@testcorp.com')
+         OR approver_name ILIKE '%Sarah Jenkins%';
+    `);
+    console.log(`  ✓ Removed ${delCreativeApprovals.rowCount} mock creative approvals`);
+
     await client.query('COMMIT');
     console.log('\n✨ Purge complete. Only real user data remains in PostgreSQL.');
 
