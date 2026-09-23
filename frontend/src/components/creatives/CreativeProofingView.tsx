@@ -49,7 +49,8 @@ import {
   Building2,
   Download,
   CheckSquare,
-  Unlink
+  Unlink,
+  Rocket
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -336,6 +337,28 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
       alert('Failed to link task: ' + (err.message || 'Error occurred'));
     } finally {
       setIsLinkingTask(false);
+    }
+  };
+
+  // Update Creative Status (e.g. APPROVED -> DEPLOYMENT_READY -> LIVE)
+  const handleUpdateStatus = async (creativeId: string, newStatus: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      // Optimistic state update
+      setCreatives(prev => prev.map(c => c.id === creativeId ? { ...c, status: newStatus } : c));
+      if (activeCreativeDetails && activeCreativeDetails.creative?.id === creativeId) {
+        setActiveCreativeDetails((prev: any) => ({
+          ...prev,
+          creative: { ...prev.creative, status: newStatus }
+        }));
+      }
+
+      await api.updateCreative(creativeId, { status: newStatus });
+      loadData();
+    } catch (err: any) {
+      console.error('Failed to update creative status:', err);
+      alert('Failed to update status: ' + (err.message || 'Error updating status'));
+      loadData();
     }
   };
 
@@ -728,7 +751,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     { id: 'PENDING_CLIENT_APPROVAL', label: 'Pending Client Approval', color: 'border-amber-500' },
     { id: 'CHANGES_REQUESTED', label: 'Changes Requested', color: 'border-rose-500' },
     { id: 'APPROVED', label: 'Client Approved', color: 'border-emerald-500' },
-    { id: 'DEPLOYMENT_READY', label: 'Deployment Ready', color: 'border-blue-500' }
+    { id: 'DEPLOYMENT_READY', label: 'Deployment Ready', color: 'border-blue-500' },
+    { id: 'LIVE', label: 'Live Campaigns', color: 'border-cyan-500' }
   ];
 
   return (
@@ -914,7 +938,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         <>
           {/* VIEW: KANBAN BOARD */}
           {viewMode === 'kanban' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 overflow-x-auto pb-4">
               {kanbanColumns.map(col => {
                 const columnCreatives = creatives.filter(c => c.status === col.id);
                 return (
@@ -1024,6 +1048,50 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                               </button>
                             </div>
                           </div>
+
+                          {/* Quick Advance Action on Kanban Card */}
+                          {c.status === 'APPROVED' && (
+                            <button
+                              onClick={(e) => handleUpdateStatus(c.id, 'DEPLOYMENT_READY', e)}
+                              className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow-xs transition transform active:scale-95 cursor-pointer"
+                              title="Advance to Deployment Ready (Ready for Ads deployment)"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Move to Deployment Ready →</span>
+                            </button>
+                          )}
+
+                          {c.status === 'DEPLOYMENT_READY' && (
+                            <div className="mt-2 space-y-1.5">
+                              <button
+                                onClick={(e) => handleUpdateStatus(c.id, 'LIVE', e)}
+                                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] shadow-xs transition transform active:scale-95 cursor-pointer"
+                                title="Mark as Live in ad campaign"
+                              >
+                                <Rocket className="w-3.5 h-3.5" />
+                                <span>Mark Live Campaign →</span>
+                              </button>
+                              <button
+                                onClick={(e) => handleUpdateStatus(c.id, 'APPROVED', e)}
+                                className="w-full flex items-center justify-center gap-1 py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-semibold text-[10px] transition cursor-pointer"
+                                title="Revert to Client Approved"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                <span>Revert to Approved</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {c.status === 'LIVE' && (
+                            <button
+                              onClick={(e) => handleUpdateStatus(c.id, 'DEPLOYMENT_READY', e)}
+                              className="w-full mt-2 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] shadow-2xs transition transform active:scale-95 cursor-pointer"
+                              title="Revert back to Deployment Ready"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Revert to Deployment Ready</span>
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1140,6 +1208,33 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         </button>
                       </div>
                     </div>
+
+                    {/* Quick Advance Action on Grid Card */}
+                    {c.status === 'APPROVED' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateStatus(c.id, 'DEPLOYMENT_READY', e);
+                        }}
+                        className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow-xs transition transform active:scale-95 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Move to Deployment Ready →</span>
+                      </button>
+                    )}
+
+                    {c.status === 'DEPLOYMENT_READY' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateStatus(c.id, 'LIVE', e);
+                        }}
+                        className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] shadow-xs transition transform active:scale-95 cursor-pointer"
+                      >
+                        <Rocket className="w-3.5 h-3.5" />
+                        <span>Mark Live Campaign →</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1247,16 +1342,36 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                            {c.status === 'APPROVED' && (
+                              <button
+                                onClick={(e) => handleUpdateStatus(c.id, 'DEPLOYMENT_READY', e)}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Advance to Deployment Ready"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Deploy</span>
+                              </button>
+                            )}
+                            {c.status === 'DEPLOYMENT_READY' && (
+                              <button
+                                onClick={(e) => handleUpdateStatus(c.id, 'LIVE', e)}
+                                className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Mark Live Campaign"
+                              >
+                                <Rocket className="w-3 h-3" />
+                                <span>Live</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenStudio(c.id)}
-                              className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-[#DC2626] hover:text-white text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition"
+                              className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-[#DC2626] hover:text-white text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition cursor-pointer"
                             >
                               Open Studio
                             </button>
                             <button
                               onClick={(e) => promptDeleteCreative(c.id, c.name, e)}
                               title="Delete Creative"
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1289,7 +1404,20 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     <h2 className="text-base font-bold text-slate-900 dark:text-white">
                       {activeCreativeDetails.creative.name}
                     </h2>
-                    {getStatusBadge(activeCreativeDetails.creative.status)}
+                    <select
+                      value={activeCreativeDetails.creative.status}
+                      onChange={(e) => handleUpdateStatus(activeCreativeDetails.creative.id, e.target.value)}
+                      className="text-[11px] font-bold py-1 px-2.5 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none cursor-pointer hover:border-blue-500 transition shadow-2xs"
+                      title="Change Creative Status"
+                    >
+                      <option value="DRAFT">Draft & Creation</option>
+                      <option value="INTERNAL_REVIEW">Internal Review</option>
+                      <option value="PENDING_CLIENT_APPROVAL">Pending Client Approval</option>
+                      <option value="CHANGES_REQUESTED">Changes Requested</option>
+                      <option value="APPROVED">Client Approved</option>
+                      <option value="DEPLOYMENT_READY">Deployment Ready</option>
+                      <option value="LIVE">Live Campaign</option>
+                    </select>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
                     <span>Client: <strong>{activeCreativeDetails.creative.client_name || 'Internal'}</strong></span>
@@ -1316,6 +1444,26 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
               {/* Header Actions */}
               <div className="flex items-center gap-2 flex-wrap">
+                {activeCreativeDetails.creative.status === 'APPROVED' && (
+                  <button
+                    onClick={() => handleUpdateStatus(activeCreativeDetails.creative.id, 'DEPLOYMENT_READY')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    title="Advance to Deployment Ready"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Mark Deployment Ready</span>
+                  </button>
+                )}
+                {activeCreativeDetails.creative.status === 'DEPLOYMENT_READY' && (
+                  <button
+                    onClick={() => handleUpdateStatus(activeCreativeDetails.creative.id, 'LIVE')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    title="Mark campaign as Live"
+                  >
+                    <Rocket className="w-3.5 h-3.5" />
+                    <span>Launch Live Campaign</span>
+                  </button>
+                )}
                 <button
                   onClick={() => openLinkTaskModal(activeCreativeDetails.creative)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition shadow-xs hover:border-[#DC2626] hover:text-[#DC2626] cursor-pointer"
