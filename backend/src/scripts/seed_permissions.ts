@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import { pool } from '../config/db';
 
 export async function seedPermissions() {
   const client = await pool.connect();
@@ -43,7 +43,7 @@ export async function seedPermissions() {
     const rolesRes = await client.query('SELECT id, slug FROM roles;');
     const permsRes = await client.query('SELECT id, code FROM permissions;');
     const permMap = new Map<string, string>();
-    permsRes.rows.forEach(p => permMap.set(p.code, p.id));
+    permsRes.rows.forEach((p: any) => permMap.set(p.code, p.id));
 
     const roleDefaults: Record<string, string[]> = {
       super_admin: permissions.map(p => p.code),
