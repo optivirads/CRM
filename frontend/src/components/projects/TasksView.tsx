@@ -744,9 +744,11 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     return false;
   };
 
+  const activeTasksCount = tasks.filter(t => t.rawStatus !== 'Completed').length;
   const myOpenTasksCount = tasks.filter(t => isUserConcernedWithTask(t) && t.rawStatus !== 'Completed').length;
   const inProgressCount = tasks.filter(t => t.rawStatus === 'In Progress').length;
   const reviewCount = tasks.filter(t => t.rawStatus === 'Review').length;
+  const highPriorityCount = tasks.filter(t => (t.priority === 'Urgent' || t.priority === 'High') && t.rawStatus !== 'Completed').length;
   const completedCount = tasks.filter(t => t.rawStatus === 'Completed').length;
 
   // Filter tasks
@@ -761,15 +763,35 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     const matchesAssignee = selectedAssignee === 'All' || t.assignee.includes(selectedAssignee);
     const matchesPriority = selectedPriority === 'All' || t.priority === selectedPriority;
 
-    if (activeFilterTab === 'my') return matchesSearch && isUserConcernedWithTask(t);
-    if (activeFilterTab === 'in_progress') return matchesSearch && t.rawStatus === 'In Progress';
-    if (activeFilterTab === 'review') return matchesSearch && t.rawStatus === 'Review';
-    if (activeFilterTab === 'overdue') return matchesSearch && t.timeline.includes('Overdue');
-    if (activeFilterTab === 'due_today') return matchesSearch && t.timeline.includes('Due Today');
-    if (activeFilterTab === 'high') return matchesSearch && (t.priority === 'Urgent' || t.priority === 'High');
-    if (activeFilterTab === 'completed') return matchesSearch && (t.status === 'Done' || t.rawStatus === 'Completed');
+    if (!matchesSearch || !matchesClient || !matchesAssignee || !matchesPriority) {
+      return false;
+    }
 
-    return matchesSearch && matchesClient && matchesAssignee && matchesPriority;
+    const isCompleted = t.rawStatus === 'Completed' || t.status === 'Done';
+
+    // When viewing the Completed tab, show only completed tasks
+    if (activeFilterTab === 'completed') {
+      return isCompleted;
+    }
+
+    // In Kanban board view on the 'all' tab, keep all columns visible (including the Completed column)
+    if (viewMode === 'kanban' && activeFilterTab === 'all') {
+      return true;
+    }
+
+    // In all active list/detail/calendar tabs, completed tasks move to the Completed tab
+    if (isCompleted) {
+      return false;
+    }
+
+    if (activeFilterTab === 'my') return isUserConcernedWithTask(t);
+    if (activeFilterTab === 'in_progress') return t.rawStatus === 'In Progress';
+    if (activeFilterTab === 'review') return t.rawStatus === 'Review';
+    if (activeFilterTab === 'overdue') return t.timeline.includes('Overdue');
+    if (activeFilterTab === 'due_today') return t.timeline.includes('Due Today');
+    if (activeFilterTab === 'high') return t.priority === 'Urgent' || t.priority === 'High';
+
+    return true;
   });
 
   return (
@@ -972,11 +994,11 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
           {/* Filter tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
-              { id: 'all', label: `All Tasks (${tasks.length})` },
+              { id: 'all', label: `Active Tasks (${activeTasksCount})` },
               { id: 'my', label: `My Tasks (${myOpenTasksCount})` },
               { id: 'in_progress', label: `In Progress (${inProgressCount})` },
               { id: 'review', label: `In Review (${reviewCount})` },
-              { id: 'high', label: `High Priority (${tasks.filter(t => t.priority === 'Urgent' || t.priority === 'High').length})` },
+              { id: 'high', label: `High Priority (${highPriorityCount})` },
               { id: 'completed', label: `Completed (${completedCount})` },
             ].map((tab) => (
               <button
@@ -3100,6 +3122,15 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                 </strong>
                 . This change will be logged in stage history and visible to all concerned stakeholders.
               </p>
+
+              {showStatusTransitionModal.targetStatus === 'Completed' && (
+                <div className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-[11px] text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" />
+                  <span>
+                    <strong>Deliverable Flow:</strong> Tasks linked to creative deliverables automatically complete when the creative is client-approved and moved to Deployment Ready or Live Campaign.
+                  </span>
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">

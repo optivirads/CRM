@@ -8,6 +8,7 @@ import {
   getUserAccessibleClientIds,
   isGlobalLeadership
 } from '../utils/accessControl';
+import { EmailService } from '../services/email.service';
 
 const router = Router();
 
@@ -319,6 +320,128 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   }
 });
 
+/**
+ * Helper to dispatch in-app notifications, activities, and email notifications when a task is assigned.
+ */
+async function notifyAssigneeOfTask(
+  task: any,
+  orgId: string,
+  assignerUser?: { id: string; firstName?: string; lastName?: string; email?: string }
+): Promise<void> {
+  try {
+    let assigneeUser: { id: string; email: string; name: string } | null = null;
+
+    // 1. Look up by assignee_id first (if valid UUID or matching user in organization)
+    if (task.assignee_id) {
+      const userRes = await db.query(
+        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+         FROM users u
+         JOIN organization_users ou ON u.id = ou.user_id
+         WHERE u.id::text = $1 AND ou.organization_id = $2 AND u.deleted_at IS NULL`,
+        [String(task.assignee_id), orgId]
+      );
+      if (userRes.rows.length > 0) {
+        assigneeUser = userRes.rows[0];
+      }
+    }
+
+    // 2. If not found by ID, look up by assignee_name in organization_users
+    if (!assigneeUser && task.assignee_name) {
+      const trimmed = String(task.assignee_name).trim();
+      const userRes = await db.query(
+        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+         FROM users u
+         JOIN organization_users ou ON u.id = ou.user_id
+         WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
+           AND (LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2) OR LOWER(u.email) = LOWER($2))
+         LIMIT 1`,
+        [orgId, trimmed]
+      );
+      if (userRes.rows.length > 0) {
+        assigneeUser = userRes.rows[0];
+      }
+    }
+
+    if (!assigneeUser) {
+      console.log(`[Task Assignment Notification] Assignee not found in users table for task "${task.title}"`);
+      return;
+    }
+
+    const assignerName = assignerUser
+      ? `${assignerUser.firstName || ''} ${assignerUser.lastName || ''}`.trim() || assignerUser.email || 'A team member'
+      : 'A team member';
+
+    // 3. Query client and project names for rich context
+    let clientName: string | null = null;
+    let projectName: string | null = null;
+
+    if (task.client_id) {
+      const cRes = await db.query(`SELECT company_name, name FROM clients WHERE id = $1`, [task.client_id]);
+      if (cRes.rows.length > 0) {
+        clientName = cRes.rows[0].company_name || cRes.rows[0].name;
+      }
+    }
+
+    if (task.project_id) {
+      const pRes = await db.query(`SELECT name FROM projects WHERE id = $1`, [task.project_id]);
+      if (pRes.rows.length > 0) {
+        projectName = pRes.rows[0].name;
+      }
+    }
+
+    const notifTitle = `📋 New Task Assigned: ${task.title}`;
+    const notifMessage = `${assignerName} assigned you to "${task.title}"${task.priority ? ` (${task.priority} Priority)` : ''}${task.due_date ? `, Due: ${new Date(task.due_date).toLocaleDateString()}` : ''}.`;
+    const notifLink = `/?tab=tasks&id=${task.id}`;
+
+    // 4. In-App Notification (Renders in user notifications view)
+    await db.query(
+      `INSERT INTO notifications (organization_id, user_id, title, message, link, type, is_read)
+       VALUES ($1, $2, $3, $4, $5, 'task_assigned', false)`,
+      [orgId, assigneeUser.id, notifTitle, notifMessage, notifLink]
+    );
+
+    // 5. In-App Activity (Renders in Header notification bell and Activity Timeline)
+    await db.query(
+      `INSERT INTO activities (
+        organization_id, type, subject, description, completed_at
+      ) VALUES ($1, 'Task', $2, $3, NOW())`,
+      [
+        orgId,
+        notifTitle,
+        `${assignerName} assigned task "${task.title}" to ${assigneeUser.name || 'team member'}. Context: ${clientName || 'Agency Operations'} ${projectName ? `• ${projectName}` : ''}`
+      ]
+    );
+
+    // 6. Email Notification via Gmail SMTP
+    if (assigneeUser.email) {
+      await EmailService.sendTaskAssignedNotification({
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          due_date: task.due_date ? new Date(task.due_date).toLocaleDateString() : null,
+          clientName,
+          projectName
+        },
+        assignee: {
+          name: assigneeUser.name || 'Team Member',
+          email: assigneeUser.email
+        },
+        assignedBy: {
+          name: assignerName,
+          email: assignerUser?.email
+        },
+        agencyName: 'OptiVir Ads'
+      });
+    }
+
+    console.log(`[Task Assignment Notification] Successfully notified ${assigneeUser.name} (${assigneeUser.email}) for task "${task.title}"`);
+  } catch (err) {
+    console.error('[notifyAssigneeOfTask Error]:', err);
+  }
+}
+
 // 3. Create Task (Client-access verified)
 router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -375,6 +498,11 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
     ]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
+
+    // Notify assignee of newly assigned task
+    if (result.rows[0].assignee_id || result.rows[0].assignee_name) {
+      notifyAssigneeOfTask(result.rows[0], orgId, req.user);
+    }
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -426,7 +554,26 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
 
     // Compute updated progress based on flow stage
     let newProgress = currentTask.progress !== null && currentTask.progress !== undefined ? currentTask.progress : 0;
+
+    // Deliverable Check: If task is moving to Completed, verify that any linked creative deliverable is approved & moved to deployment/live
     if (normalizedStatus === 'Completed') {
+      const linkedCreatives = await db.query(
+        `SELECT id, name, status FROM creatives WHERE task_id = $1 AND organization_id = $2`,
+        [taskId, orgId]
+      );
+      if (linkedCreatives.rows.length > 0) {
+        const notReady = linkedCreatives.rows.filter(
+          (c: any) => !['DEPLOYMENT_READY', 'LIVE'].includes(c.status)
+        );
+        if (notReady.length > 0) {
+          const names = notReady.map((c: any) => `"${c.name}" (${c.status.replace(/_/g, ' ')})`).join(', ');
+          res.status(400).json({
+            success: false,
+            message: `Cannot mark task as Completed. Linked creative deliverable(s) ${names} must be approved and moved to Deployment Ready or Live Campaign first.`
+          });
+          return;
+        }
+      }
       newProgress = 100;
     } else if (normalizedStatus === 'Review' && newProgress < 75) {
       newProgress = 80;
@@ -697,6 +844,26 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     let effectiveStatus = status || currentTask.status;
 
     if (status && status !== currentTask.status) {
+      if (status === 'Completed') {
+        const linkedCreatives = await db.query(
+          `SELECT id, name, status FROM creatives WHERE task_id = $1 AND organization_id = $2`,
+          [taskId, orgId]
+        );
+        if (linkedCreatives.rows.length > 0) {
+          const notReady = linkedCreatives.rows.filter(
+            (c: any) => !['DEPLOYMENT_READY', 'LIVE'].includes(c.status)
+          );
+          if (notReady.length > 0) {
+            const names = notReady.map((c: any) => `"${c.name}" (${c.status.replace(/_/g, ' ')})`).join(', ');
+            res.status(400).json({
+              success: false,
+              message: `Cannot mark task as Completed. Linked creative deliverable(s) ${names} must be approved and moved to Deployment Ready or Live Campaign first.`
+            });
+            return;
+          }
+        }
+      }
+
       const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
       updatedHistory = [
         ...updatedHistory,
@@ -750,6 +917,16 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     ]);
 
     await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, currentTask, updated.rows[0], req);
+
+    // If assignee was newly assigned or changed, dispatch notifications
+    const assigneeChanged =
+      (assignee_id !== undefined && assignee_id !== currentTask.assignee_id) ||
+      (assignee_name !== undefined && assignee_name !== currentTask.assignee_name);
+
+    if (assigneeChanged && (updated.rows[0].assignee_id || updated.rows[0].assignee_name)) {
+      notifyAssigneeOfTask(updated.rows[0], orgId, req.user);
+    }
+
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

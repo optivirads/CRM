@@ -756,7 +756,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen">
+    <div className="p-3 sm:p-5 lg:p-6 space-y-6 w-full max-w-[1900px] mx-auto min-h-screen">
       {/* 1. Header & KPI Metrics Summary */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -938,23 +938,32 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         <>
           {/* VIEW: KANBAN BOARD */}
           {viewMode === 'kanban' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 overflow-x-auto pb-4">
+            <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start custom-scrollbar w-full min-w-0">
               {kanbanColumns.map(col => {
                 const columnCreatives = creatives.filter(c => c.status === col.id);
                 return (
-                  <div key={col.id} className="flex flex-col bg-slate-100/70 dark:bg-[#080E1A]/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 min-w-[260px]">
+                  <div
+                    key={col.id}
+                    className="flex flex-col shrink-0 w-[290px] xl:w-[310px] bg-slate-100/80 dark:bg-[#080E1A]/95 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-3.5 shadow-xs"
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
                       <div className="flex items-center gap-2">
                         <div className={`w-2.5 h-2.5 rounded-full ${col.color.replace('border', 'bg')}`} />
                         <span className="text-xs font-bold text-slate-900 dark:text-white">{col.label}</span>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
                         {columnCreatives.length}
                       </span>
                     </div>
 
                     <div className="space-y-3 flex-1 overflow-y-auto max-h-[70vh] custom-scrollbar pr-1">
-                      {columnCreatives.map(c => (
+                      {columnCreatives.length === 0 ? (
+                        <div className="h-32 border-2 border-dashed border-slate-200/80 dark:border-slate-800/80 rounded-xl flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-1.5 p-4 text-center select-none">
+                          <span className="text-xs font-semibold">No Proofs</span>
+                          <span className="text-[10px] text-slate-400/80">Stage is empty</span>
+                        </div>
+                      ) : (
+                        columnCreatives.map(c => (
                         <div
                           key={c.id}
                           onClick={() => handleOpenStudio(c.id)}
@@ -1093,7 +1102,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                             </button>
                           )}
                         </div>
-                      ))}
+                      ))
+                    )}
                     </div>
                   </div>
                 );

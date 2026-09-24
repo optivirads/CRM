@@ -1886,6 +1886,53 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
           JSON.stringify({ previousStatus: current.status, newStatus: status })
         ]
       );
+
+      // Auto-complete linked task if creative was approved and moved to DEPLOYMENT_READY or LIVE
+      if (effectiveTaskId && (status === 'DEPLOYMENT_READY' || status === 'LIVE')) {
+        const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+        const stageLabel = status === 'LIVE' ? 'Live Campaigns' : 'Deployment Ready';
+        await db.query(
+          `UPDATE tasks
+           SET 
+             status = 'Completed',
+             progress = 100,
+             completed_at = COALESCE(completed_at, NOW()),
+             updated_by = $1,
+             stage_history = COALESCE(stage_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+               'from_status', status,
+               'to_status', 'Completed',
+               'changed_by', $1,
+               'user_name', $2,
+               'changed_at', NOW(),
+               'notes', 'Auto-completed deliverable: creative approved & moved to ' || $3
+             ))
+           WHERE id = $4 AND organization_id = $5 AND status != 'Completed'`,
+          [userId, userFullName, stageLabel, effectiveTaskId, orgId]
+        );
+      }
+
+      // If creative is reverted from DEPLOYMENT_READY or LIVE to an earlier stage, revert task back to In Progress
+      if (effectiveTaskId && current.status && ['DEPLOYMENT_READY', 'LIVE'].includes(current.status) && !['DEPLOYMENT_READY', 'LIVE'].includes(status)) {
+        const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+        await db.query(
+          `UPDATE tasks
+           SET 
+             status = 'In Progress',
+             progress = 75,
+             completed_at = NULL,
+             updated_by = $1,
+             stage_history = COALESCE(stage_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+               'from_status', status,
+               'to_status', 'In Progress',
+               'changed_by', $1,
+               'user_name', $2,
+               'changed_at', NOW(),
+               'notes', 'Reverted from Completed: creative deliverable moved back to ' || $3
+             ))
+           WHERE id = $4 AND organization_id = $5 AND status = 'Completed'`,
+          [userId, userFullName, status, effectiveTaskId, orgId]
+        );
+      }
     }
 
     res.json({
@@ -1932,6 +1979,30 @@ router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, re
       `UPDATE creatives SET task_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3 RETURNING *`,
       [taskId || null, id, orgId]
     );
+
+    // If linking to a task and this creative is already in DEPLOYMENT_READY or LIVE, complete the task
+    if (taskId && ['DEPLOYMENT_READY', 'LIVE'].includes(check.rows[0].status)) {
+      const userFullName = `${req.user?.firstName || 'User'} ${req.user?.lastName || ''}`.trim();
+      const stageLabel = check.rows[0].status === 'LIVE' ? 'Live Campaigns' : 'Deployment Ready';
+      await db.query(
+        `UPDATE tasks
+         SET 
+           status = 'Completed',
+           progress = 100,
+           completed_at = COALESCE(completed_at, NOW()),
+           updated_by = $1,
+           stage_history = COALESCE(stage_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+             'from_status', status,
+             'to_status', 'Completed',
+             'changed_by', $1,
+             'user_name', $2,
+             'changed_at', NOW(),
+             'notes', 'Auto-completed deliverable: linked creative is already in ' || $3
+           ))
+         WHERE id = $4 AND organization_id = $5 AND status != 'Completed'`,
+        [req.user!.id, userFullName, stageLabel, taskId, orgId]
+      );
+    }
 
     res.json({
       success: true,
