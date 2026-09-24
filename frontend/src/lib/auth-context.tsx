@@ -320,6 +320,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [concurrentNotice, setConcurrentNotice] = useState<string | null>(null);
   const clearConcurrentNotice = () => setConcurrentNotice(null);
+  const logout = React.useCallback(() => {
+    api.logout().catch(() => {});
+    localStorage.removeItem('optivir_token');
+    localStorage.removeItem('optivir_cached_user');
+    localStorage.removeItem('optivir_cached_org');
+    localStorage.removeItem('optivir_persona_id');
+    localStorage.removeItem('optivir_remember_me');
+    localStorage.removeItem('optivir_crm_active_tab');
+    localStorage.removeItem('optivir_crm_client_id');
+    localStorage.removeItem('optivir_crm_client_name');
+    setUser(null);
+    setOrganization(null);
+    setToken(null);
+    setActivePersona(AGENCY_PERSONAS[0]);
+  }, []);
 
   useEffect(() => {
     const handleConcurrent = (e: any) => {
@@ -718,21 +733,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    api.logout().catch(() => {});
-    localStorage.removeItem('optivir_token');
-    localStorage.removeItem('optivir_cached_user');
-    localStorage.removeItem('optivir_cached_org');
-    localStorage.removeItem('optivir_persona_id');
-    localStorage.removeItem('optivir_remember_me');
-    localStorage.removeItem('optivir_crm_active_tab');
-    localStorage.removeItem('optivir_crm_client_id');
-    localStorage.removeItem('optivir_crm_client_name');
-    setUser(null);
-    setOrganization(null);
-    setToken(null);
-    setActivePersona(AGENCY_PERSONAS[0]);
-  };
 
   return (
     <AuthContext.Provider value={{

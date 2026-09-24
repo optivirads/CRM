@@ -10,7 +10,7 @@
     "test": "jest --forceExit",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
-    "clear-data": "tsx src/database/clear_mock_data.ts"
+    "clear-data": "tsx src/scripts/clean_all_mock_data.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1136.0",
