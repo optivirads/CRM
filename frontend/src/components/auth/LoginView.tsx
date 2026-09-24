@@ -188,7 +188,7 @@ export const LoginView: React.FC = () => {
       <main className="relative z-20 flex-1 flex items-center justify-center px-4 py-6">
         <div className="w-full max-w-md">
           {/* Glass Card Container */}
-          <div className="bg-[#0B1528]/55 dark:bg-[#071120]/50 backdrop-blur-2xl border border-white/15 dark:border-white/12 rounded-3xl p-8 shadow-[0_25px_70px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.15)] space-y-6 relative overflow-hidden transition-all duration-300">
+          <div className="bg-[#0B1528]/55 dark:bg-[#071120]/50 backdrop-blur-2xl border border-white/15 dark:border-white/12 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-[0_25px_70px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.15)] space-y-6 relative overflow-hidden transition-all duration-300">
             {/* Top Red Glass Reflection Highlight */}
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-rose-500/80 to-transparent" />
 
