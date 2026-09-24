@@ -19,9 +19,6 @@ export async function downloadClientPdf(
   });
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('optivir_token') : null;
-  if (token) {
-    searchParams.set('token', token);
-  }
 
   const url = `/api/pdf/${type}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 

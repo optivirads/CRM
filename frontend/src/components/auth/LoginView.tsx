@@ -1,19 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAuth, AGENCY_PERSONAS } from '@/lib/auth-context';
+import { useAuth } from '@/lib/auth-context';
 import {
   Lock,
   Mail,
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
   KeyRound,
   CheckCircle2,
   AlertCircle,
-  Building2,
-  Users2,
   TrendingUp,
   Receipt,
   Layers,
@@ -29,7 +26,6 @@ import {
 
 export const LoginView: React.FC = () => {
   const { login, concurrentNotice, clearConcurrentNotice } = useAuth();
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,38 +49,6 @@ export const LoginView: React.FC = () => {
       setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleQuickPersonaSelect = async (personaId: string) => {
-    if (!isDemoMode) return;
-    const persona = AGENCY_PERSONAS.find((p) => p.id === personaId);
-    if (!persona) return;
-    setEmail(persona.email);
-    setPassword('admin123');
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      await login(persona.email, 'admin123', true);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Quick login failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getPersonaIcon = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return <Building2 className="w-3.5 h-3.5 text-rose-400" />;
-      case 'sales_lead':
-        return <TrendingUp className="w-3.5 h-3.5 text-blue-400" />;
-      case 'media_buyer':
-        return <Sparkles className="w-3.5 h-3.5 text-purple-400" />;
-      case 'finance_lead':
-        return <Receipt className="w-3.5 h-3.5 text-emerald-400" />;
-      default:
-        return <Users2 className="w-3.5 h-3.5 text-amber-400" />;
     }
   };
 
@@ -360,39 +324,6 @@ export const LoginView: React.FC = () => {
                 <span>Single Active System Enforced • Automatically signs out older logins</span>
               </div>
             </form>
-
-            {/* Quick Demo Persona Switcher (Evaluation / Demo Mode Only) */}
-            {isDemoMode && (
-              <div className="pt-3 border-t border-white/10 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Evaluation Personas</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400">1-Click Instant Login</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {AGENCY_PERSONAS.slice(0, 4).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => handleQuickPersonaSelect(p.id)}
-                      className="flex items-center space-x-2 p-2 rounded-xl bg-slate-950/45 hover:bg-slate-900/70 border border-white/10 hover:border-rose-500/40 text-left transition group cursor-pointer backdrop-blur-md shadow-xs"
-                    >
-                      <div className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition border border-white/5">
-                        {getPersonaIcon(p.role)}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-slate-200 truncate">{p.name}</div>
-                        <div className="text-[9px] text-slate-400 truncate">{p.roleLabel.split('/')[0]}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Trust & Security Footnote */}

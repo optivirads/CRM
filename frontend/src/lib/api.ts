@@ -1265,7 +1265,7 @@ class ApiClient {
     if (metadata.slideOrder) formData.append('slideOrder', String(metadata.slideOrder));
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('optivir_token') : null;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const baseUrl = API_BASE_URL;
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();

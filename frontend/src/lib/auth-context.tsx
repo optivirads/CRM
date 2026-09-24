@@ -593,8 +593,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchPersona = (personaId: string) => {
     const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
-    // Only master owner or explicit demo mode can switch persona preview
-    if (!isMasterOwner && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+    // Only master owner can switch persona preview
+    if (!isMasterOwner) {
       return;
     }
     const persona = AGENCY_PERSONAS.find(p => p.id === personaId);
@@ -684,8 +684,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, pass: string, rememberMe: boolean = true) => {
-    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
     try {
       const res = await api.login(email, pass, rememberMe);
       if (res && res.success && res.data) {

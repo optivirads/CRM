@@ -56,11 +56,13 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     const cleanOrigin = origin.replace(/\/$/, '');
+    const isRenderDomain = cleanOrigin.endsWith('.onrender.com');
     const isVercelDomain = cleanOrigin.endsWith('.vercel.app');
     const isLocalhost = cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1');
 
     if (
       allowedOrigins.includes(cleanOrigin) ||
+      isRenderDomain ||
       isVercelDomain ||
       isLocalhost ||
       process.env.NODE_ENV !== 'production'
@@ -133,28 +135,18 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 app.get('/health/db', async (req: Request, res: Response) => {
-  const diagnostics = db.getDiagnostics();
   try {
-    const dbRes = await db.query('SELECT current_database(), current_user, count(*) as user_count FROM users;');
-    const orgUsersRes = await db.query('SELECT count(*) as org_users_count FROM organization_users;');
+    await db.query('SELECT 1;');
     res.json({
       success: true,
       status: 'connected',
-      diagnostics,
-      database: dbRes.rows[0],
-      orgUsersCount: orgUsersRes.rows[0]?.org_users_count,
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
     res.status(500).json({
       success: false,
       status: 'disconnected',
-      diagnostics,
-      error: err.message,
-      detail: 'Failed connecting to database pool',
-      hint: diagnostics.isSupabasePooler && !diagnostics.userHasPoolerTenant
-        ? 'Supabase Pooler requires DB_USER in format: postgres.[project-ref] (e.g. postgres.ituizznwyamrdcfvymam)'
-        : 'Verify DB_PASSWORD and DATABASE_URL in environment settings.',
+      error: 'Database connection failed',
       timestamp: new Date().toISOString()
     });
   }

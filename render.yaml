@@ -12,8 +12,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
       - key: DB_HOST
         sync: false
       - key: DB_PORT
@@ -30,5 +28,28 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: INTEGRATION_ENCRYPTION_KEY
+        generateValue: true
       - key: FRONTEND_URL
-        sync: false
+        fromService:
+          type: web
+          name: optivir-crm-frontend
+          property: host
+
+  - type: web
+    name: optivir-crm-frontend
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: optivir-crm-backend
+          property: host

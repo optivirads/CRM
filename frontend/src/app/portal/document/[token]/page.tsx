@@ -103,8 +103,7 @@ export default function ClientDocumentPortalPage() {
         }
         // Build PDF URL with session token
         if (activeSession) {
-          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-          setPdfUrl(`${baseUrl}/sales/documents/public/${token}/pdf`);
+          setPdfUrl(`/api/sales/documents/public/${token}/pdf`);
         }
       } else {
         setError(res.message || 'Failed to load document');

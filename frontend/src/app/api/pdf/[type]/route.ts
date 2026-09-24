@@ -961,11 +961,10 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const queryData = Object.fromEntries(searchParams.entries());
 
-    // 1. Authentication check — optional Authorization header or signed token query param
-    const authHeader = request.headers.get('authorization') ||
-      (searchParams.get('token') ? `Bearer ${searchParams.get('token')}` : null);
+    // 1. Authentication check — strictly via Authorization header
+    const authHeader = request.headers.get('authorization');
 
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
 
     let invoiceData: any = queryData;
     let orgData: any = null;
