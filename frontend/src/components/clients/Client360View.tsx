@@ -289,6 +289,12 @@ export const Client360View: React.FC<Client360ViewProps> = ({
         const res = await api.getClient360(targetId).catch(() => null);
         if (res?.data?.client) {
           setLiveClient(res.data.client);
+          if (res.data.projects && Array.isArray(res.data.projects)) {
+            setClientProjects(res.data.projects);
+          }
+          if (res.data.campaigns && Array.isArray(res.data.campaigns)) {
+            setDbCampaigns(res.data.campaigns);
+          }
         } else {
           // Fallback: search in getClients()
           const allRes = await api.getClients().catch(() => null);
@@ -298,47 +304,39 @@ export const Client360View: React.FC<Client360ViewProps> = ({
           }
         }
 
-        // Load social insights
-        const socialRes = await api.getClientSocialInsights(targetId).catch(() => null);
-        if (socialRes?.data) {
-          setSocialData(socialRes.data);
-        }
+        // Release loading immediately so client profile renders instantly!
+        setIsLoadingClient(false);
 
-        // Load social integrations config
-        const integRes = await api.getClientSocialIntegrations(targetId).catch(() => null);
-        if (integRes?.data) {
-          setSocialIntegrationConfig(integRes.data);
-        }
-
-        // Check discovery unimported count
-        const discRes = await api.discoverClientSocialPosts(targetId).catch(() => null);
-        if (discRes?.data?.unimportedCount !== undefined) {
-          setUnimportedCount(discRes.data.unimportedCount);
-          if (discRes.data.availablePosts) setDiscoveredPosts(discRes.data.availablePosts);
-        }
-
-        // Load client-specific campaigns
-        const campRes = await api.getCampaigns(targetId).catch(() => null);
-        if (campRes?.data && Array.isArray(campRes.data) && campRes.data.length > 0) {
-          setDbCampaigns(campRes.data);
-        } else if (res?.data?.marketing?.campaigns && Array.isArray(res.data.marketing.campaigns)) {
-          setDbCampaigns(res.data.marketing.campaigns);
-        } else if (campRes?.data && Array.isArray(campRes.data)) {
-          setDbCampaigns(campRes.data);
-        }
-      }
-
-      // Fetch team members
-      await loadTeamMembers();
-
-      // Fetch client-linked projects
-      const projRes = await api.getProjects().catch(() => null);
-      if (projRes?.data && Array.isArray(projRes.data)) {
-        const matched = projRes.data.filter((p: any) =>
-          (targetId && (p.client_id === targetId || p.company_id === targetId)) ||
-          (propClientName && p.company_name?.toLowerCase().includes(propClientName.toLowerCase()))
-        );
-        setClientProjects(matched);
+        // 2. Fetch secondary widgets concurrently in background without blocking profile UI
+        Promise.allSettled([
+          api.getClientSocialInsights(targetId).catch(() => null),
+          api.getClientSocialIntegrations(targetId).catch(() => null),
+          loadTeamMembers().catch(() => null),
+          api.getCampaigns(targetId).catch(() => null),
+          api.getProjects().catch(() => null),
+          api.discoverClientSocialPosts(targetId).catch(() => null)
+        ]).then(([socialRes, integRes, _, campRes, projRes, discRes]) => {
+          if (socialRes.status === 'fulfilled' && (socialRes.value as any)?.data) {
+            setSocialData((socialRes.value as any).data);
+          }
+          if (integRes.status === 'fulfilled' && (integRes.value as any)?.data) {
+            setSocialIntegrationConfig((integRes.value as any).data);
+          }
+          if (campRes.status === 'fulfilled' && (campRes.value as any)?.data && Array.isArray((campRes.value as any).data) && (campRes.value as any).data.length > 0) {
+            setDbCampaigns((campRes.value as any).data);
+          }
+          if (projRes.status === 'fulfilled' && (projRes.value as any)?.data && Array.isArray((projRes.value as any).data)) {
+            const matched = (projRes.value as any).data.filter((p: any) =>
+              (targetId && (p.client_id === targetId || p.company_id === targetId)) ||
+              (propClientName && p.company_name?.toLowerCase().includes(propClientName.toLowerCase()))
+            );
+            if (matched.length > 0) setClientProjects(matched);
+          }
+          if (discRes.status === 'fulfilled' && (discRes.value as any)?.data?.unimportedCount !== undefined) {
+            setUnimportedCount((discRes.value as any).data.unimportedCount);
+            if ((discRes.value as any).data.availablePosts) setDiscoveredPosts((discRes.value as any).data.availablePosts);
+          }
+        });
       }
     } catch (err) {
       console.error('Failed to load client profile:', err);

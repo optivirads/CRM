@@ -153,15 +153,22 @@ export const getPersonaForUser = (u: User | null): Persona => {
     return AGENCY_PERSONAS[0];
   }
 
-  // 1. If user is owner
-  if (u.isOwner || u.email?.toLowerCase() === 'optivirads@gmail.com' || u.role === 'owner') {
+  const effectiveTabs =
+    u.allowed_tabs && Array.isArray(u.allowed_tabs) && u.allowed_tabs.length > 0
+      ? u.allowed_tabs
+      : u.email?.toLowerCase() === 'optivirads@gmail.com'
+      ? ['*']
+      : ['dashboard'];
+
+  // 1. If user is root owner
+  if (u.email?.toLowerCase() === 'optivirads@gmail.com' || u.role === 'owner') {
     const p = AGENCY_PERSONAS[0];
     return {
       ...p,
       name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || p.name,
       email: u.email || p.email,
       designation: u.designation || p.designation,
-      allowedTabs: u.allowed_tabs || ['*']
+      allowedTabs: effectiveTabs
     };
   }
 
@@ -178,11 +185,11 @@ export const getPersonaForUser = (u: User | null): Persona => {
       roleLabel: u.roleName || byEmail.roleLabel,
       designation: u.designation || byEmail.designation,
       avatarText: ((u.firstName?.[0] || '') + (u.lastName?.[0] || u.email?.[0] || 'U')).toUpperCase() || byEmail.avatarText,
-      allowedTabs: u.allowed_tabs || byEmail.allowedTabs
+      allowedTabs: effectiveTabs
     };
   }
 
-  // 3. Match by role slug in AGENCY_PERSONAS (e.g. 'coo', 'sales_lead', etc.)
+  // 3. Match by role slug in AGENCY_PERSONAS
   const byRole = AGENCY_PERSONAS.find(p => p.role === u.role);
   if (byRole) {
     return {
@@ -194,7 +201,7 @@ export const getPersonaForUser = (u: User | null): Persona => {
       roleLabel: u.roleName || byRole.roleLabel,
       designation: u.designation || byRole.designation,
       avatarText: ((u.firstName?.[0] || '') + (u.lastName?.[0] || u.email?.[0] || 'U')).toUpperCase() || byRole.avatarText,
-      allowedTabs: u.allowed_tabs || byRole.allowedTabs
+      allowedTabs: effectiveTabs
     };
   }
 
@@ -210,7 +217,7 @@ export const getPersonaForUser = (u: User | null): Persona => {
     designation: u.designation || 'Specialist',
     avatarText: initials || 'U',
     avatarBg: u.role === 'coo' ? 'bg-purple-700' : 'bg-indigo-600',
-    allowedTabs: u.allowed_tabs || ['dashboard'],
+    allowedTabs: effectiveTabs,
     description: 'Authenticated agency account'
   };
 };
@@ -225,6 +232,7 @@ interface AuthContextType {
   clearConcurrentNotice: () => void;
   switchPersona: (personaId: string) => void;
   updateCurrentUser: (updates: Partial<User>) => void;
+  refreshAuth: () => Promise<void>;
   canAccessTab: (tabId: string) => boolean;
   can: (resource: string, action: string) => boolean;
   login: (email: string, pass: string, rememberMe?: boolean) => Promise<void>;
@@ -241,6 +249,7 @@ const AuthContext = createContext<AuthContextType>({
   clearConcurrentNotice: () => {},
   switchPersona: () => {},
   updateCurrentUser: () => {},
+  refreshAuth: async () => {},
   canAccessTab: () => true,
   can: () => true,
   login: async () => {},
@@ -300,7 +309,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return AGENCY_PERSONAS[0];
   });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('optivir_token');
+      if (!t || t.startsWith('ov_jwt_demo_')) return false;
+      const cached = localStorage.getItem('optivir_cached_user');
+      if (cached) return false;
+    }
+    return false;
+  });
   const [concurrentNotice, setConcurrentNotice] = useState<string | null>(null);
   const clearConcurrentNotice = () => setConcurrentNotice(null);
 
@@ -337,6 +354,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const refreshAuth = React.useCallback(async () => {
+    try {
+      const storedToken = localStorage.getItem('optivir_token');
+      if (!storedToken || storedToken.startsWith('ov_jwt_demo_')) return;
+      const meRes = await api.getMe();
+      if (meRes && meRes.success && meRes.data) {
+        const d = meRes.data;
+        const isRootOwner = d.email?.toLowerCase() === 'optivirads@gmail.com';
+        const effectiveTabs: string[] = isRootOwner 
+          ? ['*'] 
+          : (d.allowed_tabs && Array.isArray(d.allowed_tabs) && d.allowed_tabs.length > 0)
+          ? d.allowed_tabs
+          : (d.role_slug === 'super_admin' || d.role_slug === 'admin' || Boolean(d.is_owner))
+          ? ['*']
+          : ['dashboard'];
+
+        const freshUser: User = {
+          id: d.id,
+          email: d.email,
+          firstName: d.first_name,
+          lastName: d.last_name,
+          phone: d.phone || null,
+          avatarUrl: d.avatar_url || d.avatarUrl || null,
+          designation: d.designation,
+          role: d.role_slug || d.role || 'coo',
+          roleName: d.role_name || d.roleName || 'Team Member',
+          isOwner: Boolean(d.is_owner),
+          allowed_tabs: effectiveTabs,
+          clientId: d.client_id || null,
+          clientName: d.client_name || null,
+          currentDevice: d.currentDevice || d.current_device_info || null
+        };
+
+        setUser((prev) => {
+          if (
+            prev &&
+            JSON.stringify(prev.allowed_tabs) === JSON.stringify(freshUser.allowed_tabs) &&
+            prev.role === freshUser.role &&
+            prev.isOwner === freshUser.isOwner &&
+            prev.designation === freshUser.designation
+          ) {
+            return prev;
+          }
+          try {
+            localStorage.setItem('optivir_cached_user', JSON.stringify(freshUser));
+          } catch {}
+          const userPersona = getPersonaForUser(freshUser);
+          setActivePersona(userPersona);
+          try {
+            localStorage.setItem('optivir_persona_id', userPersona.id);
+          } catch {}
+          return freshUser;
+        });
+      }
+    } catch (err) {
+      console.warn('Silent auth refresh error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -363,6 +439,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const parsedUser: User = JSON.parse(cachedUserRaw);
               setUser(parsedUser);
               setActivePersona(getPersonaForUser(parsedUser));
+              setIsLoading(false);
             } catch {}
           }
           if (cachedOrgRaw) {
@@ -377,7 +454,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const meRes = await api.getMe();
             if (meRes && meRes.success && meRes.data) {
               const d = meRes.data;
-              const isSuper = Boolean(d.is_owner) || d.role_slug === 'super_admin' || d.email?.toLowerCase() === 'optivirads@gmail.com' || d.email?.toLowerCase() === 'abhinandc97@gmail.com';
+              const isRootOwner = d.email?.toLowerCase() === 'optivirads@gmail.com';
+              const effectiveTabs: string[] = isRootOwner 
+                ? ['*'] 
+                : (d.allowed_tabs && Array.isArray(d.allowed_tabs) && d.allowed_tabs.length > 0)
+                ? d.allowed_tabs
+                : (d.role_slug === 'super_admin' || d.role_slug === 'admin' || Boolean(d.is_owner))
+                ? ['*']
+                : ['dashboard'];
+
               const freshUser: User = {
                 id: d.id,
                 email: d.email,
@@ -389,7 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: d.role_slug || 'coo',
                 roleName: d.role_name || 'Chief Operating Officer',
                 isOwner: Boolean(d.is_owner),
-                allowed_tabs: isSuper ? ['*'] : (d.allowed_tabs || ['dashboard']),
+                allowed_tabs: effectiveTabs,
                 clientId: d.client_id || null,
                 clientName: d.client_name || null,
                 currentDevice: d.currentDevice || d.current_device_info || null
@@ -416,7 +501,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setActivePersona(userPersona);
               localStorage.setItem('optivir_persona_id', userPersona.id);
             } else if ((meRes as any)?.status === 401 || (meRes as any)?.status === 403) {
-              // Token strictly rejected by server as invalid
               localStorage.removeItem('optivir_token');
               localStorage.removeItem('optivir_cached_user');
               localStorage.removeItem('optivir_cached_org');
@@ -427,7 +511,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setActivePersona(AGENCY_PERSONAS[0]);
             }
           } catch (apiErr: any) {
-            // ONLY log out if the backend definitively returns 401/403 HTTP status.
             if (apiErr?.status === 401 || apiErr?.status === 403) {
               console.warn('Session token expired or rejected by server:', apiErr?.message);
               localStorage.removeItem('optivir_token');
@@ -457,6 +540,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
+  // Real-time synchronization for role & module permission updates
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Cross-tab BroadcastChannel
+    let authChannel: BroadcastChannel | null = null;
+    try {
+      authChannel = new BroadcastChannel('optivir_auth_channel');
+      authChannel.onmessage = (event) => {
+        if (event.data?.type === 'PERMISSIONS_UPDATED') {
+          refreshAuth();
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel not supported', e);
+    }
+
+    // 2. Storage event listener (localStorage cross-tab sync)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'optivir_permissions_sync') {
+        refreshAuth();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Same-tab CustomEvent
+    const handleCustomEvent = () => {
+      refreshAuth();
+    };
+    window.addEventListener('optivir_permissions_updated', handleCustomEvent);
+
+    // 4. Window focus revalidation
+    const handleFocus = () => {
+      refreshAuth();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 5. Silent background heartbeat poll (every 8 seconds)
+    const interval = setInterval(() => {
+      refreshAuth();
+    }, 8000);
+
+    return () => {
+      if (authChannel) authChannel.close();
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('optivir_permissions_updated', handleCustomEvent);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [refreshAuth]);
+
   const switchPersona = (personaId: string) => {
     const isMasterOwner = Boolean(user?.isOwner) || user?.email?.toLowerCase() === 'optivirads@gmail.com' || user?.role === 'owner';
     // Only master owner or explicit demo mode can switch persona preview
@@ -470,15 +604,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccessTab = (tabId: string): boolean => {
-    // 1. Master Owner / Super Admin
-    const isMasterOwner =
-      user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
-      user?.email?.toLowerCase() === 'abhinandc97@gmail.com' ||
-      Boolean(user?.isOwner) ||
-      user?.role === 'super_admin' ||
-      user?.role === 'owner';
-
-    if (isMasterOwner) {
+    // 1. Root Primary Owner (optivirads@gmail.com) always has full access to all tabs
+    if (user?.email?.toLowerCase() === 'optivirads@gmail.com') {
       return true;
     }
 
@@ -488,23 +615,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!clientAllowed.includes(tabId)) return false;
     }
 
-    // 3. User specific allowed_tabs from database takes primary precedence for non-master accounts
-    if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
+    // 3. User specific allowed_tabs from database takes primary precedence
+    if (user?.allowed_tabs && Array.isArray(user.allowed_tabs) && user.allowed_tabs.length > 0) {
       if (user.allowed_tabs.includes('*')) return true;
       return user.allowed_tabs.includes(tabId);
     }
 
-    // 4. Fallback persona check
+    // 4. Super Admin or Owner without explicit restrictions
+    if (user?.role === 'super_admin' || user?.role === 'owner' || Boolean(user?.isOwner)) {
+      return true;
+    }
+
+    // 5. Fallback persona check
     if (!activePersona) return true;
     if (activePersona.role === 'owner' || activePersona.allowedTabs.includes('*')) return true;
     return activePersona.allowedTabs.includes(tabId);
   };
 
   const can = (resource: string, action: string): boolean => {
+    const isRootOwner = user?.email?.toLowerCase() === 'optivirads@gmail.com';
     const isMasterOwner =
+      isRootOwner ||
       Boolean(user?.isOwner) ||
-      user?.email?.toLowerCase() === 'optivirads@gmail.com' ||
-      user?.email?.toLowerCase() === 'abhinandc97@gmail.com' ||
       user?.role === 'owner' ||
       user?.role === 'super_admin';
 
@@ -518,17 +650,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return isMasterOwner;
     }
 
-    if (isMasterOwner || user?.role === 'super_admin') return true;
-
-    // COO operational permissions (all modules except critical master billing/security edit or user creation)
-    if (user?.role === 'coo' || activePersona?.role === 'coo') {
-      if ((resource === 'billing' || resource === 'security') && action === 'edit') return false;
-      return true;
-    }
+    if (isRootOwner) return true;
 
     // Client-scoped user: block internal agency resources
     if (user?.clientId) {
       if (['leads', 'pipeline', 'settings', 'operations', 'teams'].includes(resource)) return false;
+    }
+
+    // Check if user has explicit tab permissions: if resource corresponds to a module tab that is not allowed, deny it
+    if (user?.allowed_tabs && Array.isArray(user.allowed_tabs) && !user.allowed_tabs.includes('*')) {
+      if (!user.allowed_tabs.includes(resource) && ['leads', 'contacts', 'clients', 'pipeline', 'proposals', 'onboarding', 'projects', 'tasks', 'creatives', 'marketing', 'finance', 'activities', 'documents', 'reports', 'settings'].includes(resource)) {
+        return false;
+      }
+    }
+
+    if (isMasterOwner) return true;
+
+    // COO operational permissions
+    if (user?.role === 'coo' || activePersona?.role === 'coo') {
+      if ((resource === 'billing' || resource === 'security') && action === 'edit') return false;
+      return true;
     }
 
     if (user?.allowed_tabs && Array.isArray(user.allowed_tabs)) {
@@ -559,6 +700,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('optivir_cached_org', JSON.stringify(loggedInOrg));
         localStorage.setItem('optivir_remember_me', rememberMe ? 'true' : 'false');
 
+        // Always reset navigation to dashboard on login
+        localStorage.setItem('optivir_crm_active_tab', 'dashboard');
+        localStorage.removeItem('optivir_crm_client_id');
+        localStorage.removeItem('optivir_crm_client_name');
+
         const userPersona = getPersonaForUser(loggedInUser);
         localStorage.setItem('optivir_persona_id', userPersona.id);
 
@@ -581,6 +727,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('optivir_cached_org');
     localStorage.removeItem('optivir_persona_id');
     localStorage.removeItem('optivir_remember_me');
+    localStorage.removeItem('optivir_crm_active_tab');
+    localStorage.removeItem('optivir_crm_client_id');
+    localStorage.removeItem('optivir_crm_client_name');
     setUser(null);
     setOrganization(null);
     setToken(null);
@@ -598,6 +747,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearConcurrentNotice,
       switchPersona,
       updateCurrentUser,
+      refreshAuth,
       canAccessTab,
       can,
       login,

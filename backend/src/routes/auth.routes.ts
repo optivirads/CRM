@@ -126,17 +126,14 @@ router.post(
         return;
       }
 
-      const isSuper =
-        row.is_owner ||
-        row.role_slug === 'super_admin' ||
-        row.email?.toLowerCase() === 'optivirads@gmail.com' ||
-        row.email?.toLowerCase() === 'abhinandc97@gmail.com';
-      const effectiveTabs: string[] =
-        isSuper
-          ? ['*']
-          : row.allowed_tabs && row.allowed_tabs.length > 0
-          ? row.allowed_tabs
-          : ['dashboard'];
+      const isRootOwner = row.email?.toLowerCase() === 'optivirads@gmail.com';
+      const effectiveTabs: string[] = isRootOwner
+        ? ['*']
+        : row.allowed_tabs && Array.isArray(row.allowed_tabs) && row.allowed_tabs.length > 0
+        ? row.allowed_tabs
+        : row.role_slug === 'super_admin' || row.role_slug === 'admin' || row.is_owner
+        ? ['*']
+        : ['dashboard'];
 
       const sessionId = crypto.randomUUID();
       const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || '127.0.0.1';
@@ -266,13 +263,14 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
     }
 
     const row = userRes.rows[0];
-    const isSuper =
-      row.is_owner ||
-      row.role_slug === 'super_admin' ||
-      row.email?.toLowerCase() === 'optivirads@gmail.com' ||
-      row.email?.toLowerCase() === 'abhinandc97@gmail.com';
-    const effectiveTabs: string[] =
-      isSuper ? ['*'] : row.allowed_tabs && row.allowed_tabs.length > 0 ? row.allowed_tabs : ['dashboard'];
+    const isRootOwner = row.email?.toLowerCase() === 'optivirads@gmail.com';
+    const effectiveTabs: string[] = isRootOwner
+      ? ['*']
+      : row.allowed_tabs && Array.isArray(row.allowed_tabs) && row.allowed_tabs.length > 0
+      ? row.allowed_tabs
+      : row.role_slug === 'super_admin' || row.role_slug === 'admin' || row.is_owner
+      ? ['*']
+      : ['dashboard'];
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || '127.0.0.1';
     const liveDevice = parseDeviceInfo(req.headers['user-agent'] || '', clientIp);

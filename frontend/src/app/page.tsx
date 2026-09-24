@@ -1,31 +1,42 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Sidebar, NavItem } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { DashboardView } from '@/components/dashboard/DashboardView';
-import { Client360View } from '@/components/clients/Client360View';
-import { LeadsView } from '@/components/crm/LeadsView';
-import { ContactsView } from '@/components/crm/ContactsView';
-import { OpportunitiesView } from '@/components/crm/OpportunitiesView';
-import { PipelineView } from '@/components/sales/PipelineView';
-import { ClientsListView } from '@/components/clients/ClientsListView';
-import { ClientOnboardingView } from '@/components/clients/ClientOnboardingView';
-import { ProjectsView } from '@/components/projects/ProjectsView';
-import { TasksView } from '@/components/projects/TasksView';
-import { CreativeProofingView } from '@/components/creatives/CreativeProofingView';
-import { MarketingView } from '@/components/marketing/MarketingView';
-import { FinanceView } from '@/components/finance/FinanceView';
-import { ReportsView } from '@/components/reports/ReportsView';
-import { ProposalsView } from '@/components/sales/ProposalsView';
-import { CalendarView } from '@/components/operations/CalendarView';
-import { DocumentsView } from '@/components/operations/DocumentsView';
-import { NotificationsView } from '@/components/operations/NotificationsView';
-import { SettingsView } from '@/components/operations/SettingsView';
 import { LoginView } from '@/components/auth/LoginView';
 import { LogoLoader } from '@/components/common/LogoLoader';
 import { useAuth } from '@/lib/auth-context';
 import { ShieldAlert, Lock } from 'lucide-react';
+
+const ViewLoadingFallback = () => (
+  <div className="flex-1 flex flex-col items-center justify-center p-12 min-h-[400px]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-2 border-[#B91C1C] border-t-transparent rounded-full animate-spin" />
+      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loading module...</span>
+    </div>
+  </div>
+);
+
+const Client360View = dynamic(() => import('@/components/clients/Client360View').then((m) => m.Client360View), { loading: ViewLoadingFallback });
+const LeadsView = dynamic(() => import('@/components/crm/LeadsView').then((m) => m.LeadsView), { loading: ViewLoadingFallback });
+const ContactsView = dynamic(() => import('@/components/crm/ContactsView').then((m) => m.ContactsView), { loading: ViewLoadingFallback });
+const OpportunitiesView = dynamic(() => import('@/components/crm/OpportunitiesView').then((m) => m.OpportunitiesView), { loading: ViewLoadingFallback });
+const PipelineView = dynamic(() => import('@/components/sales/PipelineView').then((m) => m.PipelineView), { loading: ViewLoadingFallback });
+const ClientsListView = dynamic(() => import('@/components/clients/ClientsListView').then((m) => m.ClientsListView), { loading: ViewLoadingFallback });
+const ClientOnboardingView = dynamic(() => import('@/components/clients/ClientOnboardingView').then((m) => m.ClientOnboardingView), { loading: ViewLoadingFallback });
+const ProjectsView = dynamic(() => import('@/components/projects/ProjectsView').then((m) => m.ProjectsView), { loading: ViewLoadingFallback });
+const TasksView = dynamic(() => import('@/components/projects/TasksView').then((m) => m.TasksView), { loading: ViewLoadingFallback });
+const CreativeProofingView = dynamic(() => import('@/components/creatives/CreativeProofingView').then((m) => m.CreativeProofingView), { loading: ViewLoadingFallback });
+const MarketingView = dynamic(() => import('@/components/marketing/MarketingView').then((m) => m.MarketingView), { loading: ViewLoadingFallback });
+const FinanceView = dynamic(() => import('@/components/finance/FinanceView').then((m) => m.FinanceView), { loading: ViewLoadingFallback });
+const ReportsView = dynamic(() => import('@/components/reports/ReportsView').then((m) => m.ReportsView), { loading: ViewLoadingFallback });
+const ProposalsView = dynamic(() => import('@/components/sales/ProposalsView').then((m) => m.ProposalsView), { loading: ViewLoadingFallback });
+const CalendarView = dynamic(() => import('@/components/operations/CalendarView').then((m) => m.CalendarView), { loading: ViewLoadingFallback });
+const DocumentsView = dynamic(() => import('@/components/operations/DocumentsView').then((m) => m.DocumentsView), { loading: ViewLoadingFallback });
+const NotificationsView = dynamic(() => import('@/components/operations/NotificationsView').then((m) => m.NotificationsView), { loading: ViewLoadingFallback });
+const SettingsView = dynamic(() => import('@/components/operations/SettingsView').then((m) => m.SettingsView), { loading: ViewLoadingFallback });
 
 export default function Home() {
   const [mounted, setMounted] = React.useState(false);
@@ -58,14 +69,15 @@ export default function Home() {
           'documents', 'activities', 'reports', 'notifications', 'settings'
         ];
 
-        const targetTab = (tabParam && validTabs.includes(tabParam))
+        // If user is not yet authenticated, always enforce dashboard as destination upon login
+        const targetTab = token && tabParam && validTabs.includes(tabParam)
           ? tabParam
-          : (savedTab && validTabs.includes(savedTab))
+          : token && savedTab && validTabs.includes(savedTab)
             ? savedTab
             : 'dashboard';
 
-        const targetClientId = clientParam || savedClientId;
-        const targetClientName = clientNameParam || savedClientName;
+        const targetClientId = token ? (clientParam || savedClientId) : undefined;
+        const targetClientName = token ? (clientNameParam || savedClientName) : undefined;
 
         setCurrentTab(targetTab);
         if (targetClientId) {
@@ -83,13 +95,37 @@ export default function Home() {
           if (targetClientName) {
             url.searchParams.set('clientName', targetClientName);
           }
+        } else {
+          url.searchParams.delete('clientId');
+          url.searchParams.delete('clientName');
         }
         window.history.replaceState({}, '', url.toString());
       } catch (err) {
         console.warn('Navigation state restoration error:', err);
       }
     }
-  }, []);
+  }, [token]);
+
+  // Whenever user transitions from unauthenticated to authenticated (login), always show dashboard
+  const prevTokenRef = React.useRef<string | null>(token);
+  React.useEffect(() => {
+    if (token && !prevTokenRef.current) {
+      setCurrentTab('dashboard');
+      setSelectedClient360Id(undefined);
+      setSelectedClient360Name(undefined);
+      try {
+        localStorage.setItem('optivir_crm_active_tab', 'dashboard');
+        localStorage.removeItem('optivir_crm_client_id');
+        localStorage.removeItem('optivir_crm_client_name');
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'dashboard');
+        url.searchParams.delete('clientId');
+        url.searchParams.delete('clientName');
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
+    }
+    prevTokenRef.current = token;
+  }, [token]);
 
   // Sync tab navigation when browser Back/Forward buttons are clicked
   React.useEffect(() => {
@@ -107,6 +143,20 @@ export default function Home() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Preload secondary modules in background when browser is idle after initial dashboard paint
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const preloadTimer = setTimeout(() => {
+      import('@/components/clients/ClientsListView');
+      import('@/components/projects/ProjectsView');
+      import('@/components/finance/FinanceView');
+      import('@/components/sales/PipelineView');
+      import('@/components/crm/LeadsView');
+      import('@/components/operations/SettingsView');
+    }, 1500);
+    return () => clearTimeout(preloadTimer);
   }, []);
 
   // Unified navigation function that updates state, localStorage, and URL search parameters

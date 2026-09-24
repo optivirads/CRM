@@ -228,12 +228,12 @@ router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Res
   const { clientId, platform, status } = req.query;
 
   try {
-    // Automatically trigger telemetry refresh for connected campaigns if missing or stale (>10 min)
-    await syncCampaignTelemetryInternal({
+    // Trigger telemetry refresh in the background if stale without blocking the HTTP response
+    syncCampaignTelemetryInternal({
       orgId,
       clientId: clientId as string,
       force: false
-    });
+    }).catch((err) => console.warn('[Background Telemetry Auto-Fetch] Non-fatal error:', err));
 
     let query = `
       SELECT 

@@ -513,10 +513,14 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
         else lastLoginText = `${Math.floor(mins / 1440)} days ago`;
       }
 
-      const isSuper = u.is_owner || u.role_slug === 'super_admin' || u.email?.toLowerCase() === 'optivirads@gmail.com';
-      const effectiveTabs: string[] = isSuper 
+      const isRootOwner = u.email?.toLowerCase() === 'optivirads@gmail.com';
+      const effectiveTabs: string[] = isRootOwner 
         ? ['*'] 
-        : (u.allowed_tabs && u.allowed_tabs.length > 0 ? u.allowed_tabs : ['dashboard']);
+        : (u.allowed_tabs && Array.isArray(u.allowed_tabs) && u.allowed_tabs.length > 0)
+        ? u.allowed_tabs
+        : (u.role_slug === 'super_admin' || u.role_slug === 'admin' || u.is_owner)
+        ? ['*']
+        : ['dashboard'];
 
       const desktopDevice = u.desktop_device_info || (u.current_device_info?.deviceCategory === 'desktop' ? u.current_device_info : null);
       const mobileDevice = u.mobile_device_info || (u.current_device_info?.deviceCategory === 'mobile' ? u.current_device_info : null);
@@ -746,6 +750,10 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     const setClauses: string[] = ['updated_at = NOW()'];
     const params: any[] = [];
 
+    // Check target user email
+    const targetUserRes = await db.query('SELECT email FROM users WHERE id = $1;', [targetUserId]);
+    const targetEmail = targetUserRes.rows[0]?.email?.toLowerCase();
+
     if (role !== undefined) {
       let roleId: string | null = null;
       if (role) {
@@ -757,6 +765,14 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       }
       params.push(roleId);
       setClauses.push(`role_id = $${params.length}`);
+
+      if (targetEmail !== 'optivirads@gmail.com') {
+        const isOwnerRole = role === 'super_admin' || role === 'owner' || role === 'admin';
+        params.push(isOwnerRole);
+        setClauses.push(`is_owner = $${params.length}`);
+      }
+
+      await db.query('UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2;', [role, targetUserId]);
     }
 
     if (designation !== undefined) {
@@ -783,6 +799,11 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       const targetTabs = Array.isArray(allowed_tabs) ? allowed_tabs : [];
       params.push(targetTabs);
       setClauses.push(`allowed_tabs = $${params.length}`);
+
+      if (role === undefined && !targetTabs.includes('*') && targetEmail !== 'optivirads@gmail.com') {
+        params.push(false);
+        setClauses.push(`is_owner = $${params.length}`);
+      }
     }
 
     params.push(orgId);

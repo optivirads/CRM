@@ -38,6 +38,10 @@ export const DEFAULT_CLIENT_COMPANIES: string[] = [];
 
 export const DEFAULT_PROJECTS: any[] = [];
 
+// Module-level caches for instant tab switching (stale-while-revalidate)
+let cachedProjectsData: any[] | null = null;
+let cachedClientList: Array<{ id: string; name: string }> | null = null;
+
 export const ProjectsView: React.FC = () => {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +61,7 @@ export const ProjectsView: React.FC = () => {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   // Client Companies state (OptiVir agency client roster)
-  const [clientList, setClientList] = useState<Array<{ id: string; name: string }>>([]);
+  const [clientList, setClientList] = useState<Array<{ id: string; name: string }>>(() => cachedClientList || []);
   const [clientCompanies, setClientCompanies] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -96,8 +100,8 @@ export const ProjectsView: React.FC = () => {
   const [newDeadline, setNewDeadline] = useState('');
 
   // Projects data from PostgreSQL
-  const [projects, setProjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<any[]>(() => cachedProjectsData || []);
+  const [loading, setLoading] = useState(() => !cachedProjectsData || cachedProjectsData.length === 0);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingProject, setDeletingProject] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -116,6 +120,7 @@ export const ProjectsView: React.FC = () => {
           .filter((c: any) => Boolean(c.name));
 
         setClientList(mapped);
+        cachedClientList = mapped;
         const uniqueNames = Array.from(new Set(mapped.map((c) => c.name)));
         setClientCompanies(uniqueNames);
         if (mapped.length > 0) {
@@ -153,7 +158,9 @@ export const ProjectsView: React.FC = () => {
 
   const fetchProjects = async () => {
     try {
-      setLoading(true);
+      if (!cachedProjectsData || cachedProjectsData.length === 0) {
+        setLoading(true);
+      }
       const res = await api.getProjects();
       if (res.success && Array.isArray(res.data)) {
         const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -185,6 +192,7 @@ export const ProjectsView: React.FC = () => {
           tasksTotal: Number(p.total_tasks_count || 0) || 0
         }));
         setProjects(mapped);
+        cachedProjectsData = mapped;
       }
     } catch (err: any) {
       console.warn('Failed to fetch projects:', err);

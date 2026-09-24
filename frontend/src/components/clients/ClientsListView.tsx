@@ -117,13 +117,18 @@ export interface ClientAccount {
 
 export const DEFAULT_CLIENT_ACCOUNTS: ClientAccount[] = [];
 
+// Module-level caches for instant tab switching (stale-while-revalidate)
+let cachedClientsData: ClientAccount[] | null = null;
+let cachedAdCampaignsData: AdCampaign[] | null = null;
+let cachedTeamMembers: any[] | null = null;
+
 export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient360, onNavigate }) => {
   const { user } = useAuth();
   // View mode toggle
   const [viewMode, setViewMode] = useState<'clients' | 'campaigns'>('clients');
 
   // Ad Campaigns state
-  const [adCampaigns, setAdCampaigns] = useState<AdCampaign[]>(DEFAULT_AD_CAMPAIGNS);
+  const [adCampaigns, setAdCampaigns] = useState<AdCampaign[]>(() => cachedAdCampaignsData || DEFAULT_AD_CAMPAIGNS);
   const [selectedCampaignPlatform, setSelectedCampaignPlatform] = useState<'All' | 'Google Ads' | 'Meta Ads'>('All');
   const [selectedCampaignClient, setSelectedCampaignClient] = useState<string>('All');
   const { showToast: showGlobalToast } = useToast();
@@ -203,7 +208,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [newStatus, setNewStatus] = useState('Active');
   const [newMonthlyVal, setNewMonthlyVal] = useState('15000');
   const [newContractVal, setNewContractVal] = useState('180000');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedClientsData || cachedClientsData.length === 0);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingClient, setDeletingClient] = useState<ClientAccount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -232,7 +237,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   const [editBillingModel, setEditBillingModel] = useState<'annual_retainer' | 'monthly_retainer' | 'on_demand' | 'pay_as_you_go' | 'one_time'>('monthly_retainer');
   const [editHealthStatus, setEditHealthStatus] = useState<string>('Healthy');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>(() => cachedTeamMembers || []);
 
   const getTermMonths = (opt: string, custom: string) => {
     if (opt === 'custom') {
@@ -243,25 +248,27 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
   };
 
   // Client accounts data from PostgreSQL
-  const [clients, setClients] = useState<ClientAccount[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>(() => cachedClientsData || []);
 
   const availableIndustries = Array.from(new Set([...defaultIndustries, ...clients.map((c) => c.industry).filter(Boolean)])).sort();
 
   const fetchClients = async () => {
     try {
-      setLoading(true);
-      const [res, campRes, usersRes] = await Promise.all([
+      if (!cachedClientsData || cachedClientsData.length === 0) {
+        setLoading(true);
+      }
+      const [res, usersRes] = await Promise.all([
         api.getClients().catch(() => ({ success: false, data: [] })),
-        api.getCampaigns().catch(() => ({ success: false, data: [] })),
         api.getSettingsUsers().catch(() => ({ success: false, data: [] }))
       ]);
 
       if (usersRes.success && Array.isArray(usersRes.data)) {
         setTeamMembers(usersRes.data);
+        cachedTeamMembers = usersRes.data;
       }
 
       if (res.success && Array.isArray(res.data)) {
-        setClients(res.data.map((c: any) => ({
+        const mappedClients: ClientAccount[] = res.data.map((c: any) => ({
           id: c.id,
           name: c.company_name || 'Client Account',
           domain: c.website || (c.company_name ? `${c.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com` : 'client.com'),
@@ -298,47 +305,54 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({ onOpenClient36
           lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Active',
           billingStatus: c.status === 'Active' ? 'Paid' : (c.status || 'Active'),
           isAtRisk: c.health_status === 'At-Risk' || c.health_status === 'At Risk'
-        })));
-      }
-
-      if (campRes.success && Array.isArray(campRes.data)) {
-        setAdCampaigns(campRes.data.map((c: any) => {
-          const spend = Number(c.total_spend || c.budget || 0);
-          const rev = Number(c.total_revenue || 0);
-          const imp = Number(c.total_impressions || 0);
-          const clk = Number(c.total_clicks || 0);
-          const leads = Number(c.total_leads || 0);
-          const conv = Number(c.total_conversions || 0);
-          const ctr = imp > 0 ? Number(((clk / imp) * 100).toFixed(2)) : 0;
-          const cpc = clk > 0 ? Number((spend / clk).toFixed(2)) : 0;
-          const cpl = leads > 0 ? Number((spend / leads).toFixed(2)) : 0;
-          const roas = c.avg_roas ? Number(c.avg_roas) : (spend > 0 && rev > 0 ? Number((rev / spend).toFixed(2)) : 0);
-
-          return {
-            id: c.id,
-            clientId: c.client_id || '',
-            clientName: c.client_name || 'Client',
-            platform: c.platform?.includes('Google') ? 'Google Ads' : 'Meta Ads',
-            name: c.name,
-            objective: c.objective || 'Lead Generation & Conversions',
-            status: c.status || 'Active',
-            dailyBudget: spend > 0 ? Math.round(spend / 30) : 0,
-            spentMtd: spend,
-            impressions: imp,
-            clicks: clk,
-            ctr,
-            cpc,
-            cpl,
-            conversions: conv || leads,
-            attributedRevenue: rev,
-            roas,
-            audiences: Array.isArray(c.audiences) ? c.audiences : [],
-            lastSync: 'Live PostgreSQL'
-          };
         }));
+        setClients(mappedClients);
+        cachedClientsData = mappedClients;
       }
+
+      // Fetch campaigns in background without blocking the primary client list
+      api.getCampaigns().then((campRes) => {
+        if (campRes.success && Array.isArray(campRes.data)) {
+          const mappedCamps = campRes.data.map((c: any) => {
+            const spend = Number(c.total_spend || c.budget || 0);
+            const rev = Number(c.total_revenue || 0);
+            const imp = Number(c.total_impressions || 0);
+            const clk = Number(c.total_clicks || 0);
+            const leads = Number(c.total_leads || 0);
+            const conv = Number(c.total_conversions || 0);
+            const ctr = imp > 0 ? Number(((clk / imp) * 100).toFixed(2)) : 0;
+            const cpc = clk > 0 ? Number((spend / clk).toFixed(2)) : 0;
+            const cpl = leads > 0 ? Number((spend / leads).toFixed(2)) : 0;
+            const roas = c.avg_roas ? Number(c.avg_roas) : (spend > 0 && rev > 0 ? Number((rev / spend).toFixed(2)) : 0);
+
+            return {
+              id: c.id,
+              clientId: c.client_id || '',
+              clientName: c.client_name || 'Client',
+              platform: (c.platform?.includes('Google') ? 'Google Ads' : 'Meta Ads') as 'Google Ads' | 'Meta Ads',
+              name: c.name,
+              objective: c.objective || 'Lead Generation & Conversions',
+              status: (c.status || 'Active') as 'Running' | 'Learning' | 'Optimized',
+              dailyBudget: spend > 0 ? Math.round(spend / 30) : 0,
+              spentMtd: spend,
+              impressions: imp,
+              clicks: clk,
+              ctr,
+              cpc,
+              cpl,
+              conversions: conv || leads,
+              attributedRevenue: rev,
+              roas,
+              audiences: Array.isArray(c.audiences) ? c.audiences : [],
+              lastSync: 'Live PostgreSQL'
+            };
+          });
+          setAdCampaigns(mappedCamps);
+          cachedAdCampaignsData = mappedCamps;
+        }
+      }).catch((e) => console.warn('Background campaigns fetch error:', e));
     } catch (err: any) {
-      console.warn('Failed to fetch clients and campaigns:', err);
+      console.warn('Failed to fetch clients:', err);
     } finally {
       setLoading(false);
     }

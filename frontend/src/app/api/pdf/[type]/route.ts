@@ -3,13 +3,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 
-const POSSIBLE_LOGO_PATHS = [
-  path.join(process.cwd(), 'public/images/optivir-logo-green.png'),
-  path.join(process.cwd(), 'public/images/optivir-logo.png'),
-  path.join(process.cwd(), '../frontend/public/images/optivir-logo-green.png'),
-  path.join(process.cwd(), '../frontend/public/images/optivir-logo.png')
-];
-const LOGO_PATH = POSSIBLE_LOGO_PATHS.find(p => fs.existsSync(p)) || POSSIBLE_LOGO_PATHS[0];
+const LOGO_PATH = path.join(process.cwd(), 'public', 'images', 'optivir-logo-green.png');
 
 // Color Palette
 const COLORS = {

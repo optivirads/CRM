@@ -23,7 +23,7 @@ class ApiClient {
     return null;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -35,10 +35,29 @@ class ApiClient {
     }
 
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
-      ...options,
-      headers,
-    });
+    const timeoutMs = options.timeoutMs ?? 15000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
+        ...options,
+        signal: options.signal || controller.signal,
+        headers,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timer);
+      if (fetchErr.name === 'AbortError') {
+        const timeoutErr: any = new Error(`Request to ${cleanEndpoint} timed out after ${timeoutMs / 1000}s`);
+        timeoutErr.status = 408;
+        timeoutErr.code = 'REQUEST_TIMEOUT';
+        throw timeoutErr;
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timer);
+    }
 
     const text = await response.text();
     let data: any;
