@@ -46,7 +46,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // ---------------------------------------------------------------------------
 // CORS — supports Vercel previews & production custom domains
 // ---------------------------------------------------------------------------
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://optivircrm.vercel.app')
   .split(',')
   .map((url) => url.trim().replace(/\/$/, ''));
 

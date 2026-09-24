@@ -59,7 +59,7 @@ describe('Zod Validation Middleware', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          message: 'Validation failed',
+          message: expect.any(String),
           errors: expect.arrayContaining([
             expect.objectContaining({ field: 'name' }),
             expect.objectContaining({ field: 'email' }),

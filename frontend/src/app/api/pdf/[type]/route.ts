@@ -964,7 +964,8 @@ export async function GET(
     // 1. Authentication check — strictly via Authorization header
     const authHeader = request.headers.get('authorization');
 
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const defaultBackend = process.env.NODE_ENV === 'production' ? 'https://crm-s5tr.onrender.com' : 'http://localhost:5000';
+    const backendUrl = (process.env.BACKEND_URL || defaultBackend).replace(/\/$/, '');
 
     let invoiceData: any = queryData;
     let orgData: any = null;

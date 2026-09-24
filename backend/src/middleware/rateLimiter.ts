@@ -37,8 +37,8 @@ export function createRateLimiter(options: RateLimiterOptions) {
     // Rely on Express's configured proxy trust (app.set('trust proxy', 1))
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
-    // Allow unlimited requests in unit testing
-    if (process.env.NODE_ENV === 'test') {
+    // Allow unlimited requests if explicitly bypassed or in tests that disable it
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
       next();
       return;
     }

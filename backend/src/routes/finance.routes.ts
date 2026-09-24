@@ -4,6 +4,7 @@ import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
+import { isGlobalLeadership } from '../utils/accessControl';
 
 const router = Router();
 
@@ -111,24 +112,54 @@ router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Resp
 // 1b. Single Invoice Details (for PDF generation & preview)
 router.get('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const invoiceId = req.params.id;
 
   try {
-    const invRes = await db.query(`
-      SELECT 
-        inv.*,
-        c.id as client_id,
-        comp.name as client_name,
-        c.email as client_email,
-        c.gstin as client_gstin,
-        c.phone as client_phone,
-        comp.billing_address as client_billing_address
-      FROM invoices inv
-      JOIN clients c ON inv.client_id = c.id
-      JOIN companies comp ON c.company_id = comp.id
-      WHERE (inv.id = $1 OR inv.invoice_number = $1) AND inv.organization_id = $2 AND inv.deleted_at IS NULL
-      LIMIT 1;
-    `, [invoiceId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const invRes = isGlobal
+      ? await db.query(`
+          SELECT 
+            inv.*,
+            c.id as client_id,
+            comp.name as client_name,
+            c.email as client_email,
+            c.gstin as client_gstin,
+            c.phone as client_phone,
+            comp.billing_address as client_billing_address
+          FROM invoices inv
+          JOIN clients c ON inv.client_id = c.id
+          JOIN companies comp ON c.company_id = comp.id
+          WHERE (inv.id = $1 OR inv.invoice_number = $1) AND inv.organization_id = $2 AND inv.deleted_at IS NULL
+          LIMIT 1;
+        `, [invoiceId, orgId])
+      : await db.query(`
+          SELECT 
+            inv.*,
+            c.id as client_id,
+            comp.name as client_name,
+            c.email as client_email,
+            c.gstin as client_gstin,
+            c.phone as client_phone,
+            comp.billing_address as client_billing_address
+          FROM invoices inv
+          JOIN clients c ON inv.client_id = c.id
+          JOIN companies comp ON c.company_id = comp.id
+          WHERE (inv.id = $1 OR inv.invoice_number = $1) 
+            AND inv.organization_id = $2 
+            AND inv.deleted_at IS NULL
+            AND (
+              inv.created_by = $3
+              OR c.account_manager_id = $3
+              OR c.account_assistant_id = $3
+              OR $3::uuid = ANY(COALESCE(c.account_assistant_ids, '{}'))
+              OR $3 = ANY(COALESCE(c.assigned_team_ids, '{}'))
+              OR c.created_by = $3
+              OR EXISTS (SELECT 1 FROM client_assistants ca WHERE ca.client_id = c.id AND ca.user_id = $3)
+              OR EXISTS (SELECT 1 FROM organization_users ou WHERE ou.user_id = $3 AND ou.organization_id = $2 AND ou.client_id = c.id)
+            )
+          LIMIT 1;
+        `, [invoiceId, orgId, userId]);
 
     if (invRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Invoice not found' });
@@ -304,12 +335,20 @@ router.delete('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, re
   const invoiceId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE invoices
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, invoiceId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const result = isGlobal
+      ? await db.query(`
+          UPDATE invoices
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, invoiceId, orgId])
+      : await db.query(`
+          UPDATE invoices
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND created_by = $1 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, invoiceId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Invoice not found or already deleted' });
@@ -330,12 +369,20 @@ router.delete('/expenses/:id', requireAuth, async (req: AuthenticatedRequest, re
   const expenseId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE expenses
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, expenseId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const result = isGlobal
+      ? await db.query(`
+          UPDATE expenses
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, expenseId, orgId])
+      : await db.query(`
+          UPDATE expenses
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND created_by = $1 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, expenseId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Expense not found or already deleted' });
@@ -463,7 +510,25 @@ router.patch('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res
   const { status, due_date, notes } = req.body;
 
   try {
-    const current = await db.query('SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [invoiceId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const current = isGlobal
+      ? await db.query('SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [invoiceId, orgId])
+      : await db.query(`
+          SELECT inv.* FROM invoices inv
+          JOIN clients c ON inv.client_id = c.id
+          WHERE inv.id = $1 AND inv.organization_id = $2 AND inv.deleted_at IS NULL
+            AND (
+              inv.created_by = $3
+              OR c.account_manager_id = $3
+              OR c.account_assistant_id = $3
+              OR $3::uuid = ANY(COALESCE(c.account_assistant_ids, '{}'))
+              OR $3 = ANY(COALESCE(c.assigned_team_ids, '{}'))
+              OR c.created_by = $3
+              OR EXISTS (SELECT 1 FROM client_assistants ca WHERE ca.client_id = c.id AND ca.user_id = $3)
+              OR EXISTS (SELECT 1 FROM organization_users ou WHERE ou.user_id = $3 AND ou.organization_id = $2 AND ou.client_id = c.id)
+            );
+        `, [invoiceId, orgId, userId]);
+
     if (current.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Invoice not found' });
       return;

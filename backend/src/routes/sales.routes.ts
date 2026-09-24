@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../types';
 import { EmailService } from '../services/email.service';
 import { otpRateLimiter } from '../middleware/rateLimiter';
 import { generateProposalPDF, generateAgreementPDF, generateInvoicePDF, generateQuotationPDF } from './pdf.routes';
+import { isGlobalLeadership } from '../utils/accessControl';
 
 const router = Router();
 
@@ -322,7 +323,10 @@ router.patch('/deals/:id/stage', requireAuth, async (req: AuthenticatedRequest, 
     }
     const stage = stageRes.rows[0];
 
-    const dealRes = await client.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2;', [dealId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const dealRes = isGlobal
+      ? await client.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2;', [dealId, orgId])
+      : await client.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2 AND (owner_id = $3 OR created_by = $3);', [dealId, orgId, userId]);
     if (dealRes.rows.length === 0) {
       await client.query('ROLLBACK');
       res.status(404).json({ success: false, message: 'Deal not found' });
@@ -473,12 +477,17 @@ router.patch('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   const { status, probability, value, name, expectedCloseDate } = req.body;
 
   try {
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealId);
     let existing;
     if (isUuid) {
-      existing = await db.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [dealId, orgId]);
+      existing = isGlobal
+        ? await db.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [dealId, orgId])
+        : await db.query('SELECT * FROM deals WHERE id = $1 AND organization_id = $2 AND (owner_id = $3 OR created_by = $3) AND deleted_at IS NULL;', [dealId, orgId, userId]);
     } else {
-      existing = await db.query('SELECT * FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2 AND deleted_at IS NULL LIMIT 1;', [`%${dealId}%`, orgId]);
+      existing = isGlobal
+        ? await db.query('SELECT * FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2 AND deleted_at IS NULL LIMIT 1;', [`%${dealId}%`, orgId])
+        : await db.query('SELECT * FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2 AND (owner_id = $3 OR created_by = $3) AND deleted_at IS NULL LIMIT 1;', [`%${dealId}%`, orgId, userId]);
     }
 
     if (existing.rows.length === 0) {
@@ -515,35 +524,41 @@ router.delete('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   const dealId = req.params.id;
 
   try {
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealId);
     let result;
     if (isUuid) {
-      result = await db.query(`
-        UPDATE deals
-        SET deleted_at = NOW(), updated_by = $1
-        WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-        RETURNING id, name;
-      `, [userId, dealId, orgId]);
+      result = isGlobal
+        ? await db.query(`
+            UPDATE deals
+            SET deleted_at = NOW(), updated_by = $1
+            WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+            RETURNING id, name;
+          `, [userId, dealId, orgId])
+        : await db.query(`
+            UPDATE deals
+            SET deleted_at = NOW(), updated_by = $1
+            WHERE id = $2 AND organization_id = $3 AND (owner_id = $1 OR created_by = $1) AND deleted_at IS NULL
+            RETURNING id, name;
+          `, [userId, dealId, orgId]);
     } else {
-      result = await db.query(`
-        UPDATE deals
-        SET deleted_at = NOW(), updated_by = $1
-        WHERE (name ILIKE $2 OR id::text = $2) AND organization_id = $3 AND deleted_at IS NULL
-        RETURNING id, name;
-      `, [userId, `%${dealId}%`, orgId]);
+      result = isGlobal
+        ? await db.query(`
+            UPDATE deals
+            SET deleted_at = NOW(), updated_by = $1
+            WHERE (name ILIKE $2 OR id::text = $2) AND organization_id = $3 AND deleted_at IS NULL
+            RETURNING id, name;
+          `, [userId, `%${dealId}%`, orgId])
+        : await db.query(`
+            UPDATE deals
+            SET deleted_at = NOW(), updated_by = $1
+            WHERE (name ILIKE $2 OR id::text = $2) AND organization_id = $3 AND (owner_id = $1 OR created_by = $1) AND deleted_at IS NULL
+            RETURNING id, name;
+          `, [userId, `%${dealId}%`, orgId]);
     }
 
     if (result.rows.length === 0) {
-      // Check if it was already deleted
-      const checkDeleted = isUuid
-        ? await db.query('SELECT id, name FROM deals WHERE id = $1 AND organization_id = $2;', [dealId, orgId])
-        : await db.query('SELECT id, name FROM deals WHERE (name ILIKE $1 OR id::text = $1) AND organization_id = $2;', [`%${dealId}%`, orgId]);
-
-      if (checkDeleted.rows.length > 0) {
-        res.json({ success: true, message: 'Deal is already deleted from database', id: checkDeleted.rows[0].id });
-        return;
-      }
-      res.json({ success: true, message: 'Deal removed successfully', id: dealId });
+      res.status(404).json({ success: false, message: 'Deal not found or already deleted' });
       return;
     }
 
@@ -630,7 +645,10 @@ router.patch('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, re
   const { status, title, total_amount, valid_until, content } = req.body;
 
   try {
-    const existing = await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [id, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const existing = isGlobal
+      ? await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [id, orgId])
+      : await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND created_by = $3 AND deleted_at IS NULL;', [id, orgId, userId]);
     if (existing.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Proposal not found' });
       return;
@@ -691,7 +709,10 @@ router.delete('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, r
   const { id } = req.params;
 
   try {
-    const existing = await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [id, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const existing = isGlobal
+      ? await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [id, orgId])
+      : await db.query('SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND created_by = $3 AND deleted_at IS NULL;', [id, orgId, userId]);
     if (existing.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Proposal not found or already deleted' });
       return;
@@ -745,11 +766,17 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
   }
 
   try {
-    // Verify proposal exists
-    const proposalRes = await db.query(
-      'SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
-      [id, orgId]
-    );
+    // Verify proposal exists and belongs to user / organization
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const proposalRes = isGlobal
+      ? await db.query(
+          'SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;',
+          [id, orgId]
+        )
+      : await db.query(
+          'SELECT * FROM proposals WHERE id = $1 AND organization_id = $2 AND created_by = $3 AND deleted_at IS NULL;',
+          [id, orgId, userId]
+        );
     if (proposalRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Proposal not found' });
       return;
@@ -792,7 +819,9 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
 
     await recordAuditLog(orgId, userId, 'CREATE', 'document_share_links', insertRes.rows[0].id, null, insertRes.rows[0], req);
 
-    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/document/${rawToken}`;
+    const defaultFrontend = process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000';
+    const frontendBase = (process.env.FRONTEND_URL || defaultFrontend).replace(/\/$/, '');
+    const shareUrl = `${frontendBase}/portal/document/${rawToken}`;
     let emailSent = false;
     let emailError: string | null = null;
 

@@ -4,6 +4,7 @@ import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
+import { isGlobalLeadership } from '../utils/accessControl';
 
 const router = Router();
 
@@ -133,7 +134,10 @@ router.patch('/leads/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   const { status, priority, next_followup_at, notes, lead_value } = req.body;
 
   try {
-    const current = await db.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2;', [leadId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const current = isGlobal
+      ? await db.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2;', [leadId, orgId])
+      : await db.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2 AND (owner_id = $3 OR created_by = $3);', [leadId, orgId, userId]);
     if (current.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Lead not found' });
       return;
@@ -180,7 +184,10 @@ router.post('/leads/:id/convert', requireAuth, async (req: AuthenticatedRequest,
   try {
     await client.query('BEGIN');
 
-    const leadRes = await client.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2;', [leadId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const leadRes = isGlobal
+      ? await client.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2;', [leadId, orgId])
+      : await client.query('SELECT * FROM leads WHERE id = $1 AND organization_id = $2 AND (owner_id = $3 OR created_by = $3);', [leadId, orgId, userId]);
     if (leadRes.rows.length === 0) {
       await client.query('ROLLBACK');
       res.status(404).json({ success: false, message: 'Lead not found' });
@@ -330,12 +337,20 @@ router.delete('/leads/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   const leadId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE leads
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, leadId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const result = isGlobal
+      ? await db.query(`
+          UPDATE leads
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, leadId, orgId])
+      : await db.query(`
+          UPDATE leads
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND (owner_id = $1 OR created_by = $1) AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, leadId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Lead not found or already deleted' });
@@ -356,12 +371,20 @@ router.delete('/companies/:id', requireAuth, async (req: AuthenticatedRequest, r
   const companyId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE companies
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, companyId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const result = isGlobal
+      ? await db.query(`
+          UPDATE companies
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, companyId, orgId])
+      : await db.query(`
+          UPDATE companies
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND (owner_id = $1 OR created_by = $1) AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, companyId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Company not found or already deleted' });
@@ -382,12 +405,20 @@ router.delete('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, re
   const contactId = req.params.id;
 
   try {
-    const result = await db.query(`
-      UPDATE contacts
-      SET deleted_at = NOW(), updated_by = $1
-      WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
-      RETURNING id;
-    `, [userId, contactId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const result = isGlobal
+      ? await db.query(`
+          UPDATE contacts
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, contactId, orgId])
+      : await db.query(`
+          UPDATE contacts
+          SET deleted_at = NOW(), updated_by = $1
+          WHERE id = $2 AND organization_id = $3 AND created_by = $1 AND deleted_at IS NULL
+          RETURNING id;
+        `, [userId, contactId, orgId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Contact not found or already deleted' });
@@ -438,7 +469,10 @@ router.patch('/companies/:id', requireAuth, async (req: AuthenticatedRequest, re
   const { name, industry, website, email, phone, city, address, company_size, status } = req.body;
 
   try {
-    const current = await db.query('SELECT * FROM companies WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [companyId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const current = isGlobal
+      ? await db.query('SELECT * FROM companies WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [companyId, orgId])
+      : await db.query('SELECT * FROM companies WHERE id = $1 AND organization_id = $2 AND (owner_id = $3 OR created_by = $3) AND deleted_at IS NULL;', [companyId, orgId, userId]);
     if (current.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Company not found' });
       return;
@@ -519,7 +553,10 @@ router.patch('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, res
   const { first_name, last_name, designation, email, phone, is_decision_maker } = req.body;
 
   try {
-    const current = await db.query('SELECT * FROM contacts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [contactId, orgId]);
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const current = isGlobal
+      ? await db.query('SELECT * FROM contacts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [contactId, orgId])
+      : await db.query('SELECT * FROM contacts WHERE id = $1 AND organization_id = $2 AND created_by = $3 AND deleted_at IS NULL;', [contactId, orgId, userId]);
     if (current.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Contact not found' });
       return;

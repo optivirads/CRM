@@ -506,7 +506,8 @@ export class EmailService {
     const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || 'Opti CRM';
     const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
-    const crmUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/creatives?id=${creative.id}`;
+    const defaultFrontend = process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000';
+    const crmUrl = `${process.env.FRONTEND_URL || defaultFrontend}/creatives?id=${creative.id}`;
 
     let subject = '';
     let badgeColor = '#3B82F6';
@@ -730,7 +731,8 @@ export class EmailService {
     const transporter = this.getTransporter();
     const fromName = agencyName || process.env.GMAIL_FROM_NAME || 'OptiVir Ads';
     const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const defaultFrontend = process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000';
+    const frontendUrl = (process.env.FRONTEND_URL || defaultFrontend).replace(/\/$/, '');
 
     // Filter unique recipients and always guarantee optivirads@gmail.com is included
     const recipientMap = new Map<string, { email: string; name?: string; role?: string }>();

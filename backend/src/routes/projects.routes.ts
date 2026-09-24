@@ -258,6 +258,7 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
 // 2.1 Single Project Details with Linked Tasks
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const projectId = req.params.id;
 
   try {
@@ -278,6 +279,17 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     if (projectRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Project not found' });
       return;
+    }
+
+    const project = projectRes.rows[0];
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    if (!isGlobal) {
+      const hasClientAcc = await userHasClientAccess(userId, orgId, project.client_id, req.user?.role, req.user?.isOwner);
+      const isPmOrCreator = project.project_manager_id === userId || project.created_by === userId;
+      if (!hasClientAcc && !isPmOrCreator) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
     }
 
     const tasksRes = await db.query(`
@@ -392,9 +404,9 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
     // Verify that user is a concerned stakeholder
     const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
     if (!concern.isConcerned) {
-      res.status(403).json({
+      res.status(404).json({
         success: false,
-        message: 'Access Denied: You are not authorized to update progress on this task. Only assigned members, project managers, client account managers, or administrators can update progress.'
+        message: 'Task not found'
       });
       return;
     }
@@ -454,6 +466,12 @@ router.delete('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   const taskId = req.params.id;
 
   try {
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.isConcerned) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
     const result = await db.query(`
       UPDATE tasks
       SET deleted_at = NOW(), updated_by = $1
@@ -487,6 +505,23 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   const projectId = req.params.id;
 
   try {
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const existing = await db.query('SELECT client_id, project_manager_id, created_by FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [projectId, orgId]);
+    if (existing.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Project not found or already deleted' });
+      return;
+    }
+
+    if (!isGlobal) {
+      const proj = existing.rows[0];
+      const hasClientAcc = await userHasClientAccess(userId, orgId, proj.client_id, req.user?.role, req.user?.isOwner);
+      const isPmOrCreator = proj.project_manager_id === userId || proj.created_by === userId;
+      if (!hasClientAcc && !isPmOrCreator) {
+        res.status(404).json({ success: false, message: 'Project not found or already deleted' });
+        return;
+      }
+    }
+
     const result = await db.query(`
       UPDATE projects
       SET deleted_at = NOW(), updated_by = $1
@@ -579,6 +614,17 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    if (!isGlobal) {
+      const proj = current.rows[0];
+      const hasClientAcc = await userHasClientAccess(userId, orgId, proj.client_id, req.user?.role, req.user?.isOwner);
+      const isPmOrCreator = proj.project_manager_id === userId || proj.created_by === userId;
+      if (!hasClientAcc && !isPmOrCreator) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
+    }
+
     const updated = await db.query(`
       UPDATE projects
       SET 
@@ -618,9 +664,9 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     // 1. Verify user is a concerned stakeholder
     const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
     if (!concern.isConcerned) {
-      res.status(403).json({
+      res.status(404).json({
         success: false,
-        message: 'Access Denied: You are not authorized to update this task. Only assigned members, project managers, client account managers, or administrators can make updates.'
+        message: 'Task not found'
       });
       return;
     }
@@ -713,9 +759,15 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 // 5. Get Task Comments (Discussion Thread)
 router.get('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const taskId = req.params.id;
 
   try {
+    const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
+    if (!concern.isConcerned) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
     const commentsRes = await db.query(`
       SELECT 
         tc.id,
@@ -757,9 +809,9 @@ router.post('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest
   try {
     const concern = await userIsConcernedWithTask(userId, orgId, taskId, req.user?.role, req.user?.isOwner);
     if (!concern.isConcerned) {
-      res.status(403).json({
+      res.status(404).json({
         success: false,
-        message: 'Access Denied: You are not authorized to post comments on this task. Only concerned stakeholders can participate.'
+        message: 'Task not found'
       });
       return;
     }

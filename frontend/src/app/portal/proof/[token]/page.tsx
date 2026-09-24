@@ -332,7 +332,7 @@ export default function ClientProofingPortalPage() {
 
     try {
       setIsDownloadingWatermarked(true);
-      const downloadEndpoint = `/api/creatives/public/proofs/${token}/assets/${asset.id}/download`;
+      const downloadEndpoint = `${api.getBaseUrl()}/creatives/public/proofs/${token}/assets/${asset.id}/download`;
 
       const response = await fetch(downloadEndpoint);
       if (!response.ok) {

@@ -4,6 +4,7 @@ import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { SocialMediaSyncService } from '../services/socialMediaSync.service';
 import { syncCampaignTelemetryInternal } from './marketing.routes';
+import { userHasClientAccess } from '../utils/accessControl';
 
 const router = Router();
 
@@ -122,10 +123,12 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
 // 2. Client 360° Comprehensive Profile
 router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const clientId = req.params.id;
 
-  if (req.user?.clientId && req.user.clientId !== clientId) {
-    res.status(403).json({ success: false, message: 'Access denied: You only have access to your assigned client profile.' });
+  const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+  if (!hasAccess) {
+    res.status(404).json({ success: false, message: 'Client not found' });
     return;
   }
 
@@ -306,6 +309,12 @@ router.patch('/:id/onboarding/:checklistId', requireAuth, async (req: Authentica
   const { id: clientId, checklistId } = req.params;
   const { is_completed } = req.body;
 
+  const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+  if (!hasAccess) {
+    res.status(404).json({ success: false, message: 'Client not found' });
+    return;
+  }
+
   try {
     await db.query(`
       UPDATE client_onboarding_checklists
@@ -347,6 +356,12 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   const orgId = req.user!.organizationId;
   const userId = req.user!.id;
   const clientId = req.params.id;
+
+  const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+  if (!hasAccess) {
+    res.status(404).json({ success: false, message: 'Client not found or already deleted' });
+    return;
+  }
 
   try {
     const result = await db.query(`
@@ -596,6 +611,12 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
     // If company fields are provided, update company table
     if (current.rows[0].company_id && (company_name || industry !== undefined || website !== undefined || city !== undefined)) {
       await db.query(`
@@ -786,6 +807,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 // 5. Get Social Media Insights & Posts for a Client
 router.get('/:id/social-insights', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const rawId = req.params.id;
 
   try {
@@ -793,24 +815,13 @@ router.get('/:id/social-insights', requireAuth, async (req: AuthenticatedRequest
     const clientId = client ? client.id : null;
 
     if (!clientId) {
-      res.json({
-        success: true,
-        data: {
-          posts: [],
-          summary: {
-            total_posts: 0,
-            total_impressions: 0,
-            total_reach: 0,
-            total_likes: 0,
-            total_comments: 0,
-            total_shares: 0,
-            total_saves: 0,
-            total_clicks: 0,
-            avg_engagement_rate: 0
-          },
-          platforms: []
-        }
-      });
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
       return;
     }
 
@@ -908,6 +919,12 @@ router.post('/:id/social-insights', requireAuth, async (req: AuthenticatedReques
       return;
     }
     const clientId = client.id;
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
     const isUserUuid = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
     // Calculate engagement rate if not explicitly supplied
@@ -953,7 +970,17 @@ router.delete('/:id/social-insights/:postId', requireAuth, async (req: Authentic
 
   try {
     const client = await SocialMediaSyncService.resolveClientRecord(rawId, orgId);
-    const clientId = client ? client.id : rawId;
+    if (!client) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+    const clientId = client.id;
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Post snapshot not found' });
+      return;
+    }
 
     const result = await db.query(`
       DELETE FROM client_social_posts
@@ -976,6 +1003,7 @@ router.delete('/:id/social-insights/:postId', requireAuth, async (req: Authentic
 // 8. Get Client Social Media Account Integrations
 router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
   const rawId = req.params.id;
 
   try {
@@ -983,16 +1011,13 @@ router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedReq
     const clientId = client ? client.id : null;
 
     if (!clientId) {
-      res.json({
-        success: true,
-        data: {
-          client_id: rawId,
-          organization_id: orgId,
-          auto_sync_enabled: true,
-          sync_status: 'idle',
-          last_synced_at: null
-        }
-      });
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
       return;
     }
 
@@ -1054,6 +1079,12 @@ router.post('/:id/social-integrations', requireAuth, async (req: AuthenticatedRe
       return;
     }
     const clientId = client.id;
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
 
     const result = await db.query(`
       INSERT INTO client_social_integrations (
@@ -1131,6 +1162,12 @@ router.post('/:id/social-integrations/meta-connect', requireAuth, async (req: Au
       return;
     }
     const clientId = client.id;
+
+    const hasAccess = await userHasClientAccess(userId, orgId, clientId, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
     const tokenToSave = pageAccessToken || accessToken;
 
     const result = await db.query(`
@@ -1168,6 +1205,17 @@ router.post('/:id/social-insights/sync', requireAuth, async (req: AuthenticatedR
   const rawId = req.params.id;
 
   try {
+    const client = await SocialMediaSyncService.resolveClientRecord(rawId, orgId);
+    if (!client) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+    const hasAccess = await userHasClientAccess(userId, orgId, client.id, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
     const syncResult = await SocialMediaSyncService.syncClientSocialMedia(rawId, orgId, userId);
     res.json({
       success: true,
@@ -1215,6 +1263,17 @@ router.post('/:id/social-insights/import-selected', requireAuth, async (req: Aut
   const { selectedPosts } = req.body;
 
   try {
+    const client = await SocialMediaSyncService.resolveClientRecord(rawId, orgId);
+    if (!client) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+    const hasAccess = await userHasClientAccess(userId, orgId, client.id, req.user?.role, req.user?.isOwner);
+    if (!hasAccess) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+
     const importRes = await SocialMediaSyncService.importSelectedPosts(rawId, orgId, selectedPosts, userId);
     res.json({
       success: true,

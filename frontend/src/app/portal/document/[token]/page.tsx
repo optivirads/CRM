@@ -103,7 +103,7 @@ export default function ClientDocumentPortalPage() {
         }
         // Build PDF URL with session token
         if (activeSession) {
-          setPdfUrl(`/api/sales/documents/public/${token}/pdf`);
+          setPdfUrl(`${api.getBaseUrl()}/sales/documents/public/${token}/pdf`);
         }
       } else {
         setError(res.message || 'Failed to load document');

@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   async rewrites() {
-    const rawBackendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const defaultBackend = process.env.NODE_ENV === 'production' ? 'https://crm-s5tr.onrender.com' : 'http://localhost:5000';
+    const rawBackendUrl = process.env.BACKEND_URL || defaultBackend;
     const baseUrl = rawBackendUrl.replace(/\/api\/:path\*$/, '').replace(/\/+$/, '');
     const destination = baseUrl.endsWith('/api') ? `${baseUrl}/:path*` : `${baseUrl}/api/:path*`;
 

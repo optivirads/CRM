@@ -586,6 +586,14 @@ router.post(
     const targetUserId = req.params.id;
     const category = (req.query.category || req.body?.category || 'all') as string;
     try {
+      const userCheck = await db.query(
+        'SELECT 1 FROM organization_users WHERE organization_id = $1 AND user_id = $2;',
+        [req.user!.organizationId, targetUserId]
+      );
+      if (userCheck.rows.length === 0) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
       if (category === 'mobile') {
         await db.query(
           'UPDATE users SET active_mobile_session_id = NULL, mobile_device_info = NULL WHERE id = $1;',
@@ -750,8 +758,15 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     const setClauses: string[] = ['updated_at = NOW()'];
     const params: any[] = [];
 
-    // Check target user email
-    const targetUserRes = await db.query('SELECT email FROM users WHERE id = $1;', [targetUserId]);
+    // Check target user email and membership in organization
+    const targetUserRes = await db.query(
+      'SELECT u.email FROM users u JOIN organization_users ou ON u.id = ou.user_id WHERE u.id = $1 AND ou.organization_id = $2;',
+      [targetUserId, orgId]
+    );
+    if (targetUserRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'User not found in organization' });
+      return;
+    }
     const targetEmail = targetUserRes.rows[0]?.email?.toLowerCase();
 
     if (role !== undefined) {
@@ -935,7 +950,14 @@ router.delete('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     }
 
     // Only optivirads@gmail.com is protected from deletion
-    const targetUser = await db.query('SELECT email FROM users WHERE id = $1;', [targetUserId]);
+    const targetUser = await db.query(
+      'SELECT u.email FROM users u JOIN organization_users ou ON u.id = ou.user_id WHERE u.id = $1 AND ou.organization_id = $2;',
+      [targetUserId, orgId]
+    );
+    if (targetUser.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'User not found in organization' });
+      return;
+    }
     const targetEmail = (targetUser.rows[0]?.email || '').toLowerCase().trim();
     if (targetEmail === 'optivirads@gmail.com') {
       res.status(400).json({ success: false, message: 'optivirads@gmail.com is the primary organization account and cannot be deleted.' });
@@ -1306,7 +1328,11 @@ router.delete('/teams/:id', requireAuth, requireOwnerOrRole('admin', 'super_admi
   const teamId = req.params.id;
 
   try {
-    await db.query('DELETE FROM teams WHERE id = $1 AND organization_id = $2;', [teamId, orgId]);
+    const delRes = await db.query('DELETE FROM teams WHERE id = $1 AND organization_id = $2 RETURNING id;', [teamId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Team not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,
@@ -1744,7 +1770,11 @@ router.delete('/custom-fields/:id', requireAuth, async (req: AuthenticatedReques
   const cfId = req.params.id;
 
   try {
-    await db.query('DELETE FROM custom_field_definitions WHERE id = $1 AND organization_id = $2;', [cfId, orgId]);
+    const delRes = await db.query('DELETE FROM custom_field_definitions WHERE id = $1 AND organization_id = $2 RETURNING id;', [cfId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Custom field definition not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,
@@ -1845,7 +1875,11 @@ router.delete('/tags/:id', requireAuth, async (req: AuthenticatedRequest, res: R
   const tagId = req.params.id;
 
   try {
-    await db.query('DELETE FROM system_tags WHERE id = $1 AND organization_id = $2;', [tagId, orgId]);
+    const delRes = await db.query('DELETE FROM system_tags WHERE id = $1 AND organization_id = $2 RETURNING id;', [tagId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Tag not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,
@@ -1998,7 +2032,11 @@ router.delete('/services/:id', requireAuth, async (req: AuthenticatedRequest, re
   const srvId = req.params.id;
 
   try {
-    await db.query('DELETE FROM services WHERE id = $1 AND organization_id = $2;', [srvId, orgId]);
+    const delRes = await db.query('DELETE FROM services WHERE id = $1 AND organization_id = $2 RETURNING id;', [srvId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Service not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,
@@ -2149,7 +2187,11 @@ router.delete('/lead-sources/:id', requireAuth, async (req: AuthenticatedRequest
   const lsId = req.params.id;
 
   try {
-    await db.query('DELETE FROM lead_sources WHERE id = $1 AND organization_id = $2;', [lsId, orgId]);
+    const delRes = await db.query('DELETE FROM lead_sources WHERE id = $1 AND organization_id = $2 RETURNING id;', [lsId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Lead source not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,
@@ -2266,7 +2308,11 @@ router.delete('/document-templates/:id', requireAuth, async (req: AuthenticatedR
   const tmplId = req.params.id;
 
   try {
-    await db.query('DELETE FROM document_templates WHERE id = $1 AND organization_id = $2;', [tmplId, orgId]);
+    const delRes = await db.query('DELETE FROM document_templates WHERE id = $1 AND organization_id = $2 RETURNING id;', [tmplId, orgId]);
+    if (delRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Document template not found' });
+      return;
+    }
 
     await recordAuditLog(
       orgId,

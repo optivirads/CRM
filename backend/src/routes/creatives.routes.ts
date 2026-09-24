@@ -10,6 +10,7 @@ import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service';
 import { otpRateLimiter } from '../middleware/rateLimiter';
+import { isGlobalLeadership } from '../utils/accessControl';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -2376,7 +2377,7 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
       shareLink: {
         ...insertRes.rows[0],
         token: rawToken, // ONLY returned once upon generation
-        shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/proof/${rawToken}`
+        shareUrl: `${(process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000')).replace(/\/$/, '')}/portal/proof/${rawToken}`
       }
     });
   } catch (err: any) {
@@ -2426,7 +2427,9 @@ router.post('/:id/proofs/:proofId/send-email', requireAuth, async (req: Authenti
     const creativeName = cRes.rows[0]?.name || 'Creative Deliverable';
     const agencyName = cRes.rows[0]?.org_name || 'OptiVir CRM';
 
-    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/proof/${rawToken}`;
+    const defaultFrontend = process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000';
+    const frontendBase = (process.env.FRONTEND_URL || defaultFrontend).replace(/\/$/, '');
+    const shareUrl = `${frontendBase}/portal/proof/${rawToken}`;
 
     // Send invitation email via Gmail
     const sent = await EmailService.sendProofInviteEmail({
@@ -2727,12 +2730,20 @@ router.delete('/comments/:commentId', requireAuth, async (req: AuthenticatedRequ
   const { commentId } = req.params;
 
   try {
-    const delRes = await db.query(
-      `DELETE FROM creative_comments
-       WHERE id = $1 AND organization_id = $2
-       RETURNING *`,
-      [commentId, orgId]
-    );
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const delRes = isGlobal
+      ? await db.query(
+          `DELETE FROM creative_comments
+           WHERE id = $1 AND organization_id = $2
+           RETURNING *`,
+          [commentId, orgId]
+        )
+      : await db.query(
+          `DELETE FROM creative_comments
+           WHERE id = $1 AND organization_id = $2 AND author_user_id = $3
+           RETURNING *`,
+          [commentId, orgId, userId]
+        );
 
     if (delRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Comment not found' });

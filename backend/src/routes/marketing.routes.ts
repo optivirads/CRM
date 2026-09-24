@@ -3,6 +3,7 @@ import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { decryptConfigObject } from '../utils/encrypt';
+import { isGlobalLeadership, userHasClientAccess } from '../utils/accessControl';
 
 const router = Router();
 
@@ -520,6 +521,17 @@ router.patch('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, re
       return;
     }
 
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    if (!isGlobal) {
+      const camp = current.rows[0];
+      const hasClientAcc = await userHasClientAccess(userId, orgId, camp.client_id, req.user?.role, req.user?.isOwner);
+      const isCreator = camp.created_by === userId;
+      if (!hasClientAcc && !isCreator) {
+        res.status(404).json({ success: false, message: 'Campaign not found' });
+        return;
+      }
+    }
+
     const updated = await db.query(`
       UPDATE campaigns
       SET 
@@ -546,6 +558,23 @@ router.delete('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, r
   const campaignId = req.params.id;
 
   try {
+    const isGlobal = isGlobalLeadership(req.user?.role, req.user?.isOwner);
+    const existing = await db.query('SELECT client_id, created_by FROM campaigns WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL;', [campaignId, orgId]);
+    if (existing.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Campaign not found or already deleted' });
+      return;
+    }
+
+    if (!isGlobal) {
+      const camp = existing.rows[0];
+      const hasClientAcc = await userHasClientAccess(userId, orgId, camp.client_id, req.user?.role, req.user?.isOwner);
+      const isCreator = camp.created_by === userId;
+      if (!hasClientAcc && !isCreator) {
+        res.status(404).json({ success: false, message: 'Campaign not found or already deleted' });
+        return;
+      }
+    }
+
     const result = await db.query(`
       UPDATE campaigns
       SET deleted_at = NOW(), updated_by = $1

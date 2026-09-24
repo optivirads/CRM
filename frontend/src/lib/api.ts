@@ -1,15 +1,32 @@
-function getApiBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_API_URL || '/api').trim().replace(/\/+$/, '');
-  // If a full remote URL is given without /api suffix, automatically append /api
-  if (/^https?:\/\//i.test(raw) && !raw.endsWith('/api')) {
-    return `${raw}/api`;
+export function getApiBaseUrl(): string {
+  // 1. Explicitly configured client environment variable
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    const raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(raw) && !raw.endsWith('/api')) {
+      return `${raw}/api`;
+    }
+    return raw;
   }
-  return raw;
+
+  // 2. In browser on Vercel or live production web domain, communicate directly with the live Render backend
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.endsWith('.vercel.app') || host === 'optivircrm.vercel.app') {
+      return 'https://crm-s5tr.onrender.com/api';
+    }
+  }
+
+  // 3. Fallback to /api for local dev proxy rewrite
+  return '/api';
 }
 
 const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
+  public getBaseUrl(): string {
+    return getApiBaseUrl();
+  }
+
   private getToken(): string | null {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('optivir_token');
@@ -35,7 +52,8 @@ class ApiClient {
     }
 
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const timeoutMs = options.timeoutMs ?? 15000;
+    // 45s timeout accommodates Render free-tier cold-starts
+    const timeoutMs = options.timeoutMs ?? 45000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
