@@ -1026,7 +1026,7 @@ router.get('/:type', requirePdfAuth, async (req: Request, res: Response) => {
     res.status(200).send(pdfBuffer);
   } catch (err: any) {
     console.error('Backend PDF generation error:', err);
-    res.status(500).json({ success: false, error: err.message || 'Failed to generate PDF' });
+    res.status(500).json({ success: false });
   }
 });
 

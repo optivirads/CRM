@@ -1018,4 +1018,134 @@ export class EmailService {
       return false;
     }
   }
+
+  static async sendTaskScriptAddedNotification(params: {
+    task: {
+      id: string;
+      title: string;
+      deliverableType?: string | null;
+      scriptContent?: string | null;
+      conceptIdea?: string | null;
+      priority?: string | null;
+      due_date?: string | null;
+      projectName?: string | null;
+      clientName?: string | null;
+    };
+    assignee: {
+      name: string;
+      email: string;
+    };
+    addedBy?: {
+      name: string;
+      email?: string;
+    };
+    agencyName?: string;
+  }): Promise<boolean> {
+    const { task, assignee, addedBy, agencyName = 'OptiVir Ads' } = params;
+
+    if (!assignee.email || !assignee.email.includes('@') || assignee.email.endsWith('.local')) {
+      console.log(`[Task Script Email] Skipped: assignee ${assignee.name} has no valid external email (${assignee.email})`);
+      return false;
+    }
+
+    const transporter = this.getTransporter();
+    const fromName = agencyName || process.env.GMAIL_FROM_NAME || 'OptiVir Ads';
+    const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
+    const defaultFrontend = process.env.NODE_ENV === 'production' ? 'https://optivircrm.vercel.app' : 'http://localhost:3000';
+    const frontendUrl = (process.env.FRONTEND_URL || defaultFrontend).replace(/\/$/, '');
+    const crmUrl = `${frontendUrl}/?tab=tasks&id=${task.id}`;
+    const subject = `📝 Script Added: ${task.title} - ${agencyName}`;
+
+    const isVideo = task.deliverableType === 'VIDEO' || (task.scriptContent && task.scriptContent.toLowerCase().includes('hook'));
+    const badgeLabel = isVideo ? '🎬 Video Script' : '🎨 Poster Concept';
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B1424; color: #FFFFFF; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="padding: 24px 32px; background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: #FFFFFF;">
+              OptiVir<span style="color: #DC2626;">Ads</span>
+            </span>
+            <span style="background: rgba(220, 38, 38, 0.15); color: #FCA5A5; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase;">
+              ${badgeLabel}
+            </span>
+          </div>
+        </div>
+
+        <div style="padding: 32px;">
+          <h1 style="font-size: 20px; font-weight: 800; color: #FFFFFF; margin: 0 0 8px; line-height: 1.3;">
+            A script or concept was added to your task
+          </h1>
+          <p style="font-size: 13px; color: #94A3B8; margin: 0 0 20px;">
+            <strong>${escapeHtml(addedBy?.name || 'A team member')}</strong> has added a creative script / concept for your assigned task in <strong>${escapeHtml(agencyName)}</strong>.
+          </p>
+
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+            <div style="font-size: 16px; font-weight: 700; color: #FFFFFF; margin-bottom: 8px;">
+              ${escapeHtml(task.title)}
+            </div>
+            ${task.clientName ? `<div style="font-size: 12px; color: #94A3B8; margin-bottom: 4px;"><strong>Client:</strong> ${escapeHtml(task.clientName)} ${task.projectName ? `• ${escapeHtml(task.projectName)}` : ''}</div>` : ''}
+          </div>
+
+          ${task.scriptContent ? `
+            <div style="margin-bottom: 24px;">
+              <div style="font-size: 12px; font-weight: 700; color: #CBD5E1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                ${isVideo ? '🎥 Video Script & Scene Breakdown:' : '🎨 Poster Copy & Layout:'}
+              </div>
+              <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 10px; padding: 16px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 12px; color: #F1F5F9; white-space: pre-wrap; line-height: 1.6;">${escapeHtml(task.scriptContent)}</div>
+            </div>
+          ` : ''}
+
+          ${task.conceptIdea ? `
+            <div style="margin-bottom: 24px;">
+              <div style="font-size: 12px; font-weight: 700; color: #CBD5E1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                💡 Visual Concept / Storyboard Idea:
+              </div>
+              <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 14px; font-size: 12px; color: #CBD5E1; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(task.conceptIdea)}</div>
+            </div>
+          ` : ''}
+
+          <div style="text-align: center; margin: 28px 0 12px;">
+            <a href="${crmUrl}" target="_blank" style="display: inline-block; background: #DC2626; color: #FFFFFF; font-weight: 700; font-size: 14px; text-decoration: none; padding: 13px 28px; border-radius: 12px; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);">
+              Open Task &amp; Script in CRM →
+            </a>
+          </div>
+        </div>
+
+        <div style="padding: 16px 32px; background: #070D18; border-top: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px; color: #64748B;">
+          Delivered to ${escapeHtml(assignee.name)} (${escapeHtml(assignee.email)}) • Automatic Draft created in Creative Studio
+        </div>
+      </div>
+    `;
+
+    if (!transporter) {
+      console.log(`\n================== [EMAIL NOTIFICATION: TASK SCRIPT ADDED] ==================`);
+      console.log(`To: ${assignee.name} <${assignee.email}>`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Task: ${task.title}`);
+      console.log(`Script Content:\n${task.scriptContent || task.conceptIdea}`);
+      console.log(`Link: ${crmUrl}`);
+      console.log(`=============================================================================\n`);
+      return true;
+    }
+
+    try {
+      const sendPromise = transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: `"${assignee.name}" <${assignee.email}>`,
+        subject,
+        html: htmlContent,
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`[Gmail Service] Task script notification delivered to ${assignee.email}`);
+      return true;
+    } catch (err: any) {
+      console.error(`[Gmail Service] Error sending task script email:`, err.message);
+      return false;
+    }
+  }
 }
+

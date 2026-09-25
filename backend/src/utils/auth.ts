@@ -37,3 +37,15 @@ export function verifyPassword(password: string, combined: string): boolean {
 
   return false;
 }
+
+export function needsRehash(combined: string): boolean {
+  if (!combined) return false;
+  const parts = combined.split(':');
+  if (parts.length === 2) return true; // Legacy 1000-round format
+  if (parts.length === 3) {
+    const iterations = parseInt(parts[0], 10);
+    return isNaN(iterations) || iterations < CURRENT_ITERATIONS;
+  }
+  return false;
+}
+

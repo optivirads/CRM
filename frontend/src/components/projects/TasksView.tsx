@@ -49,7 +49,8 @@ import {
   Circle,
   MessageSquare,
   History,
-  Users
+  Users,
+  Copy
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
@@ -107,6 +108,9 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [newTaskAssignedDate, setNewTaskAssignedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newTaskClientId, setNewTaskClientId] = useState('');
   const [newTaskProjectId, setNewTaskProjectId] = useState('');
+  const [newTaskDeliverableType, setNewTaskDeliverableType] = useState<'VIDEO' | 'IMAGE' | 'GENERAL'>('VIDEO');
+  const [newTaskScript, setNewTaskScript] = useState('');
+  const [newTaskConcept, setNewTaskConcept] = useState('');
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [taskComments, setTaskComments] = useState<Record<string, Array<{ id: string; author: string; initials: string; text: string; time: string }>>>({});
@@ -161,8 +165,17 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
   const [newCreativeAspectRatio, setNewCreativeAspectRatio] = useState('1:1');
   const [newCreativeHeadline, setNewCreativeHeadline] = useState('');
   const [newCreativeCopy, setNewCreativeCopy] = useState('');
+  const [newCreativeScript, setNewCreativeScript] = useState('');
+  const [newCreativeConcept, setNewCreativeConcept] = useState('');
   const [newCreativeCta, setNewCreativeCta] = useState('Learn More');
   const [isCreatingCreative, setIsCreatingCreative] = useState(false);
+
+  // Deliverable Script & Creative Idea State for Active Task
+  const [taskDeliverableType, setTaskDeliverableType] = useState<'VIDEO' | 'IMAGE' | 'GENERAL'>('VIDEO');
+  const [taskScript, setTaskScript] = useState('');
+  const [taskConcept, setTaskConcept] = useState('');
+  const [isSavingTaskScript, setIsSavingTaskScript] = useState(false);
+  const [copiedScriptFeedback, setCopiedScriptFeedback] = useState(false);
 
   const fetchTaskCreatives = async (taskId: string) => {
     if (!taskId) return;
@@ -311,6 +324,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
         aspectRatio: newCreativeAspectRatio,
         headline: newCreativeHeadline.trim() || undefined,
         primaryAdCopy: newCreativeCopy.trim() || undefined,
+        scriptContent: newCreativeScript.trim() || undefined,
+        conceptIdea: newCreativeConcept.trim() || undefined,
         callToAction: newCreativeCta || 'Learn More'
       });
 
@@ -320,6 +335,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
         setNewCreativeName('');
         setNewCreativeHeadline('');
         setNewCreativeCopy('');
+        setNewCreativeScript('');
+        setNewCreativeConcept('');
         fetchTaskCreatives(activeTask.id);
         fetchTasks();
       }
@@ -448,6 +465,9 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
             code: `#OPT-${(t.id || '0000').slice(0, 4).toUpperCase()}`,
             title: t.title || 'Untitled Deliverable',
             description: t.description || '',
+            deliverable_type: t.deliverable_type || (t.description?.toLowerCase().includes('video') ? 'VIDEO' : (t.description?.toLowerCase().includes('poster') ? 'IMAGE' : 'GENERAL')),
+            script_content: t.script_content || '',
+            concept_idea: t.concept_idea || '',
             subtasksCount: subtaskList.length > 0 ? `${completedSubs}/${subtaskList.length} Subtasks` : '0 Subtasks',
             subtasksBadge: rawStatus === 'Completed' ? 'Completed' : (rawStatus === 'In Progress' ? 'In Progress' : (rawStatus === 'Review' ? 'Review' : (rawStatus === 'Blocked' ? 'Blocked' : 'Pending'))),
             clientName: t.company_name || 'Direct Client',
@@ -484,10 +504,16 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
           if (fresh) {
             setActiveTask(fresh);
             setSubtasksState(fresh.subtasks);
+            setTaskDeliverableType(fresh.deliverable_type || 'GENERAL');
+            setTaskScript(fresh.script_content || '');
+            setTaskConcept(fresh.concept_idea || '');
           }
         } else if (mapped.length > 0) {
           setActiveTask(mapped[0]);
           setSubtasksState(mapped[0].subtasks);
+          setTaskDeliverableType(mapped[0].deliverable_type || 'GENERAL');
+          setTaskScript(mapped[0].script_content || '');
+          setTaskConcept(mapped[0].concept_idea || '');
         }
       }
     } catch (err: any) {
@@ -524,7 +550,10 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
         due_date: newTaskDueDate || undefined,
         assignee_id: selectedAssigneeId || undefined,
         assignee_name: selectedAssigneeName || undefined,
-        assignee_role: selectedAssigneeRole || undefined
+        assignee_role: selectedAssigneeRole || undefined,
+        deliverable_type: newTaskDeliverableType,
+        script_content: newTaskScript.trim() || undefined,
+        concept_idea: newTaskConcept.trim() || undefined
       });
       if (res.success) {
         showToast(`Task created and assigned to ${selectedAssigneeName || 'team'}!`, 'success');
@@ -535,6 +564,9 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
         setNewTaskAssignedDate(new Date().toISOString().split('T')[0]);
         setNewTaskClientId('');
         setNewTaskProjectId('');
+        setNewTaskDeliverableType('VIDEO');
+        setNewTaskScript('');
+        setNewTaskConcept('');
         setSelectedAssigneeId('');
         setSelectedAssigneeName('');
         setSelectedAssigneeRole('');
@@ -546,6 +578,41 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleSaveTaskScript = async () => {
+    if (!activeTask) return;
+    try {
+      setIsSavingTaskScript(true);
+      const res = await api.updateTaskScript(activeTask.id, {
+        deliverable_type: taskDeliverableType,
+        script_content: taskScript,
+        concept_idea: taskConcept
+      });
+      if (res.success) {
+        showToast(res.message || `Script & Concept saved! Assignee ${activeTask.assignee} notified via Email & CRM.`, 'success');
+        setActiveTask((prev: any) => ({
+          ...prev,
+          deliverable_type: taskDeliverableType,
+          script_content: taskScript,
+          concept_idea: taskConcept
+        }));
+        fetchTaskCreatives(activeTask.id);
+        fetchTasks();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to save script', 'error');
+    } finally {
+      setIsSavingTaskScript(false);
+    }
+  };
+
+  const handleCopyTaskScript = () => {
+    const textToCopy = `DELIVERABLE: ${activeTask?.title || 'Task'}\nFORMAT: ${taskDeliverableType}\n\n[SCRIPT / COPY]:\n${taskScript || '(No script entered)'}\n\n[VISUAL CONCEPT]:\n${taskConcept || '(No concept entered)'}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedScriptFeedback(true);
+    showToast('Script & Concept copied to clipboard!', 'info');
+    setTimeout(() => setCopiedScriptFeedback(false), 2000);
   };
 
   const confirmDeleteTask = async () => {
@@ -594,6 +661,19 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       setActiveTask(tasks[0]);
     }
   }, [tasks, activeTask]);
+
+  // Sync active task script, concept, and deliverable format
+  useEffect(() => {
+    if (activeTask) {
+      setTaskDeliverableType(
+        activeTask.deliverable_type || 
+        (activeTask.description?.toLowerCase().includes('video') ? 'VIDEO' : 
+        (activeTask.description?.toLowerCase().includes('poster') ? 'IMAGE' : 'GENERAL'))
+      );
+      setTaskScript(activeTask.script_content || '');
+      setTaskConcept(activeTask.concept_idea || '');
+    }
+  }, [activeTask?.id, activeTask?.deliverable_type, activeTask?.script_content, activeTask?.concept_idea]);
 
   // Stopwatch effect
   useEffect(() => {
@@ -1829,6 +1909,224 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                   </p>
                 </div>
 
+                {/* Deliverable Script & Creative Concept Workspace */}
+                <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+                  {/* Top Bar: Title, Asset Format Selector, and Quick Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500/10 to-purple-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200/50 dark:border-rose-900/50 shadow-2xs">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                            Deliverable Script &amp; Creative Concept
+                          </h3>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            Draft Studio Sync
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Add the script, dialogue, or poster copy here. Auto-syncs to Creative Studio draft and alerts the assignee.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Format Toggle & Copy Button */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => setTaskDeliverableType('VIDEO')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer ${
+                            taskDeliverableType === 'VIDEO'
+                              ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <Film className="w-3 h-3" />
+                          <span>Video</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTaskDeliverableType('IMAGE')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer ${
+                            taskDeliverableType === 'IMAGE'
+                              ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          <span>Poster</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTaskDeliverableType('GENERAL')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer ${
+                            taskDeliverableType === 'GENERAL'
+                              ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>General</span>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyTaskScript}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                        title="Copy script & concept to clipboard"
+                      >
+                        {copiedScriptFeedback ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-600">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Block Snippets Toolbar */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[11px] font-semibold text-slate-400">Quick Blocks:</span>
+                    <button
+                      type="button"
+                      onClick={() => setTaskScript(prev => prev + (prev ? '\n\n' : '') + '[HOOK 0-3s]:\n')}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      + Hook (0-3s)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskScript(prev => prev + (prev ? '\n\n' : '') + '[PROBLEM / PAIN POINT]:\n')}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      + Problem
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskScript(prev => prev + (prev ? '\n\n' : '') + '[SOLUTION / OFFER DEMO]:\n')}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      + Solution
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskScript(prev => prev + (prev ? '\n\n' : '') + '[CALL TO ACTION (CTA)]:\n')}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      + Call To Action
+                    </button>
+                  </div>
+
+                  {/* 1. Script / Dialogue Section */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        {taskDeliverableType === 'VIDEO' ? (
+                          <>
+                            <Film className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Video Script &amp; Voiceover Breakdown</span>
+                          </>
+                        ) : taskDeliverableType === 'IMAGE' ? (
+                          <>
+                            <ImageIcon className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Poster Copy &amp; Primary Ad Text</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Deliverable Copy / Text Script</span>
+                          </>
+                        )}
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {taskScript.length} chars • {taskScript.trim() ? taskScript.trim().split(/\s+/).length : 0} words
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={5}
+                      value={taskScript}
+                      onChange={(e) => setTaskScript(e.target.value)}
+                      placeholder={
+                        taskDeliverableType === 'VIDEO'
+                          ? "Write scene breakdown, spoken dialogue, voiceover notes, or timestamps...\n\n[HOOK 0-3s]: Stop scrolling if you're struggling with high CAC...\n[PROBLEM]: Most ad creatives fatigue within 4 days...\n[SOLUTION]: Here is how OptiVir scripts 10x variants in minutes...\n[CTA]: Click below to get your bespoke audit."
+                          : "Write headline, subhead, hook, body copy, and CTA text for this graphic deliverable..."
+                      }
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-slate-100 text-xs font-mono leading-relaxed focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                    />
+                  </div>
+
+                  {/* 2. Visual Concept / Framing Section */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>
+                          {taskDeliverableType === 'VIDEO'
+                            ? 'Director’s Shot Direction & Visual Cues'
+                            : 'Visual Concept, Layout & Art Direction'}
+                        </span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {taskConcept.length} chars
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={taskConcept}
+                      onChange={(e) => setTaskConcept(e.target.value)}
+                      placeholder={
+                        taskDeliverableType === 'VIDEO'
+                          ? "Visual framing (9:16 vertical), camera angles, screen-recording overlays, green-screen effects, B-roll clips, background audio pace..."
+                          : "Design mood, color palette, logo placement, typography style, product mockups, 1:1 square / 4:5 vertical proportions..."
+                      }
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-slate-100 text-xs leading-relaxed focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Bottom Action Footer */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>
+                        Saves to task • Creates draft in Creative Studio • Notifies assignee in CRM &amp; email
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveTaskScript}
+                        disabled={isSavingTaskScript}
+                        className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer"
+                      >
+                        {isSavingTaskScript ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Saving Script...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Save Script to Task</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 2. Subtasks */}
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between text-xs">
@@ -2069,6 +2367,14 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                                       <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 italic mt-0.5">
                                         &ldquo;{creative.headline}&rdquo;
                                       </p>
+                                    )}
+                                    {(creative.script_content || creative.concept_idea) && (
+                                      <div className="mt-1.5 p-1.5 rounded-lg bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-300 font-mono line-clamp-2">
+                                        <span className="font-bold text-[#DC2626]">
+                                          {creative.ad_format === 'VIDEO' ? '🎬 Script: ' : '🎨 Concept: '}
+                                        </span>
+                                        {creative.script_content || creative.concept_idea}
+                                      </div>
                                     )}
                                   </div>
                                 </div>
@@ -2461,7 +2767,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
       {/* Create Task Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white dark:bg-[#0B1424] border border-[#E2E6EC] dark:border-[#152238] rounded-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center pb-3 border-b border-[#E2E6EC] dark:border-[#152238]">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-[#DC2626]" />
@@ -2535,7 +2841,16 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                 <label className="block font-semibold mb-1">Deliverable Category</label>
                 <select
                   value={newTaskCategory}
-                  onChange={(e) => setNewTaskCategory(e.target.value)}
+                  onChange={(e) => {
+                    const cat = e.target.value;
+                    setNewTaskCategory(cat);
+                    const lower = cat.toLowerCase();
+                    if (lower.includes('video') || lower.includes('reel')) {
+                      setNewTaskDeliverableType('VIDEO');
+                    } else if (lower.includes('poster') || lower.includes('creative') || lower.includes('brand')) {
+                      setNewTaskDeliverableType('IMAGE');
+                    }
+                  }}
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none text-slate-800 dark:text-slate-200"
                 >
                   <option>Social Media Posters &amp; Creatives</option>
@@ -2547,13 +2862,151 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                 </select>
               </div>
 
+              {/* Deliverable Format Selector */}
               <div>
-                <label className="block font-semibold mb-1">Description</label>
+                <label className="block font-semibold mb-1">Deliverable Asset Format</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewTaskDeliverableType('VIDEO')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      newTaskDeliverableType === 'VIDEO'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500 shadow-2xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Video / Reel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTaskDeliverableType('IMAGE')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      newTaskDeliverableType === 'IMAGE'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500 shadow-2xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Poster / Graphic</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTaskDeliverableType('GENERAL')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      newTaskDeliverableType === 'GENERAL'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500 shadow-2xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>General Task</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Script & Idea Space in Task Creation Window */}
+              <div className="bg-slate-50 dark:bg-slate-900/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-rose-500" />
+                    <span className="font-bold text-xs text-slate-900 dark:text-white">
+                      {newTaskDeliverableType === 'VIDEO'
+                        ? 'Video Script & Scene Breakdown'
+                        : newTaskDeliverableType === 'IMAGE'
+                        ? 'Poster Copy & Creative Concept'
+                        : 'Deliverable Script / Copy'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    Draft Studio Sync
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                      {newTaskDeliverableType === 'VIDEO'
+                        ? 'Script / Dialogue / Voiceover Breakdown'
+                        : 'Poster Copy / Ad Headline / Text'}
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskScript(prev => prev + (prev ? '\n\n' : '') + '[HOOK 0-3s]: ')}
+                        className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                      >
+                        + Hook
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskScript(prev => prev + (prev ? '\n\n' : '') + '[PROBLEM / PAIN POINT]: ')}
+                        className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                      >
+                        + Problem
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskScript(prev => prev + (prev ? '\n\n' : '') + '[SOLUTION / OFFER]: ')}
+                        className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                      >
+                        + Solution
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskScript(prev => prev + (prev ? '\n\n' : '') + '[CALL TO ACTION]: ')}
+                        className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                      >
+                        + CTA
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={newTaskScript}
+                    onChange={(e) => setNewTaskScript(e.target.value)}
+                    placeholder={
+                      newTaskDeliverableType === 'VIDEO'
+                        ? "Write video script, dialogue, or voiceover scene-by-scene...\n[HOOK]: Stop scrolling if...\n[PROBLEM]: Why most ads fail...\n[SOLUTION]: How our strategy converts...\n[CTA]: Click below..."
+                        : "Write headline, subhead, hook, body copy, and CTA text for this graphic deliverable..."
+                    }
+                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#080E18] outline-none text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    {newTaskDeliverableType === 'VIDEO'
+                      ? 'Visual Concept & Shot Direction (Framing, B-roll, Text Overlays)'
+                      : 'Visual Concept & Art Direction (Colors, Mockup, Layout Style)'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newTaskConcept}
+                    onChange={(e) => setNewTaskConcept(e.target.value)}
+                    placeholder="Describe scene framing (9:16 vertical / 1:1), B-roll visual cues, on-screen text overlays, reference links..."
+                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#080E18] outline-none text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>
+                    When created, script automatically creates a <strong>DRAFT</strong> in Creative Studio and notifies assignee via CRM &amp; email.
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Task Requirements &amp; Scope Notes</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={newTaskDesc}
                   onChange={(e) => setNewTaskDesc(e.target.value)}
-                  placeholder="Details of creative brief, copy, aspect ratios (9:16 / 1:1), and specifications..."
+                  placeholder="Additional delivery instructions, client guidelines, or SLA requirements..."
                   className="w-full p-2.5 rounded-lg border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] outline-none"
                 />
               </div>
@@ -2997,6 +3450,75 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
                   className="w-full p-2.5 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-slate-50 dark:bg-[#080E18] text-slate-900 dark:text-white outline-none resize-none"
                 />
               </div>
+
+              {/* Dynamic Scripting and Poster / Image Idea Workspace */}
+              {newCreativeFormat === 'VIDEO' ? (
+                <div className="space-y-3 p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/50">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400">
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Video Scripting &amp; Concept</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-[11px] text-slate-700 dark:text-slate-300">
+                      Video Script &amp; Scene Breakdown
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newCreativeScript}
+                      onChange={(e) => setNewCreativeScript(e.target.value)}
+                      placeholder="[0:00 - 0:03 HOOK]: Stop wasting hours on manual reporting!&#10;[0:03 - 0:15 SCENE 1]: Show dashboard animation with real-time analytics...&#10;[0:15 - 0:30 CTA]: Download free trial today!"
+                      className="w-full p-2 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#080E18] text-slate-900 dark:text-white font-mono text-xs outline-none resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-[11px] text-slate-700 dark:text-slate-300">
+                      Video Concept &amp; Storyboard Idea
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={newCreativeConcept}
+                      onChange={(e) => setNewCreativeConcept(e.target.value)}
+                      placeholder="UGC format, fast-paced transitions, energetic background beat, vibrant captions..."
+                      className="w-full p-2 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#080E18] text-slate-900 dark:text-white font-mono text-xs outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/50">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                    <Palette className="w-3.5 h-3.5" />
+                    <span>Poster Idea &amp; Visual Concept</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-[11px] text-slate-700 dark:text-slate-300">
+                      Poster / Image Creative Idea
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={newCreativeConcept}
+                      onChange={(e) => setNewCreativeConcept(e.target.value)}
+                      placeholder="e.g. Minimalist sleek dark mode poster with 3D floating dashboard icons, glowing gradient badge top-right..."
+                      className="w-full p-2 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#080E18] text-slate-900 dark:text-white font-mono text-xs outline-none resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-[11px] text-slate-700 dark:text-slate-300">
+                      Poster Copy &amp; Text Layout
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={newCreativeScript}
+                      onChange={(e) => setNewCreativeScript(e.target.value)}
+                      placeholder="Big Bold Header: 'SCALE 10X'&#10;Sub-bullets: '• Realtime Sync • Zero Setup'&#10;Corner Stamp: 'TRUSTED BY 500+ TEAMS'"
+                      className="w-full p-2 rounded-xl border border-[#E2E6EC] dark:border-[#152238] bg-white dark:bg-[#080E18] text-slate-900 dark:text-white font-mono text-xs outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold mb-1">Call To Action</label>

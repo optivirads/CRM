@@ -7,7 +7,8 @@ import {
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
   DeleteObjectCommand,
-  HeadObjectCommand
+  HeadObjectCommand,
+  ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
@@ -265,6 +266,7 @@ export class StorageService {
     });
 
     await r2Client.send(command);
+    StorageService.invalidateBucketCache();
     return { storageKey };
   }
 
@@ -281,6 +283,7 @@ export class StorageService {
       });
 
       await r2Client.send(command);
+      StorageService.invalidateBucketCache();
     } catch (err: any) {
       console.warn(`[StorageService] Failed to delete object ${storageKey}:`, err.message);
     }
@@ -296,6 +299,7 @@ export class StorageService {
         .filter(k => k && !k.startsWith('http'))
         .map(key => this.deleteObject(key))
     );
+    StorageService.invalidateBucketCache();
   }
 
   /**
@@ -317,4 +321,130 @@ export class StorageService {
       return null;
     }
   }
+
+  /**
+   * Scans and aggregates real-time storage statistics directly from the Cloudflare R2 bucket.
+   * Performs paginated ListObjectsV2 calls across the entire bucket (or optional prefix).
+   */
+  public static async getLiveBucketStorageStats(options?: {
+    forceRefresh?: boolean;
+    prefix?: string;
+  }): Promise<LiveBucketStorageStats> {
+    const now = Date.now();
+    if (!options?.forceRefresh && bucketStatsCache && (now - bucketStatsCache.timestamp) < CACHE_TTL_MS) {
+      return bucketStatsCache.data;
+    }
+
+    let continuationToken: string | undefined = undefined;
+    let totalBytes = 0;
+    let totalObjects = 0;
+    let videoBytes = 0;
+    let videoCount = 0;
+    let imageBytes = 0;
+    let imageCount = 0;
+    let otherBytes = 0;
+    let otherCount = 0;
+    const allObjects: Array<{ key: string; size: number; lastModified?: Date }> = [];
+
+    const videoExtRegex = /\.(mp4|mov|webm|avi|mkv|flv|wmv|m4v)($|\?)/i;
+    const imageExtRegex = /\.(png|jpe?g|webp|gif|svg|avif|bmp|ico|tiff?)($|\?)/i;
+
+    try {
+      do {
+        const command: ListObjectsV2Command = new ListObjectsV2Command({
+          Bucket: R2_BUCKET_NAME,
+          Prefix: options?.prefix,
+          ContinuationToken: continuationToken,
+          MaxKeys: 1000,
+        });
+
+        const response = await r2Client.send(command);
+        const contents = response.Contents || [];
+
+        for (const obj of contents) {
+          if (!obj.Key) continue;
+          const size = obj.Size || 0;
+          totalBytes += size;
+          totalObjects += 1;
+
+          const keyLower = obj.Key.toLowerCase();
+          const isVideo = videoExtRegex.test(obj.Key) || keyLower.includes('/video_') || keyLower.includes('video');
+          const isImage = imageExtRegex.test(obj.Key) || keyLower.includes('/image_') || keyLower.includes('thumbnail') || keyLower.includes('slide');
+
+          if (isVideo) {
+            videoBytes += size;
+            videoCount += 1;
+          } else if (isImage) {
+            imageBytes += size;
+            imageCount += 1;
+          } else {
+            otherBytes += size;
+            otherCount += 1;
+          }
+
+          allObjects.push({
+            key: obj.Key,
+            size,
+            lastModified: obj.LastModified,
+          });
+        }
+
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+    } catch (err: any) {
+      console.error('[StorageService] Error scanning live Cloudflare R2 bucket:', err.message);
+      // If cached data is available, return it even if expired rather than failing completely
+      if (bucketStatsCache) {
+        return bucketStatsCache.data;
+      }
+      throw err;
+    }
+
+    allObjects.sort((a, b) => b.size - a.size);
+
+    const stats: LiveBucketStorageStats = {
+      bucket: R2_BUCKET_NAME,
+      totalBytes,
+      totalObjects,
+      lastScannedAt: new Date().toISOString(),
+      isLiveBucketScan: true,
+      breakdown: {
+        video: { bytes: videoBytes, count: videoCount },
+        image: { bytes: imageBytes, count: imageCount },
+        other: { bytes: otherBytes, count: otherCount },
+      },
+      objects: allObjects,
+    };
+
+    bucketStatsCache = { data: stats, timestamp: now };
+    return stats;
+  }
+
+  /**
+   * Invalidate in-memory bucket cache (called when objects are uploaded/deleted)
+   */
+  public static invalidateBucketCache(): void {
+    bucketStatsCache = null;
+  }
 }
+
+export interface LiveBucketStorageStats {
+  bucket: string;
+  totalBytes: number;
+  totalObjects: number;
+  lastScannedAt: string;
+  isLiveBucketScan: boolean;
+  breakdown: {
+    video: { bytes: number; count: number };
+    image: { bytes: number; count: number };
+    other: { bytes: number; count: number };
+  };
+  objects: Array<{
+    key: string;
+    size: number;
+    lastModified?: Date;
+  }>;
+}
+
+let bucketStatsCache: { data: LiveBucketStorageStats; timestamp: number } | null = null;
+const CACHE_TTL_MS = 60 * 1000; // 60s cache for fast UI, bustable on demand

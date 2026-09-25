@@ -50,11 +50,24 @@ import {
   Download,
   CheckSquare,
   Unlink,
-  Rocket
+  Rocket,
+  HardDrive,
+  Database,
+  Server,
+  PieChart
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
+
+function formatBytes(bytes: number, decimals = 1): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 
 interface CreativeProofingViewProps {
   onNavigate?: (tab: any, clientId?: string, clientName?: string) => void;
@@ -79,6 +92,43 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
   const [clientProjects, setClientProjects] = useState<any[]>([]);
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'grid' | 'table'>('kanban');
+
+  // Cloudflare R2 Storage Modal & Telemetry
+  const [showStorageModal, setShowStorageModal] = useState(false);
+  const [storageDetails, setStorageDetails] = useState<any>(null);
+  const [loadingStorageDetails, setLoadingStorageDetails] = useState(false);
+  const [isSyncingBucket, setIsSyncingBucket] = useState(false);
+
+  const openStorageModal = async (forceRefresh = false) => {
+    setShowStorageModal(true);
+    try {
+      setLoadingStorageDetails(true);
+      const res = await api.getCreativeStorageDetails(forceRefresh);
+      if (res.success) {
+        setStorageDetails(res);
+      }
+    } catch (err) {
+      console.warn('Failed to load storage details:', err);
+    } finally {
+      setLoadingStorageDetails(false);
+    }
+  };
+
+  const handleSyncBucket = async () => {
+    try {
+      setIsSyncingBucket(true);
+      const res = await api.getCreativeStorageDetails(true);
+      if (res.success) {
+        setStorageDetails(res);
+        const mRes = await api.getCreativeMetrics();
+        if (mRes.success) setMetrics(mRes.metrics);
+      }
+    } catch (err) {
+      console.error('Bucket sync failed:', err);
+    } finally {
+      setIsSyncingBucket(false);
+    }
+  };
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,52 +197,23 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     destinationUrl: '',
     approvalDueAt: '',
     versionTitle: 'Initial Version (v1)',
-    changeSummary: 'First draft delivery'
+    changeSummary: 'First draft delivery',
+    scriptContent: '',
+    conceptIdea: ''
   });
   const [uploadedFiles, setUploadedFiles] = useState<{ file: File; assetType: string; preview: string; storageKey?: string }[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Load Data
-  useEffect(() => {
-    loadData();
-    loadClientsAndProjects();
-  }, [selectedPlatform, selectedFormat, selectedStatus, selectedClientId]);
-
-  // When Client changes in create form, filter available projects
-  useEffect(() => {
-    if (createForm.clientId) {
-      const filtered = allProjects.filter(p => p.client_id === createForm.clientId);
-      setClientProjects(filtered);
-    } else {
-      setClientProjects([]);
-    }
-    setCreateForm(prev => ({ ...prev, projectId: '', taskId: '' }));
-  }, [createForm.clientId, allProjects]);
-
-  // When Project or Client changes in create form, load available tasks
-  useEffect(() => {
-    if (createForm.projectId) {
-      api.getTasks({ projectId: createForm.projectId }).then(res => {
-        if (res.success && Array.isArray(res.data)) {
-          setProjectTasks(res.data);
-        } else {
-          setProjectTasks([]);
-        }
-      }).catch(() => setProjectTasks([]));
-    } else if (createForm.clientId) {
-      api.getTasks({ clientId: createForm.clientId }).then(res => {
-        if (res.success && Array.isArray(res.data)) {
-          setProjectTasks(res.data);
-        } else {
-          setProjectTasks([]);
-        }
-      }).catch(() => setProjectTasks([]));
-    } else {
-      setProjectTasks([]);
-    }
-    setCreateForm(prev => ({ ...prev, taskId: '' }));
-  }, [createForm.projectId, createForm.clientId]);
+  // Studio Sidebar Tabs: 'comments' | 'script' | 'info'
+  const [studioActiveTab, setStudioActiveTab] = useState<'comments' | 'script' | 'info'>('comments');
+  const [studioScript, setStudioScript] = useState('');
+  const [studioConcept, setStudioConcept] = useState('');
+  const [studioHeadline, setStudioHeadline] = useState('');
+  const [studioPrimaryCopy, setStudioPrimaryCopy] = useState('');
+  const [studioCta, setStudioCta] = useState('');
+  const [isSavingStudioMeta, setIsSavingStudioMeta] = useState(false);
+  const [copiedScriptFeedback, setCopiedScriptFeedback] = useState(false);
 
   const loadData = async () => {
     try {
@@ -239,6 +260,45 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
     }
   };
 
+  // Load Data
+  useEffect(() => {
+    loadData();
+    loadClientsAndProjects();
+  }, [selectedPlatform, selectedFormat, selectedStatus, selectedClientId]);
+
+  // When Client changes in create form, filter available projects
+  useEffect(() => {
+    if (createForm.clientId) {
+      const filtered = allProjects.filter(p => p.client_id === createForm.clientId);
+      setClientProjects(filtered);
+    } else {
+      setClientProjects([]);
+    }
+  }, [createForm.clientId, allProjects]);
+
+  // When Project or Client changes in create form, load available tasks
+  useEffect(() => {
+    if (createForm.projectId) {
+      api.getTasks({ projectId: createForm.projectId }).then(res => {
+        if (res.success && Array.isArray(res.data)) {
+          setProjectTasks(res.data);
+        } else {
+          setProjectTasks([]);
+        }
+      }).catch(() => setProjectTasks([]));
+    } else if (createForm.clientId) {
+      api.getTasks({ clientId: createForm.clientId }).then(res => {
+        if (res.success && Array.isArray(res.data)) {
+          setProjectTasks(res.data);
+        } else {
+          setProjectTasks([]);
+        }
+      }).catch(() => setProjectTasks([]));
+    } else {
+      setProjectTasks([]);
+    }
+  }, [createForm.projectId, createForm.clientId]);
+
   // Open Creative Studio Inspector
   const handleOpenStudio = async (creativeId: string) => {
     try {
@@ -249,12 +309,63 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         setActiveCreativeDetails(res);
         setActiveProofIndex(0);
         setActiveSlideIndex(0);
+        setStudioScript(res.creative?.script_content || '');
+        setStudioConcept(res.creative?.concept_idea || '');
+        setStudioHeadline(res.creative?.headline || '');
+        setStudioPrimaryCopy(res.creative?.primary_ad_copy || '');
+        setStudioCta(res.creative?.call_to_action || 'Learn More');
+        setStudioActiveTab('comments');
       }
     } catch (err) {
       console.error('Failed to open creative details:', err);
     } finally {
       setStudioLoading(false);
     }
+  };
+
+  const handleSaveStudioScriptAndConcept = async () => {
+    if (!activeCreativeDetails?.creative?.id) return;
+    try {
+      setIsSavingStudioMeta(true);
+      await api.updateCreative(activeCreativeDetails.creative.id, {
+        scriptContent: studioScript,
+        conceptIdea: studioConcept,
+        headline: studioHeadline,
+        primaryAdCopy: studioPrimaryCopy,
+        callToAction: studioCta
+      });
+      setActiveCreativeDetails((prev: any) => ({
+        ...prev,
+        creative: {
+          ...prev.creative,
+          script_content: studioScript,
+          concept_idea: studioConcept,
+          headline: studioHeadline,
+          primary_ad_copy: studioPrimaryCopy,
+          call_to_action: studioCta
+        }
+      }));
+      setCreatives(prev => prev.map(c => c.id === activeCreativeDetails.creative.id ? {
+        ...c,
+        script_content: studioScript,
+        concept_idea: studioConcept,
+        headline: studioHeadline,
+        primary_ad_copy: studioPrimaryCopy,
+        call_to_action: studioCta
+      } : c));
+      alert('Creative script, concept, and copy saved successfully!');
+    } catch (err: any) {
+      alert('Failed to save: ' + (err.message || 'Error occurred'));
+    } finally {
+      setIsSavingStudioMeta(false);
+    }
+  };
+
+  const handleCopyScriptOrConcept = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedScriptFeedback(true);
+    setTimeout(() => setCopiedScriptFeedback(false), 2000);
   };
 
   // Open Link Task Modal for a Creative
@@ -687,6 +798,8 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         callToAction: createForm.callToAction || undefined,
         destinationUrl: createForm.destinationUrl || undefined,
         approvalDueAt: createForm.approvalDueAt || undefined,
+        scriptContent: createForm.scriptContent || undefined,
+        conceptIdea: createForm.conceptIdea || undefined,
         initialProof: processedAssets.length > 0 ? {
           title: createForm.versionTitle || 'Initial Version (v1)',
           changeSummary: createForm.changeSummary || 'Initial creative upload',
@@ -712,7 +825,9 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
         destinationUrl: '',
         approvalDueAt: '',
         versionTitle: 'Initial Version (v1)',
-        changeSummary: 'First draft delivery'
+        changeSummary: 'First draft delivery',
+        scriptContent: '',
+        conceptIdea: ''
       });
       loadData();
     } catch (err: any) {
@@ -774,10 +889,34 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Cloudflare R2 Storage Quick Telemetry Pill */}
+          <button
+            type="button"
+            onClick={() => openStorageModal()}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white dark:bg-[#0B1424] hover:bg-slate-50 dark:hover:bg-[#0F1C30] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 transition cursor-pointer shadow-xs group"
+            title="Inspect Cloudflare R2 Storage Vault Breakdown"
+          >
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform">
+              <HardDrive className="w-3.5 h-3.5" />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                <span>Storage: {metrics?.storage?.formattedUsed || '0 B'}</span>
+                <span className="text-slate-400 font-normal">/ {metrics?.storage?.formattedLimit || '20 GB'}</span>
+              </div>
+              <div className="w-24 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-0.5">
+                <div
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(3, Math.min(100, metrics?.storage?.percentUsed || 0.1))}%` }}
+                />
+              </div>
+            </div>
+          </button>
+
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-bold text-sm shadow-md transition transform active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-bold text-sm shadow-md transition transform active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Creative Proof</span>
@@ -787,7 +926,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
 
       {/* KPI Cards */}
       {metrics && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
           <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Creatives</div>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{metrics.totalCreatives}</div>
@@ -817,6 +956,33 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
             <div className="text-xs font-semibold text-purple-500 uppercase tracking-wider">Overdue SLAs</div>
             <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{metrics.overdue}</div>
             <div className="text-[11px] text-slate-400 mt-1">Past target date</div>
+          </div>
+          <div
+            onClick={() => openStorageModal()}
+            className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs cursor-pointer hover:border-emerald-500/50 hover:shadow-md transition group col-span-2 sm:col-span-1"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>R2 Storage</span>
+              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                {metrics.storage?.percentUsed ?? 0}%
+              </span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              {metrics.storage?.formattedUsed || '0 B'}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+              <span>of {metrics.storage?.formattedLimit || '20 GB'}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold group-hover:underline">Details &rarr;</span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(3, Math.min(100, metrics.storage?.percentUsed || 0.1))}%` }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -996,6 +1162,50 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                                 {c.active_version ? `v${c.active_version}` : 'v1'}
                               </span>
                             </div>
+                          ) : (c.script_content || c.concept_idea) ? (
+                            <div className="aspect-video w-full rounded-lg bg-gradient-to-br from-slate-900 via-[#0B1528] to-slate-950 border border-slate-700/70 p-3 flex flex-col justify-between relative overflow-hidden group-hover:border-[#DC2626]/50 transition shadow-inner">
+                              {/* Background subtle watermark */}
+                              <div className="absolute -right-2 -bottom-2 opacity-5 pointer-events-none text-white">
+                                {c.ad_format === 'VIDEO' ? <Film className="w-20 h-20" /> : <Palette className="w-20 h-20" />}
+                              </div>
+
+                              {/* Header */}
+                              <div className="flex items-center justify-between z-10">
+                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#DC2626]/20 border border-[#DC2626]/30 text-[#DC2626] text-[10px] font-extrabold uppercase tracking-wider">
+                                  {c.ad_format === 'VIDEO' ? (
+                                    <>
+                                      <Film className="w-3 h-3 text-[#DC2626]" />
+                                      <span>Video Script</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Palette className="w-3 h-3 text-[#DC2626]" />
+                                      <span>Poster Idea</span>
+                                    </>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-slate-400">
+                                  📝 Script Draft
+                                </span>
+                              </div>
+
+                              {/* Script text snippet */}
+                              <div className="z-10 my-auto py-1">
+                                <p className="text-[11px] text-slate-200 font-mono line-clamp-3 leading-relaxed whitespace-pre-wrap italic">
+                                  &ldquo;{(c.script_content || c.concept_idea).trim()}&rdquo;
+                                </p>
+                              </div>
+
+                              {/* Footer indicator */}
+                              <div className="flex items-center justify-between z-10 text-[9px] text-slate-400 border-t border-slate-800/80 pt-1">
+                                <span className="truncate">
+                                  {c.script_content ? `${c.script_content.length} chars` : 'Concept Idea'}
+                                </span>
+                                <span className="text-[#DC2626] group-hover:text-red-400 font-semibold flex items-center gap-0.5">
+                                  Open Studio →
+                                </span>
+                              </div>
+                            </div>
                           ) : (
                             <div className="aspect-video w-full rounded-lg bg-slate-100 dark:bg-slate-800/60 flex flex-col items-center justify-center text-slate-400 gap-1">
                               <ImageIcon className="w-6 h-6" />
@@ -1019,7 +1229,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           </div>
 
                           {/* Linked Task Deliverable Badge */}
-                          <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                          <div className="pt-1 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                             {c.task_title ? (
                               <button
                                 onClick={(e) => openLinkTaskModal(c, e)}
@@ -1039,12 +1249,34 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                                 <span>Link Task</span>
                               </button>
                             )}
+
+                            {/* Scripting or Poster Idea badges */}
+                            {c.script_content && (
+                              <div className="flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 truncate" title={c.script_content}>
+                                <Film className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate font-mono">Script: {c.script_content}</span>
+                              </div>
+                            )}
+                            {c.concept_idea && (
+                              <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20 truncate" title={c.concept_idea}>
+                                <Palette className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate">Idea: {c.concept_idea}</span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
-                            <div className="flex items-center gap-1 text-slate-400">
-                              <MessageSquare className="w-3 h-3" />
-                              <span>{c.unresolved_comments_count || 0}</span>
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <div className="flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>{c.unresolved_comments_count || 0}</span>
+                              </div>
+                              {Number(c.total_asset_bytes) > 0 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500 dark:text-slate-400" title={`Cloudflare R2 Storage: ${formatBytes(Number(c.total_asset_bytes))}`}>
+                                  <HardDrive className="w-2.5 h-2.5 text-emerald-500" />
+                                  <span>{formatBytes(Number(c.total_asset_bytes))}</span>
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5">
                               {getStatusBadge(c.status)}
@@ -1141,6 +1373,25 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                         />
                       )
+                    ) : (c.script_content || c.concept_idea) ? (
+                      <div className="w-full h-full bg-gradient-to-br from-slate-900 via-[#0B1528] to-slate-950 border border-slate-700/70 p-3.5 flex flex-col justify-between relative overflow-hidden group-hover:border-[#DC2626]/50 transition">
+                        <div className="flex items-center justify-between z-10">
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#DC2626]/20 border border-[#DC2626]/30 text-[#DC2626] text-[10px] font-extrabold uppercase tracking-wider">
+                            {c.ad_format === 'VIDEO' ? <Film className="w-3.5 h-3.5" /> : <Palette className="w-3.5 h-3.5" />}
+                            <span>{c.ad_format === 'VIDEO' ? 'Video Script' : 'Poster Idea'}</span>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-slate-400">📝 Script Ready</span>
+                        </div>
+                        <div className="z-10 my-auto py-1">
+                          <p className="text-xs text-slate-200 font-mono line-clamp-3 leading-relaxed whitespace-pre-wrap italic">
+                            &ldquo;{(c.script_content || c.concept_idea).trim()}&rdquo;
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between z-10 text-[10px] text-slate-400 border-t border-slate-800/80 pt-1">
+                          <span>{c.script_content ? `${c.script_content.length} chars` : 'Concept brief'}</span>
+                          <span className="text-[#DC2626] font-semibold">Open Studio →</span>
+                        </div>
+                      </div>
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1 bg-slate-100 dark:bg-slate-800/60">
                         <ImageIcon className="w-8 h-8" />
@@ -1206,6 +1457,15 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                         </span>
                         <span>•</span>
                         <span>{c.version_count || 1} versions</span>
+                        {Number(c.total_asset_bytes) > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold" title={`R2 Cloudflare Storage: ${formatBytes(Number(c.total_asset_bytes))}`}>
+                              <HardDrive className="w-3 h-3 text-emerald-500" />
+                              <span>{formatBytes(Number(c.total_asset_bytes))}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         {getStatusBadge(c.status)}
@@ -1262,6 +1522,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                       <th className="py-3 px-4">Client & Project</th>
                       <th className="py-3 px-4">Deliverable Task</th>
                       <th className="py-3 px-4">Platform & Format</th>
+                      <th className="py-3 px-4">Storage (R2)</th>
                       <th className="py-3 px-4">Active Version</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4">Comments</th>
@@ -1337,6 +1598,16 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                           <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                             {c.target_platform} • {c.ad_format}
                           </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs">
+                          {Number(c.total_asset_bytes) > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                              <HardDrive className="w-3 h-3" />
+                              <span>{formatBytes(Number(c.total_asset_bytes))}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
                           v{c.active_version || 1}
@@ -1596,8 +1867,18 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     </div>
                   </div>
 
-                  {/* Canvas Controls: Watermark Toggle + Pin Drop Toggle */}
+                  {/* Canvas Controls: Watermark Toggle + Pin Drop Toggle + Asset Size */}
                   <div className="flex items-center gap-2">
+                    {currentAsset?.file_size_bytes && Number(currentAsset.file_size_bytes) > 0 && (
+                      <div
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-semibold"
+                        title={`Asset Size stored on Cloudflare R2: ${formatBytes(Number(currentAsset.file_size_bytes))}`}
+                      >
+                        <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{formatBytes(Number(currentAsset.file_size_bytes))}</span>
+                      </div>
+                    )}
+
                     <button
                       onClick={() => setShowWatermark(!showWatermark)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${showWatermark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs' : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'}`}
@@ -1824,15 +2105,63 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   )}
                 </div>
 
-                {/* Comments Header */}
-                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070D18]">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-[#DC2626]" />
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Annotations & Feedback ({currentProof?.comments?.length || 0})
-                    </h3>
-                  </div>
+                {/* Studio Sidebar Tabs: Comments vs Script/Concept vs Ad Details */}
+                <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-[#070D18] p-1 gap-1 text-xs">
+                  <button
+                    onClick={() => setStudioActiveTab('comments')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      studioActiveTab === 'comments'
+                        ? 'bg-white dark:bg-[#0B1424] text-[#DC2626] shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Feedback ({currentProof?.comments?.length || 0})</span>
+                  </button>
+                  <button
+                    onClick={() => setStudioActiveTab('script')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      studioActiveTab === 'script'
+                        ? 'bg-white dark:bg-[#0B1424] text-[#DC2626] shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {activeCreativeDetails.creative.ad_format === 'VIDEO' ? (
+                      <Film className="w-3.5 h-3.5" />
+                    ) : (
+                      <Palette className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {activeCreativeDetails.creative.ad_format === 'VIDEO'
+                        ? 'Scripting'
+                        : 'Poster Idea'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setStudioActiveTab('info')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      studioActiveTab === 'info'
+                        ? 'bg-white dark:bg-[#0B1424] text-[#DC2626] shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Ad Copy</span>
+                  </button>
                 </div>
+
+                {/* TAB 1: COMMENTS & ANNOTATIONS */}
+                {studioActiveTab === 'comments' && (
+                  <>
+                    {/* Comments Header */}
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070D18]">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-[#DC2626]" />
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                          Annotations &amp; Feedback ({currentProof?.comments?.length || 0})
+                        </h3>
+                      </div>
+                    </div>
 
                 {/* Comments List */}
                 <div className="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar">
@@ -1956,6 +2285,263 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                     </button>
                   </div>
                 </div>
+                  </>
+                )}
+
+                {/* TAB 2: SCRIPTING & POSTER / IMAGE CONCEPT WORKSPACE */}
+                {studioActiveTab === 'script' && (
+                  <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar">
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          {activeCreativeDetails.creative.ad_format === 'VIDEO' ? (
+                            <Film className="w-4 h-4 text-[#DC2626]" />
+                          ) : (
+                            <Palette className="w-4 h-4 text-[#DC2626]" />
+                          )}
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                            {activeCreativeDetails.creative.ad_format === 'VIDEO'
+                              ? 'Video Script & Scene Breakdown'
+                              : 'Poster Idea & Visual Direction'}
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#DC2626]/10 text-[#DC2626]">
+                          {activeCreativeDetails.creative.ad_format}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {activeCreativeDetails.creative.ad_format === 'VIDEO'
+                          ? 'Draft scene sequences, spoken dialogue, B-roll cues, hooks, and timestamps.'
+                          : 'Outline composition, focal art direction, color themes, badges, and layout hierarchy.'}
+                      </p>
+                    </div>
+
+                    {/* Quick Insert helpers */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Snippets</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              (studioScript ? studioScript + '\n\n' : '') + (studioConcept ? studioConcept : '')
+                            );
+                            setCopiedScriptFeedback(true);
+                            setTimeout(() => setCopiedScriptFeedback(false), 2000);
+                          }}
+                          className="text-[10px] text-blue-500 hover:text-blue-600 font-semibold cursor-pointer"
+                        >
+                          {copiedScriptFeedback ? '✓ Copied!' : 'Copy Text'}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeCreativeDetails.creative.ad_format === 'VIDEO' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setStudioScript((prev) => (prev ? prev + '\n\n' : '') + '[HOOK 0:00 - 0:03]: ')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Hook
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStudioScript((prev) => (prev ? prev + '\n\n' : '') + '[SCENE 1 - PAIN POINT]: ')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Problem
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStudioScript((prev) => (prev ? prev + '\n\n' : '') + '[SCENE 2 - SOLUTION & DEMO]: ')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Solution
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStudioScript((prev) => (prev ? prev + '\n\n' : '') + '[CTA 0:25 - 0:30]: Swipe up or click the link below to get 30% off!')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Video CTA
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setStudioConcept((prev) => (prev ? prev + '\n\n' : '') + '• Hero Visual: Centered high-contrast product cutout with soft neon backlight.')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Hero Visual
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStudioConcept((prev) => (prev ? prev + '\n\n' : '') + '• Color Palette: Dark sleek obsidian background (#0B1424) with vibrant red/amber accents.')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Color Mood
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStudioConcept((prev) => (prev ? prev + '\n\n' : '') + '• Promotional Badge: Top-right corner pill "LIMITED TIME OFFER - 25% OFF"')}
+                              className="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-[#DC2626] rounded-md transition font-medium cursor-pointer"
+                            >
+                              + Promo Badge
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Script Content Area */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                        <span>
+                          {activeCreativeDetails.creative.ad_format === 'VIDEO'
+                            ? 'Full Video Script & Voiceover'
+                            : 'Poster Concept & Visual Layout'}
+                        </span>
+                        <span className="text-[10px] font-normal text-slate-400">
+                          {studioScript.length} characters
+                        </span>
+                      </label>
+                      <textarea
+                        rows={7}
+                        value={studioScript}
+                        onChange={(e) => setStudioScript(e.target.value)}
+                        placeholder={
+                          activeCreativeDetails.creative.ad_format === 'VIDEO'
+                            ? 'Enter script scenes, narrator dialogue, timestamps, voiceover notes, sound design cues...'
+                            : 'Describe visual composition, hero placement, typography sizes, contrast style...'
+                        }
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]/20 transition resize-none custom-scrollbar"
+                      />
+                    </div>
+
+                    {/* Concept Idea Area */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                        <span>
+                          {activeCreativeDetails.creative.ad_format === 'VIDEO'
+                            ? 'Video Concept / Storyboard Idea'
+                            : 'Image / Banner Creative Strategy'}
+                        </span>
+                        <span className="text-[10px] font-normal text-slate-400">
+                          {studioConcept.length} characters
+                        </span>
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={studioConcept}
+                        onChange={(e) => setStudioConcept(e.target.value)}
+                        placeholder="Core thematic idea, target emotional hook, aesthetic vibe, key value proposition..."
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]/20 transition resize-none custom-scrollbar"
+                      />
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveStudioScriptAndConcept}
+                        disabled={isSavingStudioMeta}
+                        className="w-full py-2 px-3 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-md shadow-red-500/20"
+                      >
+                        {isSavingStudioMeta ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        <span>Save Script &amp; Concept</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: AD COPY & METADATA */}
+                {studioActiveTab === 'info' && (
+                  <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar">
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-1">
+                        Ad Copy &amp; Metadata
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Primary headline, ad copy, platform targeting, and call-to-action button text.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Ad Headline
+                        </label>
+                        <input
+                          type="text"
+                          value={studioHeadline}
+                          onChange={(e) => setStudioHeadline(e.target.value)}
+                          placeholder="e.g. Stop wasting 10 hours a week on reporting"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]/20 transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Primary Copy / Caption
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={studioPrimaryCopy}
+                          onChange={(e) => setStudioPrimaryCopy(e.target.value)}
+                          placeholder="Primary ad caption text shown to audience..."
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]/20 transition resize-none custom-scrollbar"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            Call to Action (CTA)
+                          </label>
+                          <input
+                            type="text"
+                            value={studioCta}
+                            onChange={(e) => setStudioCta(e.target.value)}
+                            placeholder="e.g. Learn More, Sign Up"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#DC2626]/20 transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            Platform
+                          </label>
+                          <input
+                            type="text"
+                            disabled
+                            value={activeCreativeDetails.creative.platform || 'UNIVERSAL'}
+                            className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-500 font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveStudioScriptAndConcept}
+                        disabled={isSavingStudioMeta}
+                        className="w-full py-2 px-3 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-md shadow-red-500/20"
+                      >
+                        {isSavingStudioMeta ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        <span>Save Ad Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2006,7 +2592,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   <select
                     required
                     value={createForm.clientId}
-                    onChange={(e) => setCreateForm({ ...createForm, clientId: e.target.value })}
+                    onChange={(e) => setCreateForm({ ...createForm, clientId: e.target.value, projectId: '', taskId: '' })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                   >
                     <option value="">Select client account...</option>
@@ -2023,7 +2609,7 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   <select
                     value={createForm.projectId}
                     disabled={!createForm.clientId}
-                    onChange={(e) => setCreateForm({ ...createForm, projectId: e.target.value })}
+                    onChange={(e) => setCreateForm({ ...createForm, projectId: e.target.value, taskId: '' })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#060B13] border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-50"
                   >
                     <option value="">
@@ -2109,6 +2695,43 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                   </select>
                 </div>
               </div>
+
+              {/* Dynamic Scripting or Poster Idea based on format */}
+              {createForm.adFormat === 'VIDEO' ? (
+                <div className="space-y-1.5 p-3.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Video Script &amp; Scene Breakdown (Optional)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">Hooks, scenes &amp; voiceover notes</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder="Hook (0-3s): Attention-grabbing opening line or action&#10;Scene 1 (3-15s): Key pain point and solution demo&#10;Scene 2 (15-25s): Features, social proof &amp; offer&#10;CTA (25-30s): Next steps, link in bio or swipe up..."
+                    value={createForm.scriptContent}
+                    onChange={(e) => setCreateForm({ ...createForm, scriptContent: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#060B13] border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5 p-3.5 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Poster Idea &amp; Visual Concept (Optional)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">Theme, layout, focal point &amp; colors</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder="Visual Direction &amp; Layout:&#10;• Focal Hero Graphic / Product center-stage&#10;• Bold headline placement at top with badge&#10;• High contrast brand colors (e.g. Electric Red on Deep Charcoal)&#10;• Call to Action button &amp; verified icon at bottom..."
+                    value={createForm.conceptIdea}
+                    onChange={(e) => setCreateForm({ ...createForm, conceptIdea: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#060B13] border border-purple-200 dark:border-purple-900/60 rounded-xl text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              )}
 
               {/* Ad Copy Fields */}
               <div className="space-y-3 pt-2">
@@ -2574,6 +3197,266 @@ export const CreativeProofingView: React.FC<CreativeProofingViewProps> = ({ onNa
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. CLOUDFLARE R2 STORAGE VAULT & TELEMETRY MODAL */}
+      {/* ========================================================================= */}
+      {showStorageModal && isMounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in">
+          <div className="bg-white dark:bg-[#0B1424] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070D18]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center shadow-xs">
+                  <HardDrive className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Cloudflare R2 Storage Vault</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Live Bucket Telemetry</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                      Tier: 20 GB Quota
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Bucket: <strong className="font-mono text-slate-700 dark:text-slate-200">{storageDetails?.bucket || 'optivir-creatives'}</strong> • Scanned via S3 ListObjectsV2 API
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncBucket}
+                  disabled={isSyncingBucket || loadingStorageDetails}
+                  title="Rescan and synchronize live Cloudflare R2 bucket objects"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isSyncingBucket ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingBucket ? 'Scanning R2...' : 'Sync Live Bucket'}</span>
+                </button>
+                <button
+                  onClick={() => setShowStorageModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+              {/* Capacity Overview Card */}
+              <div className="bg-slate-50 dark:bg-[#070D18]/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Storage Capacity</div>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-black text-slate-900 dark:text-white">
+                        {storageDetails?.storage?.formattedUsed || metrics?.storage?.formattedUsed || '0 B'}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-400">
+                        used of {storageDetails?.storage?.formattedLimit || metrics?.storage?.formattedLimit || '20 GB'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                      (storageDetails?.storage?.percentUsed || metrics?.storage?.percentUsed || 0) > 85
+                        ? 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+                        : (storageDetails?.storage?.percentUsed || metrics?.storage?.percentUsed || 0) > 60
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      {storageDetails?.storage?.percentUsed ?? metrics?.storage?.percentUsed ?? 0}% Utilized
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {storageDetails?.storage?.totalAssets ?? metrics?.storage?.totalAssets ?? 0} total files
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress bar with gradient */}
+                <div className="space-y-1.5">
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        (storageDetails?.storage?.percentUsed || metrics?.storage?.percentUsed || 0) > 85
+                          ? 'bg-gradient-to-r from-amber-500 to-rose-600'
+                          : (storageDetails?.storage?.percentUsed || metrics?.storage?.percentUsed || 0) > 60
+                          ? 'bg-gradient-to-r from-emerald-500 to-amber-500'
+                          : 'bg-gradient-to-r from-teal-400 to-emerald-500'
+                      }`}
+                      style={{ width: `${Math.max(1.5, Math.min(100, storageDetails?.storage?.percentUsed || metrics?.storage?.percentUsed || 0.5))}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 font-mono font-medium">
+                    <span>0 GB</span>
+                    <span>5 GB</span>
+                    <span>10 GB (50%)</span>
+                    <span>15 GB</span>
+                    <span>20 GB Quota</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Media Format Breakdown Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Videos */}
+                <div className="bg-white dark:bg-[#070D18] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                        <Film className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">Video Proofs</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold text-slate-400">
+                      {storageDetails?.storage?.breakdown?.video?.count ?? metrics?.storage?.breakdown?.video?.count ?? 0} files
+                    </span>
+                  </div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white font-mono">
+                    {storageDetails?.storage?.breakdown?.video?.formatted ?? metrics?.storage?.breakdown?.video?.formatted ?? '0 B'}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Reels, MP4 exports, ads</p>
+                </div>
+
+                {/* Images */}
+                <div className="bg-white dark:bg-[#070D18] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">Images & Slides</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold text-slate-400">
+                      {storageDetails?.storage?.breakdown?.image?.count ?? metrics?.storage?.breakdown?.image?.count ?? 0} files
+                    </span>
+                  </div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white font-mono">
+                    {storageDetails?.storage?.breakdown?.image?.formatted ?? metrics?.storage?.breakdown?.image?.formatted ?? '0 B'}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Banners, carousels, PNG/JPG</p>
+                </div>
+
+                {/* Documents / Others */}
+                <div className="bg-white dark:bg-[#070D18] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">Other Assets</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold text-slate-400">
+                      {storageDetails?.storage?.breakdown?.other?.count ?? metrics?.storage?.breakdown?.other?.count ?? 0} files
+                    </span>
+                  </div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white font-mono">
+                    {storageDetails?.storage?.breakdown?.other?.formatted ?? metrics?.storage?.breakdown?.other?.formatted ?? '0 B'}
+                  </div>
+                  <p className="text-[11px] text-slate-400">PDF briefs, thumbnails, assets</p>
+                </div>
+              </div>
+
+              {/* Largest Files Stored */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Largest Files on R2 Edge</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400">Top storage consumers</span>
+                </div>
+
+                {loadingStorageDetails ? (
+                  <div className="py-8 text-center space-y-2">
+                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-xs text-slate-400">Querying R2 storage registry...</p>
+                  </div>
+                ) : !storageDetails?.largestFiles || storageDetails.largestFiles.length === 0 ? (
+                  <div className="p-8 text-center bg-slate-50 dark:bg-[#070D18] rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-xs">
+                    No files found in Cloudflare R2 bucket.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-[#070D18] text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="py-2.5 px-3">File Name</th>
+                          <th className="py-2.5 px-3">Creative & Client</th>
+                          <th className="py-2.5 px-3">Format</th>
+                          <th className="py-2.5 px-3 text-right">File Size</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-[#0B1424]">
+                        {(storageDetails?.largestFiles || storageDetails?.largestAssets || []).map((file: any) => {
+                          const fileName = file.fileName || file.file_name || 'unnamed_asset';
+                          const creativeName = file.creativeName || file.creative_name || 'Creative';
+                          const clientName = file.clientName || file.client_name || 'Internal';
+                          const assetType = file.assetType || file.asset_type || 'FILE';
+                          const formattedSize = file.formattedSize || file.formatted_size || formatBytes(file.fileSizeBytes || file.file_size_bytes || 0);
+                          const dimensions = (file.widthPx && file.heightPx) ? `${file.widthPx}×${file.heightPx}` : (file.dimensions || '');
+                          const duration = (file.durationSeconds || file.duration_seconds) ? `${Math.round(file.durationSeconds || file.duration_seconds)}s` : '';
+
+                          return (
+                            <tr key={file.id} className="hover:bg-slate-50 dark:hover:bg-[#0F1C30] transition">
+                              <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                                {assetType === 'VIDEO' ? (
+                                  <Film className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                ) : (
+                                  <ImageIcon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                )}
+                                <span className="truncate max-w-[200px]" title={fileName}>
+                                  {fileName}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                                <div className="font-semibold truncate max-w-[180px]">{creativeName}</div>
+                                <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{clientName}</div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  {assetType}
+                                </span>
+                                {(dimensions || duration) && (
+                                  <span className="ml-1 text-[10px] text-slate-400 font-mono">
+                                    {[dimensions, duration].filter(Boolean).join(' • ')}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                {formattedSize}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#070D18] flex items-center justify-between">
+              <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-slate-500" />
+                <span>Encrypted at rest • Served globally via Cloudflare Edge CDN</span>
+              </span>
+              <button
+                onClick={() => setShowStorageModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -105,7 +105,9 @@ router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res: Resp
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -179,7 +181,9 @@ router.get('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res: 
 
     res.json({ success: true, data: inv });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -219,7 +223,9 @@ router.get('/payments', requireAuth, async (req: AuthenticatedRequest, res: Resp
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -282,7 +288,9 @@ router.post('/payments', requireAuth, validateBody(recordPaymentSchema), async (
     res.status(201).json({ success: true, data: paymentRes.rows[0] });
   } catch (err: any) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   } finally {
     client.release();
   }
@@ -324,7 +332,9 @@ router.get('/expenses', requireAuth, async (req: AuthenticatedRequest, res: Resp
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -358,7 +368,9 @@ router.delete('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, re
     await recordAuditLog(orgId, userId, 'DELETE', 'invoices', invoiceId, null, null, req);
     res.json({ success: true, message: 'Invoice successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -392,7 +404,9 @@ router.delete('/expenses/:id', requireAuth, async (req: AuthenticatedRequest, re
     await recordAuditLog(orgId, userId, 'DELETE', 'expenses', expenseId, null, null, req);
     res.json({ success: true, message: 'Expense successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -498,7 +512,9 @@ router.post('/invoices', requireAuth, validateBody(createInvoiceSchema), async (
       client.release();
     }
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -548,7 +564,9 @@ router.patch('/invoices/:id', requireAuth, async (req: AuthenticatedRequest, res
     await recordAuditLog(orgId, userId, 'UPDATE', 'invoices', invoiceId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -591,7 +609,9 @@ router.post('/expenses', requireAuth, validateBody(createExpenseSchema), async (
     await recordAuditLog(orgId, userId, 'CREATE', 'expenses', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in finance.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 

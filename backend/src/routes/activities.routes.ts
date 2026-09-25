@@ -32,7 +32,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Activities Create Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to create activity record' });
   }
 });
 
@@ -68,7 +69,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Activities List Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch activities' });
   }
 });
 

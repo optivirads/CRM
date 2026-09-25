@@ -67,12 +67,6 @@ export default function ClientDocumentPortalPage() {
     }
   }, [resendTimer]);
 
-  useEffect(() => {
-    if (token) {
-      loadDocument();
-    }
-  }, [token]);
-
   const loadDocument = async (overrideToken?: string) => {
     try {
       setLoading(true);
@@ -120,6 +114,12 @@ export default function ClientDocumentPortalPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (token) {
+      loadDocument();
+    }
+  }, [token]);
 
   const handleRequestOtp = async () => {
     if (!otpEmail || !otpEmail.includes('@')) {

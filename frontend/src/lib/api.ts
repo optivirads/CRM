@@ -529,7 +529,14 @@ class ApiClient {
   }
 
   async updateTask(id: string, payload: any) {
-    return this.request<{ success: boolean; data: any }>(`/projects/tasks/${id}`, {
+    return this.request<{ success: boolean; data: any; message?: string }>(`/projects/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateTaskScript(id: string, payload: { deliverable_type?: string; deliverableType?: string; script_content?: string; scriptContent?: string; concept_idea?: string; conceptIdea?: string }) {
+    return this.request<{ success: boolean; data: any; message?: string }>(`/projects/tasks/${id}/script`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
@@ -1158,8 +1165,81 @@ class ApiClient {
         overdue: number;
         approvalRate: number;
         revisionsRequested: number;
+        storage?: {
+          totalBytes: number;
+          formattedUsed: string;
+          limitBytes: number;
+          formattedLimit: string;
+          percentUsed: number;
+          remainingBytes: number;
+          formattedRemaining: string;
+          totalAssets: number;
+          breakdown: {
+            video: { bytes: number; formatted: string; count: number; percent: number };
+            image: { bytes: number; formatted: string; count: number; percent: number };
+            other: { bytes: number; formatted: string; count: number; percent: number };
+          };
+          provider: string;
+          bucket: string;
+          status: string;
+        };
       };
     }>('/creatives/metrics');
+  }
+
+  async getCreativeStorageDetails(forceRefresh = false) {
+    return this.request<{
+      success: boolean;
+      bucket: string;
+      isLiveBucketScan?: boolean;
+      lastScannedAt?: string;
+      storage: {
+        totalBytes: number;
+        formattedUsed: string;
+        limitBytes: number;
+        formattedLimit: string;
+        percentUsed: number;
+        remainingBytes: number;
+        formattedRemaining: string;
+        totalAssets: number;
+        breakdown: {
+          video: { bytes: number; formatted: string; count: number; percent: number };
+          image: { bytes: number; formatted: string; count: number; percent: number };
+          other: { bytes: number; formatted: string; count: number; percent: number };
+        };
+        provider: string;
+        bucket: string;
+        isLiveBucketScan?: boolean;
+        lastScannedAt?: string;
+        status: string;
+      };
+      largestAssets: Array<{
+        id: string;
+        fileName: string;
+        fileSizeBytes: number;
+        formattedSize: string;
+        assetType: string;
+        mimeType: string;
+        createdAt: string;
+        widthPx?: number;
+        heightPx?: number;
+        durationSeconds?: number;
+        creativeName: string;
+        creativeId: string;
+        clientName: string;
+      }>;
+      largestFiles?: any[];
+    }>(`/creatives/storage${forceRefresh ? '?forceRefresh=true' : ''}`);
+  }
+
+  async syncCreativeStorage() {
+    return this.request<{
+      success: boolean;
+      message: string;
+      storage: any;
+    }>('/creatives/storage/sync', {
+      method: 'POST'
+    });
   }
 
   async getCreatives(params?: {
@@ -1212,6 +1292,8 @@ class ApiClient {
     designerId?: string;
     approvalDueAt?: string;
     tags?: string[];
+    scriptContent?: string;
+    conceptIdea?: string;
     initialProof?: {
       title?: string;
       changeSummary?: string;

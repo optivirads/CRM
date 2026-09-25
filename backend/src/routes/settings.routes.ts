@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { db } from '../config/db';
-import { requireAuth, requireRole, requireOwner, requireOwnerOrRole, invalidateOrgSecurityCache, recordAuditLog } from '../middleware/auth';
+import { requireAuth, requireRole, requireOwner, requireOwnerOrRole, invalidateOrgSecurityCache, recordAuditLog, isRootOwnerEmail } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AuthenticatedRequest } from '../types';
 import { hashPassword } from '../utils/auth';
@@ -16,7 +16,9 @@ const createUserSchema = z.object({
   team_id: z.string().optional().nullable(),
   client_id: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
-  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  // Owner can set any simple temp password (e.g. 'admin123')
+  // User will be forced to change it on first login via OTP
+  password: z.string().min(1, 'Password must not be empty').max(256).optional(),
   allowed_tabs: z.array(z.string()).optional()
 });
 
@@ -38,8 +40,7 @@ export function isExecutiveOwner(user: any): boolean {
   if (!user) return false;
   const email = (user.email || '').toLowerCase().trim();
   return (
-    email === 'optivirads@gmail.com' ||
-    email === 'abhinandc97@gmail.com' ||
+    isRootOwnerEmail(email) ||
     Boolean(user.isOwner) ||
     user.role === 'owner' ||
     user.role === 'super_admin'
@@ -90,7 +91,9 @@ router.get('/organization', requireAuth, async (req: AuthenticatedRequest, res: 
     });
   } catch (err: any) {
     console.error('Fetch organization settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -162,7 +165,9 @@ router.put('/organization', requireAuth, requireOwnerOrRole('admin', 'super_admi
     });
   } catch (err: any) {
     console.error('Update organization settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -198,7 +203,9 @@ router.get('/regional', requireAuth, async (req: AuthenticatedRequest, res: Resp
     });
   } catch (err: any) {
     console.error('Fetch regional settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -266,7 +273,9 @@ router.put('/regional', requireAuth, requireOwnerOrRole('admin', 'super_admin'),
     });
   } catch (err: any) {
     console.error('Update regional settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -296,7 +305,9 @@ router.get('/preferences', requireAuth, async (req: AuthenticatedRequest, res: R
     });
   } catch (err: any) {
     console.error('Fetch user preferences error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -341,7 +352,9 @@ router.put('/preferences', requireAuth, async (req: AuthenticatedRequest, res: R
     });
   } catch (err: any) {
     console.error('Update user preferences error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -393,7 +406,9 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
     });
   } catch (err: any) {
     console.error('Fetch profile error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -449,7 +464,9 @@ router.patch('/profile', requireAuth, validateBody(updateProfileSchema), async (
     });
   } catch (err: any) {
     console.error('Update profile error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -565,7 +582,9 @@ router.get('/users', requireAuth, async (req: AuthenticatedRequest, res: Respons
     res.json({ success: true, data: formatted });
   } catch (err: any) {
     console.error('Fetch users error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -576,10 +595,10 @@ router.post(
   '/users/:id/revoke-session',
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    if (req.user?.email?.toLowerCase() !== 'optivirads@gmail.com') {
+    if (!isRootOwnerEmail(req.user?.email || '')) {
       res.status(403).json({
         success: false,
-        message: 'Access Denied: Only optivirads@gmail.com is authorized to log out users and terminate active sessions.'
+        message: 'Access Denied: Only the primary account owner is authorized to terminate active sessions.'
       });
       return;
     }
@@ -623,7 +642,7 @@ router.post(
       res.json({ success: true, message: 'User session terminated successfully' });
     } catch (err: any) {
       console.error('Revoke session error:', err);
-      res.status(500).json({ success: false, message: 'Failed to revoke session: ' + err.message });
+      res.status(500).json({ success: false, message: 'Failed to revoke session' });
     }
   }
 );
@@ -661,9 +680,11 @@ router.post('/users', requireAuth, validateBody(createUserSchema), async (req: A
       const updates: string[] = ['updated_at = NOW()'];
       const params: any[] = [userId];
 
-      if (password && password.trim().length >= 6) {
+      if (password && password.trim().length >= 1) {
         params.push(hashPassword(password.trim()));
         updates.push(`password_hash = $${params.length}`);
+        // Always require password change when owner resets a password
+        updates.push('force_password_change = TRUE');
       }
       if (firstName) {
         params.push(firstName);
@@ -679,11 +700,11 @@ router.post('/users', requireAuth, validateBody(createUserSchema), async (req: A
       }
       await db.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $1;`, params);
     } else {
-      const initialPassword = (password && password.trim().length >= 6) ? password.trim() : 'Optivir@2026';
+      const initialPassword = (password && password.trim().length >= 1) ? password.trim() : 'Optivir@2026';
       const defaultHash = hashPassword(initialPassword);
       const newUser = await db.query(`
-        INSERT INTO users (email, password_hash, first_name, last_name, phone, status)
-        VALUES ($1, $2, $3, $4, $5, 'active')
+        INSERT INTO users (email, password_hash, first_name, last_name, phone, status, force_password_change)
+        VALUES ($1, $2, $3, $4, $5, 'active', TRUE)
         RETURNING id;
       `, [cleanEmail, defaultHash, firstName, lastName, phone || null]);
       userId = newUser.rows[0].id;
@@ -737,7 +758,9 @@ router.post('/users', requireAuth, validateBody(createUserSchema), async (req: A
     });
   } catch (err: any) {
     console.error('Invite user error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -878,7 +901,9 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     res.json({ success: true, message: 'User updated successfully', data: rows[0] });
   } catch (err: any) {
     console.error('Update user error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -925,7 +950,9 @@ router.post('/users/:id/reset-password', requireAuth, async (req: AuthenticatedR
     res.json({ success: true, message: 'Password has been reset successfully' });
   } catch (err: any) {
     console.error('Admin reset password error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -981,7 +1008,9 @@ router.delete('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     res.json({ success: true, message: 'Member removed from directory' });
   } catch (err: any) {
     console.error('Delete user error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1029,7 +1058,9 @@ router.get('/roles', requireAuth, async (req: AuthenticatedRequest, res: Respons
     });
   } catch (err: any) {
     console.error('Fetch roles error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1078,7 +1109,9 @@ router.post('/roles', requireAuth, requireOwner, async (req: AuthenticatedReques
     res.json({ success: true, message: `Role "${name}" created`, data: rows[0] });
   } catch (err: any) {
     console.error('Create role error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1136,7 +1169,9 @@ router.put('/roles/:id/permissions', requireAuth, requireOwner, async (req: Auth
     });
   } catch (err: any) {
     console.error('Update role permissions error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1171,7 +1206,9 @@ router.delete('/roles/:id', requireAuth, requireOwner, async (req: Authenticated
     res.json({ success: true, message: 'Role deleted' });
   } catch (err: any) {
     console.error('Delete role error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1229,7 +1266,9 @@ router.get('/teams', requireAuth, async (req: AuthenticatedRequest, res: Respons
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch teams error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1278,7 +1317,9 @@ router.post('/teams', requireAuth, requireOwnerOrRole('admin', 'super_admin'), a
     res.json({ success: true, message: `Pod "${name}" created!`, data: rows[0] });
   } catch (err: any) {
     console.error('Create team error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1319,7 +1360,9 @@ router.patch('/teams/:id', requireAuth, requireOwnerOrRole('admin', 'super_admin
     res.json({ success: true, message: 'Pod updated', data: rows[0] });
   } catch (err: any) {
     console.error('Update team error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1348,7 +1391,9 @@ router.delete('/teams/:id', requireAuth, requireOwnerOrRole('admin', 'super_admi
     res.json({ success: true, message: 'Pod deleted successfully' });
   } catch (err: any) {
     console.error('Delete team error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1374,7 +1419,9 @@ router.get('/security', requireAuth, async (req: AuthenticatedRequest, res: Resp
     });
   } catch (err: any) {
     console.error('Fetch security settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1424,7 +1471,9 @@ router.put('/security', requireAuth, requireOwner, validateBody(securitySchema),
     });
   } catch (err: any) {
     console.error('Update security settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1492,7 +1541,9 @@ router.get('/pipelines', requireAuth, async (req: AuthenticatedRequest, res: Res
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch pipelines error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1526,7 +1577,9 @@ router.post('/pipelines', requireAuth, requireOwnerOrRole('admin', 'super_admin'
     res.json({ success: true, message: 'Pipeline created', data: rows[0] });
   } catch (err: any) {
     console.error('Create pipeline error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1580,7 +1633,9 @@ router.post('/pipelines/:id/stages', requireAuth, async (req: AuthenticatedReque
     });
   } catch (err: any) {
     console.error('Create stage error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1622,7 +1677,9 @@ router.patch('/stages/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     res.json({ success: true, message: 'Stage updated', data: rows[0] });
   } catch (err: any) {
     console.error('Update stage error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1647,7 +1704,9 @@ router.delete('/stages/:id', requireAuth, requireOwnerOrRole('admin', 'super_adm
     res.json({ success: true, message: 'Stage deleted' });
   } catch (err: any) {
     console.error('Delete stage error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1707,7 +1766,9 @@ router.get('/custom-fields', requireAuth, async (req: AuthenticatedRequest, res:
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch custom fields error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1761,7 +1822,9 @@ router.post('/custom-fields', requireAuth, async (req: AuthenticatedRequest, res
     });
   } catch (err: any) {
     console.error('Create custom field error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1790,7 +1853,9 @@ router.delete('/custom-fields/:id', requireAuth, async (req: AuthenticatedReques
     res.json({ success: true, message: 'Custom field deleted' });
   } catch (err: any) {
     console.error('Delete custom field error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1819,7 +1884,9 @@ router.get('/tags', requireAuth, async (req: AuthenticatedRequest, res: Response
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch tags error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1866,7 +1933,9 @@ router.post('/tags', requireAuth, async (req: AuthenticatedRequest, res: Respons
     });
   } catch (err: any) {
     console.error('Create tag error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1895,7 +1964,9 @@ router.delete('/tags/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     res.json({ success: true, message: 'Tag deleted' });
   } catch (err: any) {
     console.error('Delete tag error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1938,7 +2009,9 @@ router.get('/services', requireAuth, async (req: AuthenticatedRequest, res: Resp
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch services error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1980,7 +2053,9 @@ router.post('/services', requireAuth, async (req: AuthenticatedRequest, res: Res
     res.json({ success: true, message: `Package "${name}" created!`, data: rows[0] });
   } catch (err: any) {
     console.error('Create service error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2023,7 +2098,9 @@ router.patch('/services/:id', requireAuth, async (req: AuthenticatedRequest, res
     res.json({ success: true, message: 'Service package updated', data: rows[0] });
   } catch (err: any) {
     console.error('Update service error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2052,7 +2129,9 @@ router.delete('/services/:id', requireAuth, async (req: AuthenticatedRequest, re
     res.json({ success: true, message: 'Service package deleted' });
   } catch (err: any) {
     console.error('Delete service error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2092,7 +2171,9 @@ router.get('/lead-sources', requireAuth, async (req: AuthenticatedRequest, res: 
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch lead sources error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2137,7 +2218,9 @@ router.post('/lead-sources', requireAuth, async (req: AuthenticatedRequest, res:
     });
   } catch (err: any) {
     console.error('Create lead source error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2178,7 +2261,9 @@ router.patch('/lead-sources/:id', requireAuth, async (req: AuthenticatedRequest,
     res.json({ success: true, message: 'Lead source updated', data: rows[0] });
   } catch (err: any) {
     console.error('Update lead source error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2207,7 +2292,9 @@ router.delete('/lead-sources/:id', requireAuth, async (req: AuthenticatedRequest
     res.json({ success: true, message: 'Lead source deleted' });
   } catch (err: any) {
     console.error('Delete lead source error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2246,7 +2333,9 @@ router.get('/document-templates', requireAuth, async (req: AuthenticatedRequest,
     res.json({ success: true, data });
   } catch (err: any) {
     console.error('Fetch document templates error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2299,7 +2388,9 @@ router.post('/document-templates', requireAuth, async (req: AuthenticatedRequest
     res.json({ success: true, message: `Template "${name}" saved!`, data: result });
   } catch (err: any) {
     console.error('Save document template error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2328,7 +2419,9 @@ router.delete('/document-templates/:id', requireAuth, async (req: AuthenticatedR
     res.json({ success: true, message: 'Template removed' });
   } catch (err: any) {
     console.error('Delete template error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2357,7 +2450,9 @@ router.get('/billing', requireAuth, async (req: AuthenticatedRequest, res: Respo
     });
   } catch (err: any) {
     console.error('Fetch billing settings error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2407,7 +2502,9 @@ router.put('/billing', requireAuth, requireOwner, async (req: AuthenticatedReque
     });
   } catch (err: any) {
     console.error('Update billing error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -2498,7 +2595,9 @@ router.get('/audit-logs', requireAuth, async (req: AuthenticatedRequest, res: Re
     });
   } catch (err: any) {
     console.error('Fetch audit logs error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in settings.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 

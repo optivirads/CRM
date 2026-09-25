@@ -199,6 +199,95 @@ async function createInAppNotification(
 }
 
 /**
+ * Notifies the assigned user of a task when a creative script or creative details are added/updated
+ */
+async function notifyTaskAssigneeOnCreativeEvent({
+  orgId,
+  taskId,
+  creativeId,
+  creativeName,
+  actorName,
+  actorId,
+  event,
+  scriptSnippet
+}: {
+  orgId: string;
+  taskId: string;
+  creativeId: string;
+  creativeName: string;
+  actorName: string;
+  actorId: string;
+  event: 'script_added' | 'script_updated' | 'details_added';
+  scriptSnippet?: string | null;
+}) {
+  try {
+    const taskRes = await db.query(
+      `SELECT t.id, t.title, t.assignee_id, u.email as assignee_email, u.first_name as assignee_first_name
+       FROM tasks t
+       LEFT JOIN users u ON t.assignee_id = u.id
+       WHERE t.id = $1 AND t.organization_id = $2 AND t.deleted_at IS NULL`,
+      [taskId, orgId]
+    );
+    if (taskRes.rows.length === 0) return;
+    const task = taskRes.rows[0];
+
+    // Determine target users to notify:
+    // If task has an assigned user (and not the actor), notify them.
+    // If task has no assignee yet, notify all internal organization team members so they know script was added!
+    let targetUserIds: string[] = [];
+    if (task.assignee_id && task.assignee_id !== actorId) {
+      targetUserIds.push(task.assignee_id);
+    } else if (!task.assignee_id) {
+      const orgUsers = await db.query(
+        `SELECT user_id FROM organization_users WHERE organization_id = $1 AND user_id != $2`,
+        [orgId, actorId]
+      );
+      targetUserIds = orgUsers.rows.map(r => r.user_id);
+    }
+
+    if (targetUserIds.length === 0) return;
+
+    let title = '';
+    let message = '';
+    if (event === 'script_added') {
+      title = `📝 Creative Script Added: ${creativeName}`;
+      message = `${actorName} added a creative script for task "${task.title}".`;
+    } else if (event === 'script_updated') {
+      title = `📝 Creative Script Updated: ${creativeName}`;
+      message = `${actorName} updated the creative script/concept for task "${task.title}".`;
+    } else {
+      title = `🎨 Creative Details Added: ${creativeName}`;
+      message = `${actorName} added creative details for task "${task.title}".`;
+    }
+
+    if (scriptSnippet && typeof scriptSnippet === 'string' && scriptSnippet.trim()) {
+      const cleanSnippet = scriptSnippet.trim().replace(/\s+/g, ' ').slice(0, 120);
+      message += ` Script: "${cleanSnippet}${scriptSnippet.trim().length > 120 ? '...' : ''}"`;
+    }
+
+    const notifLink = `/?tab=tasks&id=${task.id}`;
+
+    for (const uId of targetUserIds) {
+      // 1. In-App Notification (renders in user notifications)
+      await db.query(
+        `INSERT INTO notifications (organization_id, user_id, title, message, link, type, is_read)
+         VALUES ($1, $2, $3, $4, $5, 'task_creative_script', false)`,
+        [orgId, uId, title, message, notifLink]
+      );
+    }
+
+    // 2. Activity Feed (renders in Activity timeline & bell)
+    await db.query(
+      `INSERT INTO activities (organization_id, type, subject, description, completed_at)
+       VALUES ($1, 'Task', $2, $3, NOW())`,
+      [orgId, title, message]
+    );
+  } catch (err) {
+    console.error('[Creative Task Assignee Notification Error]:', err);
+  }
+}
+
+/**
  * Access Control Helper:
  * Determines if user has global org-level creative access or client-scoped access
  */
@@ -238,45 +327,8 @@ function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tabl
     return ` AND ${tablePrefix}.client_id = $${params.length}`;
   }
 
-  // 2. Global Agency Leadership & Assistants: Access all creatives in current organization
-  if (isGlobalRole(user.role, user.isOwner)) {
-    return '';
-  }
-
-  // 3. Scoped Team Members:
-  // Access if:
-  // - Assigned as Account Manager or Account Assistant(s) on the Client
-  // - Assigned to the Project as a member
-  // - Assigned as the Designer on the Creative
-  // - Or is the Creator of the Creative
-  // - Or Creative is internal agency asset (client_id is null)
-  params.push(user.id);
-  const userParamIdx = params.length;
-
-  return ` AND (
-    ${tablePrefix}.designer_id = $${userParamIdx}
-    OR ${tablePrefix}.created_by = $${userParamIdx}
-    OR ${tablePrefix}.client_id IS NULL
-    OR EXISTS (
-      SELECT 1 FROM clients cl_scope
-      WHERE cl_scope.id = ${tablePrefix}.client_id
-      AND (
-        cl_scope.account_manager_id = $${userParamIdx}
-        OR cl_scope.account_assistant_id = $${userParamIdx}
-        OR $${userParamIdx} = ANY(COALESCE(cl_scope.account_assistant_ids, '{}'))
-        OR EXISTS (
-          SELECT 1 FROM client_assistants ca_sub
-          WHERE ca_sub.client_id = cl_scope.id
-          AND ca_sub.user_id = $${userParamIdx}
-        )
-      )
-    )
-    OR EXISTS (
-      SELECT 1 FROM project_members pm_scope
-      WHERE pm_scope.project_id = ${tablePrefix}.project_id
-      AND pm_scope.user_id = $${userParamIdx}
-    )
-  )`;
+  // 2. All internal agency team members in this organization have access to view and collaborate on creatives & scripts
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +450,7 @@ router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Req
     });
   } catch (err: any) {
     console.error('[Request Proof OTP Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to send verification code', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to send verification code'});
   }
 });
 
@@ -493,7 +545,7 @@ router.post('/public/proofs/:token/verify-otp', otpRateLimiter, async (req: Requ
     });
   } catch (err: any) {
     console.error('[Verify Proof OTP Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to verify code', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to verify code'});
   }
 });
 
@@ -714,7 +766,7 @@ router.get('/public/proofs/:token', async (req: Request, res: Response): Promise
     });
   } catch (err: any) {
     console.error('[Public Proof API] Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to load client proof', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to load client proof'});
   }
 });
 
@@ -773,7 +825,7 @@ router.get('/public/proofs/:token/assets/:assetId/download', async (req: Request
     });
   } catch (err: any) {
     console.error('[Public Download API Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate watermarked proof download', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to generate watermarked proof download'});
   }
 });
 
@@ -897,7 +949,7 @@ router.post('/public/proofs/:token/comments', async (req: Request, res: Response
     });
   } catch (err: any) {
     console.error('[Public Proof API] Client Comment Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to post comment', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to post comment'});
   }
 });
 
@@ -1023,13 +1075,13 @@ router.post('/public/proofs/:token/approve', async (req: Request, res: Response)
     } catch (err: any) {
       await client.query('ROLLBACK');
       console.error('[Public Proof API] Client Approval Error:', err);
-      res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
+      res.status(500).json({ success: false, message: 'Failed to record approval'});
     } finally {
       client.release();
     }
   } catch (err: any) {
     console.error('[Public Proof API] Client Approval Outer Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to record approval'});
   }
 });
 
@@ -1155,20 +1207,32 @@ router.post('/public/proofs/:token/request-changes', async (req: Request, res: R
     } catch (err: any) {
       await client.query('ROLLBACK');
       console.error('[Public Proof API] Request Changes Error:', err);
-      res.status(500).json({ success: false, message: 'Failed to record change request', error: err.message });
+      res.status(500).json({ success: false, message: 'Failed to record change request'});
     } finally {
       client.release();
     }
   } catch (err: any) {
     console.error('[Public Proof API] Request Changes Outer Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to record change request', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to record change request'});
   }
 });
 
 
 
 // ---------------------------------------------------------------------------
-// 1. METRICS & KPI DASHBOARD (Scoped)
+// Helper: Format Bytes to Human-Readable String
+// ---------------------------------------------------------------------------
+function formatBytes(bytes: number, decimals = 1): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+// ---------------------------------------------------------------------------
+// 1. METRICS & KPI DASHBOARD (Scoped with Cloudflare R2 Storage Stats)
 // ---------------------------------------------------------------------------
 router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const orgId = req.user!.organizationId;
@@ -1208,11 +1272,110 @@ router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Respo
       approvalParams
     );
 
+    // 3. Storage Usage Query across creative_proof_assets
+    const storageParams: any[] = [orgId];
+    const storageScopeClause = buildCreativeScopeClause(req, storageParams, 'c');
+
+    const storageQuery = await db.query(
+      `SELECT
+        COUNT(*) as total_assets,
+        COALESCE(SUM(cpa.file_size_bytes), 0) as total_bytes,
+        COUNT(CASE WHEN cpa.asset_type = 'VIDEO' THEN 1 END) as count_video,
+        COALESCE(SUM(CASE WHEN cpa.asset_type = 'VIDEO' THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_video,
+        COUNT(CASE WHEN cpa.asset_type IN ('IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN 1 END) as count_image,
+        COALESCE(SUM(CASE WHEN cpa.asset_type IN ('IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_image,
+        COUNT(CASE WHEN cpa.asset_type NOT IN ('VIDEO', 'IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN 1 END) as count_other,
+        COALESCE(SUM(CASE WHEN cpa.asset_type NOT IN ('VIDEO', 'IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_other
+      FROM creative_proof_assets cpa
+      JOIN creative_proofs cp ON cpa.proof_id = cp.id
+      JOIN creatives c ON cp.creative_id = c.id
+      WHERE cpa.organization_id = $1 ${storageScopeClause}`,
+      storageParams
+    );
+
     const stats = statsQuery.rows[0];
     const approvalStats = approvalsQuery.rows[0];
     const totalDecisions = parseInt(approvalStats?.total_decisions || '0');
     const approvedDecisions = parseInt(approvalStats?.approved_decisions || '0');
     const approvalRate = totalDecisions > 0 ? Math.round((approvedDecisions / totalDecisions) * 100) : 100;
+
+    // 3. Cloudflare R2 Live Bucket Storage Stats
+    let totalStorageBytes = 0;
+    let videoBytes = 0;
+    let videoCount = 0;
+    let imageBytes = 0;
+    let imageCount = 0;
+    let otherBytes = 0;
+    let otherCount = 0;
+    let totalAssets = 0;
+    let bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || 'optivir-creatives';
+    let isLiveBucketScan = true;
+    let lastScannedAt = new Date().toISOString();
+
+    try {
+      const liveBucket = await StorageService.getLiveBucketStorageStats({ forceRefresh: req.query.forceRefresh === 'true' });
+      totalStorageBytes = liveBucket.totalBytes;
+      totalAssets = liveBucket.totalObjects;
+      videoBytes = liveBucket.breakdown.video.bytes;
+      videoCount = liveBucket.breakdown.video.count;
+      imageBytes = liveBucket.breakdown.image.bytes;
+      imageCount = liveBucket.breakdown.image.count;
+      otherBytes = liveBucket.breakdown.other.bytes;
+      otherCount = liveBucket.breakdown.other.count;
+      bucketName = liveBucket.bucket;
+      lastScannedAt = liveBucket.lastScannedAt;
+    } catch (r2Err: any) {
+      console.warn('[Storage Telemetry] Live bucket scan fallback to DB:', r2Err.message);
+      const storageRow = storageQuery.rows[0];
+      totalStorageBytes = parseInt(storageRow?.total_bytes || '0', 10);
+      videoBytes = parseInt(storageRow?.bytes_video || '0', 10);
+      videoCount = parseInt(storageRow?.count_video || '0', 10);
+      imageBytes = parseInt(storageRow?.bytes_image || '0', 10);
+      imageCount = parseInt(storageRow?.count_image || '0', 10);
+      otherBytes = parseInt(storageRow?.bytes_other || '0', 10);
+      otherCount = parseInt(storageRow?.count_other || '0', 10);
+      totalAssets = parseInt(storageRow?.total_assets || '0', 10);
+      isLiveBucketScan = false;
+    }
+
+    const limitBytes = 20 * 1024 * 1024 * 1024; // 20 GB agency plan quota
+    const percentUsed = Math.min(100, parseFloat(((totalStorageBytes / limitBytes) * 100).toFixed(2)));
+
+    const storageData = {
+      totalBytes: totalStorageBytes,
+      formattedUsed: formatBytes(totalStorageBytes),
+      limitBytes,
+      formattedLimit: '20 GB',
+      percentUsed,
+      remainingBytes: Math.max(0, limitBytes - totalStorageBytes),
+      formattedRemaining: formatBytes(Math.max(0, limitBytes - totalStorageBytes)),
+      totalAssets,
+      breakdown: {
+        video: {
+          bytes: videoBytes,
+          formatted: formatBytes(videoBytes),
+          count: videoCount,
+          percent: totalStorageBytes > 0 ? Math.round((videoBytes / totalStorageBytes) * 100) : 0
+        },
+        image: {
+          bytes: imageBytes,
+          formatted: formatBytes(imageBytes),
+          count: imageCount,
+          percent: totalStorageBytes > 0 ? Math.round((imageBytes / totalStorageBytes) * 100) : 0
+        },
+        other: {
+          bytes: otherBytes,
+          formatted: formatBytes(otherBytes),
+          count: otherCount,
+          percent: totalStorageBytes > 0 ? Math.round((otherBytes / totalStorageBytes) * 100) : 0
+        }
+      },
+      provider: 'Cloudflare R2',
+      bucket: bucketName,
+      isLiveBucketScan,
+      lastScannedAt,
+      status: 'HEALTHY'
+    };
 
     res.json({
       success: true,
@@ -1227,12 +1390,264 @@ router.get('/metrics', requireAuth, async (req: AuthenticatedRequest, res: Respo
         live: parseInt(stats?.count_live || '0'),
         overdue: parseInt(stats?.count_overdue || '0'),
         approvalRate,
-        revisionsRequested: parseInt(approvalStats?.revisions_requested || '0')
+        revisionsRequested: parseInt(approvalStats?.revisions_requested || '0'),
+        storage: storageData
       }
     });
   } catch (err: any) {
     console.error('[Creatives API] Metrics Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch creative metrics', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to fetch creative metrics'});
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 1b. DETAILED STORAGE USAGE & ASSET BREAKDOWN (Cloudflare R2 Bucket Telemetry)
+// ---------------------------------------------------------------------------
+router.get('/storage', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const forceRefresh = req.query.forceRefresh === 'true';
+
+  try {
+    const limitBytes = 20 * 1024 * 1024 * 1024; // 20 GB agency plan quota
+
+    // 1. Fetch DB metadata to enrich live bucket objects with relational context
+    const dbAssetsQuery = await db.query(
+      `SELECT
+        cpa.id, cpa.storage_key, cpa.file_name, cpa.file_size_bytes, cpa.asset_type, cpa.mime_type,
+        cpa.created_at, cpa.width_px, cpa.height_px, cpa.duration_seconds,
+        c.name as creative_name, c.id as creative_id,
+        co.name as client_name
+      FROM creative_proof_assets cpa
+      JOIN creative_proofs cp ON cpa.proof_id = cp.id
+      JOIN creatives c ON cp.creative_id = c.id
+      LEFT JOIN clients cl ON c.client_id = cl.id
+      LEFT JOIN companies co ON cl.company_id = co.id
+      WHERE cpa.organization_id = $1`,
+      [orgId]
+    );
+
+    const dbMapByStorageKey = new Map<string, any>();
+    const dbMapByFileName = new Map<string, any>();
+    for (const row of dbAssetsQuery.rows) {
+      if (row.storage_key) dbMapByStorageKey.set(row.storage_key, row);
+      if (row.file_name) dbMapByFileName.set(row.file_name, row);
+    }
+
+    let totalStorageBytes = 0;
+    let videoBytes = 0;
+    let videoCount = 0;
+    let imageBytes = 0;
+    let imageCount = 0;
+    let otherBytes = 0;
+    let otherCount = 0;
+    let totalAssets = 0;
+    let largestAssets: any[] = [];
+    let isLiveBucketScan = true;
+    let bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || 'optivir-creatives';
+    let lastScannedAt = new Date().toISOString();
+
+    try {
+      const liveBucket = await StorageService.getLiveBucketStorageStats({ forceRefresh });
+      bucketName = liveBucket.bucket;
+      totalStorageBytes = liveBucket.totalBytes;
+      totalAssets = liveBucket.totalObjects;
+      videoBytes = liveBucket.breakdown.video.bytes;
+      videoCount = liveBucket.breakdown.video.count;
+      imageBytes = liveBucket.breakdown.image.bytes;
+      imageCount = liveBucket.breakdown.image.count;
+      otherBytes = liveBucket.breakdown.other.bytes;
+      otherCount = liveBucket.breakdown.other.count;
+      lastScannedAt = liveBucket.lastScannedAt;
+
+      // Enrich top largest objects directly from live Cloudflare R2 bucket
+      largestAssets = liveBucket.objects.slice(0, 25).map((obj: any, idx: number) => {
+        const keyParts = obj.key.split('/');
+        const rawFileName = keyParts[keyParts.length - 1] || obj.key;
+        const matched = dbMapByStorageKey.get(obj.key) ||
+          dbMapByFileName.get(rawFileName) ||
+          Array.from(dbMapByFileName.values()).find(r => obj.key.endsWith(r.file_name));
+
+        const isWatermarked = rawFileName.toLowerCase().startsWith('watermarked_');
+        let displayFileName = rawFileName;
+        if (isWatermarked) {
+          displayFileName = `[Watermarked] ${rawFileName.replace(/^watermarked_/i, '')}`;
+        }
+
+        const isVideo = /\.(mp4|mov|webm|avi|mkv)($|\?)/i.test(obj.key) || obj.key.toLowerCase().includes('/video_') || obj.key.toLowerCase().includes('video');
+        const isImage = /\.(png|jpe?g|webp|gif|svg)($|\?)/i.test(obj.key) || obj.key.toLowerCase().includes('/image_') || obj.key.toLowerCase().includes('thumbnail') || obj.key.toLowerCase().includes('slide');
+
+        return {
+          id: matched?.id || `r2-live-${idx}`,
+          storageKey: obj.key,
+          fileName: matched?.file_name || displayFileName,
+          fileSizeBytes: obj.size,
+          formattedSize: formatBytes(obj.size),
+          assetType: matched?.asset_type || (isVideo ? 'VIDEO' : isImage ? 'IMAGE' : 'OTHER'),
+          mimeType: matched?.mime_type || (isVideo ? 'video/mp4' : isImage ? 'image/jpeg' : 'application/octet-stream'),
+          createdAt: matched?.created_at || obj.lastModified || new Date().toISOString(),
+          widthPx: matched?.width_px || null,
+          heightPx: matched?.height_px || null,
+          durationSeconds: matched?.duration_seconds || null,
+          creativeName: matched?.creative_name || (isWatermarked ? 'Watermarked Proof Rendering' : 'Cloudflare R2 Object'),
+          creativeId: matched?.creative_id || null,
+          clientName: matched?.client_name || 'OptiVir Edge CDN'
+        };
+      });
+    } catch (r2Err: any) {
+      console.warn('[Storage Telemetry] Live bucket scan fallback to DB:', r2Err.message);
+      isLiveBucketScan = false;
+      const storageParams: any[] = [orgId];
+      const storageScopeClause = buildCreativeScopeClause(req, storageParams, 'c');
+      const storageQuery = await db.query(
+        `SELECT
+          COUNT(*) as total_assets,
+          COALESCE(SUM(cpa.file_size_bytes), 0) as total_bytes,
+          COUNT(CASE WHEN cpa.asset_type = 'VIDEO' THEN 1 END) as count_video,
+          COALESCE(SUM(CASE WHEN cpa.asset_type = 'VIDEO' THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_video,
+          COUNT(CASE WHEN cpa.asset_type IN ('IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN 1 END) as count_image,
+          COALESCE(SUM(CASE WHEN cpa.asset_type IN ('IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_image,
+          COUNT(CASE WHEN cpa.asset_type NOT IN ('VIDEO', 'IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN 1 END) as count_other,
+          COALESCE(SUM(CASE WHEN cpa.asset_type NOT IN ('VIDEO', 'IMAGE', 'THUMBNAIL', 'CAROUSEL_SLIDE') THEN cpa.file_size_bytes ELSE 0 END), 0) as bytes_other
+        FROM creative_proof_assets cpa
+        JOIN creative_proofs cp ON cpa.proof_id = cp.id
+        JOIN creatives c ON cp.creative_id = c.id
+        WHERE cpa.organization_id = $1 ${storageScopeClause}`,
+        storageParams
+      );
+
+      const storageRow = storageQuery.rows[0];
+      totalStorageBytes = parseInt(storageRow?.total_bytes || '0', 10);
+      videoBytes = parseInt(storageRow?.bytes_video || '0', 10);
+      videoCount = parseInt(storageRow?.count_video || '0', 10);
+      imageBytes = parseInt(storageRow?.bytes_image || '0', 10);
+      imageCount = parseInt(storageRow?.count_image || '0', 10);
+      otherBytes = parseInt(storageRow?.bytes_other || '0', 10);
+      otherCount = parseInt(storageRow?.count_other || '0', 10);
+      totalAssets = parseInt(storageRow?.total_assets || '0', 10);
+
+      const largestQuery = await db.query(
+        `SELECT
+          cpa.id, cpa.file_name, cpa.file_size_bytes, cpa.asset_type, cpa.mime_type,
+          cpa.created_at, cpa.width_px, cpa.height_px, cpa.duration_seconds,
+          c.name as creative_name, c.id as creative_id,
+          co.name as client_name
+        FROM creative_proof_assets cpa
+        JOIN creative_proofs cp ON cpa.proof_id = cp.id
+        JOIN creatives c ON cp.creative_id = c.id
+        LEFT JOIN clients cl ON c.client_id = cl.id
+        LEFT JOIN companies co ON cl.company_id = co.id
+        WHERE cpa.organization_id = $1 ${storageScopeClause}
+        ORDER BY cpa.file_size_bytes DESC
+        LIMIT 15`,
+        storageParams
+      );
+
+      largestAssets = largestQuery.rows.map((row: any) => ({
+        id: row.id,
+        fileName: row.file_name,
+        fileSizeBytes: parseInt(row.file_size_bytes || '0', 10),
+        formattedSize: formatBytes(parseInt(row.file_size_bytes || '0', 10)),
+        assetType: row.asset_type,
+        mimeType: row.mime_type,
+        createdAt: row.created_at,
+        widthPx: row.width_px,
+        heightPx: row.height_px,
+        durationSeconds: row.duration_seconds,
+        creativeName: row.creative_name,
+        creativeId: row.creative_id,
+        clientName: row.client_name || 'Direct Client'
+      }));
+    }
+
+    const percentUsed = Math.min(100, parseFloat(((totalStorageBytes / limitBytes) * 100).toFixed(2)));
+
+    res.json({
+      success: true,
+      storage: {
+        totalBytes: totalStorageBytes,
+        formattedUsed: formatBytes(totalStorageBytes),
+        limitBytes,
+        formattedLimit: '20 GB',
+        percentUsed,
+        remainingBytes: Math.max(0, limitBytes - totalStorageBytes),
+        formattedRemaining: formatBytes(Math.max(0, limitBytes - totalStorageBytes)),
+        totalAssets,
+        breakdown: {
+          video: {
+            bytes: videoBytes,
+            formatted: formatBytes(videoBytes),
+            count: videoCount,
+            percent: totalStorageBytes > 0 ? Math.round((videoBytes / totalStorageBytes) * 100) : 0
+          },
+          image: {
+            bytes: imageBytes,
+            formatted: formatBytes(imageBytes),
+            count: imageCount,
+            percent: totalStorageBytes > 0 ? Math.round((imageBytes / totalStorageBytes) * 100) : 0
+          },
+          other: {
+            bytes: otherBytes,
+            formatted: formatBytes(otherBytes),
+            count: otherCount,
+            percent: totalStorageBytes > 0 ? Math.round((otherBytes / totalStorageBytes) * 100) : 0
+          }
+        },
+        provider: 'Cloudflare R2',
+        bucket: bucketName,
+        isLiveBucketScan,
+        lastScannedAt,
+        status: 'HEALTHY'
+      },
+      bucket: bucketName,
+      isLiveBucketScan,
+      lastScannedAt,
+      largestAssets,
+      largestFiles: largestAssets
+    });
+  } catch (err: any) {
+    console.error('[Creatives API] Storage Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch creative storage details'});
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 1c. SYNC & AUDIT CLOUDFLARE R2 BUCKET (Force live scan)
+// ---------------------------------------------------------------------------
+router.post('/storage/sync', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    StorageService.invalidateBucketCache();
+    const liveStats = await StorageService.getLiveBucketStorageStats({ forceRefresh: true });
+    res.json({
+      success: true,
+      message: 'Cloudflare R2 bucket scanned and synchronized successfully',
+      storage: {
+        totalBytes: liveStats.totalBytes,
+        formattedUsed: formatBytes(liveStats.totalBytes),
+        totalAssets: liveStats.totalObjects,
+        bucket: liveStats.bucket,
+        lastScannedAt: liveStats.lastScannedAt,
+        breakdown: {
+          video: {
+            bytes: liveStats.breakdown.video.bytes,
+            formatted: formatBytes(liveStats.breakdown.video.bytes),
+            count: liveStats.breakdown.video.count
+          },
+          image: {
+            bytes: liveStats.breakdown.image.bytes,
+            formatted: formatBytes(liveStats.breakdown.image.bytes),
+            count: liveStats.breakdown.image.count
+          },
+          other: {
+            bytes: liveStats.breakdown.other.bytes,
+            formatted: formatBytes(liveStats.breakdown.other.bytes),
+            count: liveStats.breakdown.other.count
+          }
+        }
+      }
+    });
+  } catch (err: any) {
+    console.error('[Creatives API] Bucket Sync Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to sync with Cloudflare R2 bucket'});
   }
 });
 
@@ -1258,7 +1673,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
         cp.version_number as active_version,
         cp.title as active_proof_title,
         (SELECT COUNT(*) FROM creative_proofs WHERE creative_id = c.id) as version_count,
-        (SELECT COUNT(*) FROM creative_comments cc JOIN creative_proofs pr ON cc.proof_id = pr.id WHERE pr.creative_id = c.id AND cc.is_resolved = false) as unresolved_comments_count
+        (SELECT COUNT(*) FROM creative_comments cc JOIN creative_proofs pr ON cc.proof_id = pr.id WHERE pr.creative_id = c.id AND cc.is_resolved = false) as unresolved_comments_count,
+        (SELECT COALESCE(SUM(cpa.file_size_bytes), 0) FROM creative_proof_assets cpa JOIN creative_proofs pr ON cpa.proof_id = pr.id WHERE pr.creative_id = c.id) as total_asset_bytes
       FROM creatives c
       LEFT JOIN clients cl ON c.client_id = cl.id
       LEFT JOIN companies co ON cl.company_id = co.id
@@ -1375,7 +1791,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     });
   } catch (err: any) {
     console.error('[Creatives API] List Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to list creatives', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to list creatives'});
   }
 });
 
@@ -1402,7 +1818,11 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     designerId,
     approvalDueAt,
     tags,
-    initialProof
+    initialProof,
+    scriptContent,
+    script_content,
+    conceptIdea,
+    concept_idea
   } = req.body;
 
   if (!name) {
@@ -1474,13 +1894,16 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     await client.query('BEGIN');
 
     // 1. Insert Creative Record
+    const finalScript = scriptContent || script_content || null;
+    const finalConcept = conceptIdea || concept_idea || null;
+
     const creativeRes = await client.query(
       `INSERT INTO creatives (
         organization_id, client_id, project_id, task_id, name, description, campaign_name,
         target_platform, ad_format, aspect_ratio, status, primary_ad_copy,
         headline, call_to_action, destination_url, designer_id, approval_due_at,
-        tags, created_by, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'DRAFT', $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+        tags, script_content, concept_idea, created_by, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'DRAFT', $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
       RETURNING *`,
       [
         orgId,
@@ -1500,6 +1923,8 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
         designerId || userId,
         approvalDueAt || null,
         tags || [],
+        finalScript,
+        finalConcept,
         userId
       ]
     );
@@ -1585,6 +2010,21 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     await client.query('COMMIT');
 
+    // Notify Task Assignee if linked to a task
+    if (taskId) {
+      const actorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member';
+      notifyTaskAssigneeOnCreativeEvent({
+        orgId,
+        taskId,
+        creativeId: creative.id,
+        creativeName: name,
+        actorName,
+        actorId: userId,
+        event: (finalScript || finalConcept) ? 'script_added' : 'details_added',
+        scriptSnippet: finalScript || finalConcept || primaryAdCopy || headline
+      }).catch(e => console.error('[Task Assignee Notification Error]:', e));
+    }
+
     res.status(201).json({
       success: true,
       message: 'Creative created successfully',
@@ -1596,7 +2036,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('[Creatives API] Create Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to create creative', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to create creative'});
   } finally {
     client.release();
   }
@@ -1747,7 +2187,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     });
   } catch (err: any) {
     console.error('[Creatives API] Get Details Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to get creative details', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to get creative details'});
   }
 });
 
@@ -1776,7 +2216,11 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     destinationUrl,
     designerId,
     approvalDueAt,
-    tags
+    tags,
+    scriptContent,
+    script_content,
+    conceptIdea,
+    concept_idea
   } = req.body;
 
   try {
@@ -1822,6 +2266,8 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     }
 
     const effectiveTaskId = taskId !== undefined ? (taskId || null) : current.task_id;
+    const targetScript = scriptContent !== undefined ? scriptContent : script_content;
+    const targetConcept = conceptIdea !== undefined ? conceptIdea : concept_idea;
 
     const updateRes = await db.query(
       `UPDATE creatives SET
@@ -1843,6 +2289,8 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         designer_id = COALESCE($16, designer_id),
         approval_due_at = COALESCE($17, approval_due_at),
         tags = COALESCE($18, tags),
+        script_content = CASE WHEN $21::boolean THEN $22::text ELSE script_content END,
+        concept_idea = CASE WHEN $23::boolean THEN $24::text ELSE concept_idea END,
         updated_at = NOW()
       WHERE id = $19 AND organization_id = $20
       RETURNING *`,
@@ -1866,7 +2314,11 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
         approvalDueAt,
         tags,
         id,
-        orgId
+        orgId,
+        targetScript !== undefined,
+        targetScript || null,
+        targetConcept !== undefined,
+        targetConcept || null
       ]
     );
 
@@ -1935,6 +2387,26 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       }
     }
 
+    // Notify Task Assignee if script or creative details were updated
+    if (effectiveTaskId) {
+      const actorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member';
+      const isScriptUpdated = targetScript !== undefined || targetConcept !== undefined;
+      const isDetailsUpdated = headline !== undefined || primaryAdCopy !== undefined || callToAction !== undefined || targetPlatform !== undefined || adFormat !== undefined;
+
+      if (isScriptUpdated || isDetailsUpdated) {
+        notifyTaskAssigneeOnCreativeEvent({
+          orgId,
+          taskId: effectiveTaskId,
+          creativeId: id,
+          creativeName: updateRes.rows[0]?.name || current.name,
+          actorName,
+          actorId: userId,
+          event: isScriptUpdated ? 'script_updated' : 'details_added',
+          scriptSnippet: targetScript || targetConcept || primaryAdCopy || headline || current.script_content || current.concept_idea
+        }).catch(e => console.error('[Task Assignee Notification Error on update]:', e));
+      }
+    }
+
     res.json({
       success: true,
       message: 'Creative updated successfully',
@@ -1942,7 +2414,7 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     });
   } catch (err: any) {
     console.error('[Creatives API] Update Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to update creative', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to update creative'});
   }
 });
 
@@ -2004,6 +2476,21 @@ router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, re
       );
     }
 
+    if (taskId) {
+      const cr = result.rows[0];
+      const actorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member';
+      notifyTaskAssigneeOnCreativeEvent({
+        orgId,
+        taskId,
+        creativeId: id,
+        creativeName: cr.name,
+        actorName,
+        actorId: req.user!.id,
+        event: (cr.script_content || cr.concept_idea) ? 'script_added' : 'details_added',
+        scriptSnippet: cr.script_content || cr.concept_idea || cr.headline || cr.primary_ad_copy
+      }).catch(e => console.error('[Task Link Notification Error]:', e));
+    }
+
     res.json({
       success: true,
       message: taskId ? 'Creative linked to task' : 'Creative unlinked from task',
@@ -2011,7 +2498,7 @@ router.patch('/:id/link-task', requireAuth, async (req: AuthenticatedRequest, re
     });
   } catch (err: any) {
     console.error('[Creatives API] Link Task Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to link creative to task', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to link creative to task'});
   }
 });
 
@@ -2069,7 +2556,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
     });
   } catch (err: any) {
     console.error('[Creatives API] Delete Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to delete creative', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to delete creative'});
   }
 });
 
@@ -2199,7 +2686,7 @@ router.post('/:id/proofs', requireAuth, async (req: AuthenticatedRequest, res: R
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('[Creatives API] Register Proof Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to register proof version', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to register proof version'});
   } finally {
     client.release();
   }
@@ -2252,9 +2739,7 @@ router.post(
       console.error('[Creatives API] Direct Upload Error:', err);
       res.status(500).json({
         success: false,
-        message: 'Failed to stream file to Cloudflare R2',
-        error: err.message
-      });
+        message: 'Failed to stream file to Cloudflare R2'});
     }
   }
 );
@@ -2286,7 +2771,7 @@ router.post('/upload-session', requireAuth, async (req: AuthenticatedRequest, re
     });
   } catch (err: any) {
     console.error('[Creatives API] Upload Session Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate upload presigned URL', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to generate upload presigned URL'});
   }
 });
 
@@ -2311,7 +2796,7 @@ router.post('/upload-session/multipart/init', requireAuth, async (req: Authentic
     });
   } catch (err: any) {
     console.error('[Creatives API] Multipart Init Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to initiate multipart upload', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to initiate multipart upload'});
   }
 });
 
@@ -2332,7 +2817,7 @@ router.post('/upload-session/multipart/parts', requireAuth, async (req: Authenti
     });
   } catch (err: any) {
     console.error('[Creatives API] Multipart Parts Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate part presigned URLs', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to generate part presigned URLs'});
   }
 });
 
@@ -2353,7 +2838,7 @@ router.post('/upload-session/multipart/complete', requireAuth, async (req: Authe
     });
   } catch (err: any) {
     console.error('[Creatives API] Multipart Complete Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to complete multipart upload', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to complete multipart upload'});
   }
 });
 
@@ -2366,7 +2851,7 @@ router.post('/upload-session/multipart/abort', requireAuth, async (req: Authenti
     res.json({ success: true, message: 'Multipart upload aborted successfully' });
   } catch (err: any) {
     console.error('[Creatives API] Multipart Abort Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to abort multipart upload', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to abort multipart upload'});
   }
 });
 
@@ -2453,7 +2938,7 @@ router.post('/:id/proofs/:proofId/share', requireAuth, async (req: Authenticated
     });
   } catch (err: any) {
     console.error('[Creatives API] Share Link Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate share link', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to generate share link'});
   }
 });
 
@@ -2550,7 +3035,7 @@ router.post('/:id/proofs/:proofId/send-email', requireAuth, async (req: Authenti
     });
   } catch (err: any) {
     console.error('[Send Email Proof Link Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to send review link via email', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to send review link via email'});
   }
 });
 
@@ -2597,7 +3082,7 @@ router.post('/share-links/:linkId/revoke', requireAuth, async (req: Authenticate
     });
   } catch (err: any) {
     console.error('[Creatives API] Revoke Link Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to revoke share link', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to revoke share link'});
   }
 });
 
@@ -2683,7 +3168,7 @@ router.get('/:id/proofs/:proofId/assets/:assetId/download', requireAuth, async (
     });
   } catch (err: any) {
     console.error('[Download API Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to process asset download', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to process asset download'});
   }
 });
 
@@ -2756,7 +3241,7 @@ router.post('/:id/proofs/:proofId/comments', requireAuth, async (req: Authentica
     });
   } catch (err: any) {
     console.error('[Creatives API] Add Comment Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to add comment', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to add comment'});
   }
 });
 
@@ -2790,7 +3275,7 @@ router.patch('/comments/:commentId/resolve', requireAuth, async (req: Authentica
     });
   } catch (err: any) {
     console.error('[Creatives API] Resolve Comment Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to update comment resolution', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to update comment resolution'});
   }
 });
 
@@ -2845,7 +3330,7 @@ router.delete('/comments/:commentId', requireAuth, async (req: AuthenticatedRequ
     });
   } catch (err: any) {
     console.error('[Creatives API] Delete Comment Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to delete comment', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to delete comment'});
   }
 });
 
@@ -2934,7 +3419,7 @@ router.post('/:id/proofs/:proofId/approvals', requireAuth, async (req: Authentic
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('[Creatives API] Approval Sign-off Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to record approval', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to record approval'});
   } finally {
     client.release();
   }

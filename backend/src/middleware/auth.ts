@@ -29,6 +29,21 @@ function getJwtSecret(): string {
 const JWT_SECRET = getJwtSecret();
 
 // ---------------------------------------------------------------------------
+// Root owner emails — configurable via ROOT_OWNER_EMAILS env var
+// Comma-separated, e.g. ROOT_OWNER_EMAILS=owner@company.com,backup@company.com
+// ---------------------------------------------------------------------------
+const ROOT_OWNER_EMAILS: ReadonlySet<string> = new Set(
+  (process.env.ROOT_OWNER_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+export function isRootOwnerEmail(email: string): boolean {
+  return ROOT_OWNER_EMAILS.has(email.toLowerCase().trim());
+}
+
+// ---------------------------------------------------------------------------
 // Token generation (7-day persistence supported)
 // ---------------------------------------------------------------------------
 export function generateToken(user: AuthenticatedUser, rememberMe: boolean = true): string {
@@ -222,8 +237,7 @@ export function requireOwner(
   const isOwner = Boolean(req.user.isOwner) ||
     req.user.role === 'owner' ||
     req.user.role === 'super_admin' ||
-    email === 'optivirads@gmail.com' ||
-    email === 'abhinandc97@gmail.com';
+    isRootOwnerEmail(email);
 
   if (!isOwner) {
     res.status(403).json({

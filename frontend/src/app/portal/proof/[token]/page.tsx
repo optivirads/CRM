@@ -87,12 +87,6 @@ export default function ClientProofingPortalPage() {
     }
   }, [resendTimer]);
 
-  useEffect(() => {
-    if (token) {
-      loadProof();
-    }
-  }, [token]);
-
   const loadProof = async (overrideToken?: string) => {
     try {
       setLoading(true);
@@ -132,6 +126,12 @@ export default function ClientProofingPortalPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (token) {
+      loadProof();
+    }
+  }, [token]);
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();

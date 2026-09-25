@@ -4,6 +4,7 @@ dotenv.config();
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { db } from './config/db';
+import { requireAuth } from './middleware/auth';
 
 import authRoutes from './routes/auth.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -22,6 +23,9 @@ import pdfRoutes from './routes/pdf.routes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Remove X-Powered-By — don't advertise Express to attackers
+app.disable('x-powered-by');
 
 // ---------------------------------------------------------------------------
 // Trust proxy — required to get correct client IPs behind Render/Vercel/Nginx
@@ -44,7 +48,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // ---------------------------------------------------------------------------
-// CORS — supports Vercel previews & production custom domains
+// CORS — strict origin allowlist only (no wildcard platform bypass)
 // ---------------------------------------------------------------------------
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://optivircrm.vercel.app')
   .split(',')
@@ -52,21 +56,15 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow server-to-server, curl, Postman, or mobile requests with no origin header
+    // Allow server-to-server, curl, Postman, or mobile with no origin header
     if (!origin) return callback(null, true);
 
     const cleanOrigin = origin.replace(/\/$/, '');
-    const isRenderDomain = cleanOrigin.endsWith('.onrender.com');
-    const isVercelDomain = cleanOrigin.endsWith('.vercel.app');
-    const isLocalhost = cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1');
+    // In development: also allow localhost variants
+    const isLocalhost = process.env.NODE_ENV !== 'production' &&
+      (cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1'));
 
-    if (
-      allowedOrigins.includes(cleanOrigin) ||
-      isRenderDomain ||
-      isVercelDomain ||
-      isLocalhost ||
-      process.env.NODE_ENV !== 'production'
-    ) {
+    if (allowedOrigins.includes(cleanOrigin) || isLocalhost) {
       return callback(null, true);
     }
 
@@ -102,25 +100,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Root & Health Check
 // ---------------------------------------------------------------------------
 app.get('/', (req: Request, res: Response) => {
+  // Minimal response — don't expose endpoint map in production
   res.json({
     status: 'online',
     system: 'OptiVir CRM Enterprise API',
-    version: '1.0.0',
-    message: 'OptiVir CRM Backend API is operational and healthy.',
-    endpoints: {
-      health: '/health',
-      healthDb: '/health/db',
-      auth: '/api/auth',
-      dashboard: '/api/dashboard',
-      crm: '/api/crm',
-      sales: '/api/sales',
-      clients: '/api/clients',
-      projects: '/api/projects',
-      marketing: '/api/marketing',
-      finance: '/api/finance',
-      reports: '/api/reports',
-      settings: '/api/settings'
-    },
     timestamp: new Date().toISOString()
   });
 });
@@ -129,12 +112,12 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     system: 'OptiVir CRM Enterprise Backend',
-    version: '1.0.0',
     timestamp: new Date().toISOString()
   });
 });
 
-app.get('/health/db', async (req: Request, res: Response) => {
+// DB health — protected: only authenticated internal monitors should access this
+app.get('/health/db', requireAuth, async (req: Request, res: Response) => {
   try {
     await db.query('SELECT 1;');
     res.json({
@@ -151,6 +134,7 @@ app.get('/health/db', async (req: Request, res: Response) => {
     });
   }
 });
+
 
 // ---------------------------------------------------------------------------
 // API Routes

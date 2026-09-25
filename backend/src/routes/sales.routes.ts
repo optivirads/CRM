@@ -230,7 +230,7 @@ async function notifyTeamOfProposalAcceptance(
       agencyName: 'OptiVir Ads'
     });
 
-    console.log(`[Proposal Acceptance] Successfully notified ${managingTeam.length} managing team members via email and in-app notifications.`);
+    console.info(`[Proposal Acceptance] Successfully notified ${managingTeam.length} managing team members via email and in-app notifications.`);
   } catch (err) {
     console.error('[notifyTeamOfProposalAcceptance Error]:', err);
   }
@@ -255,7 +255,9 @@ router.get('/pipelines', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     res.json({ success: true, data: pipelines });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -295,7 +297,9 @@ router.get('/deals', requireAuth, async (req: AuthenticatedRequest, res: Respons
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -398,7 +402,9 @@ router.patch('/deals/:id/stage', requireAuth, async (req: AuthenticatedRequest, 
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   } finally {
     client.release();
   }
@@ -411,7 +417,9 @@ router.get('/services', requireAuth, async (req: AuthenticatedRequest, res: Resp
     const result = await db.query('SELECT * FROM services WHERE organization_id = $1 AND is_active = true ORDER BY name ASC;', [orgId]);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -465,7 +473,9 @@ router.post('/deals', requireAuth, async (req: AuthenticatedRequest, res: Respon
     await recordAuditLog(orgId, userId, 'CREATE', 'deals', newDeal.rows[0].id, null, created, req);
     res.status(201).json({ success: true, data: created });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -513,7 +523,9 @@ router.patch('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     await recordAuditLog(orgId, userId, 'UPDATE', 'deals', actualId, existing.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -567,7 +579,9 @@ router.delete('/deals/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     res.json({ success: true, message: `Deal "${deletedRecord.name}" successfully deleted from database`, id: deletedRecord.id });
   } catch (err: any) {
     console.error('Delete deal error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -594,7 +608,9 @@ router.get('/proposals', requireAuth, async (req: AuthenticatedRequest, res: Res
     `, [orgId]);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -631,7 +647,9 @@ router.post('/proposals', requireAuth, async (req: AuthenticatedRequest, res: Re
     await recordAuditLog(orgId, userId, 'CREATE', 'proposals', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -696,7 +714,9 @@ router.patch('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, re
 
     res.json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -737,7 +757,9 @@ router.delete('/proposals/:id', requireAuth, async (req: AuthenticatedRequest, r
     await recordAuditLog(orgId, userId, 'DELETE', 'proposals', id, result.rows[0], null, req);
     res.json({ success: true, message: 'Proposal deleted successfully', id });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in sales.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -840,7 +862,7 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
         });
       } catch (e: any) {
         console.error('[Sales API] Failed to send document invite email:', e);
-        emailError = e.message;
+        emailError = 'Failed to send invite email. Please share the link directly.';
       }
     }
 
@@ -856,7 +878,7 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
     });
   } catch (err: any) {
     console.error('[Sales API] Share Link Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to process proposal delivery', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to process proposal delivery'});
   }
 });
 
@@ -1008,7 +1030,7 @@ router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: 
     });
   } catch (err: any) {
     console.error('[Request Document OTP Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to send verification code', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to send verification code'});
   }
 });
 
@@ -1103,7 +1125,7 @@ router.post('/documents/public/:token/verify-otp', otpRateLimiter, async (req: R
     });
   } catch (err: any) {
     console.error('[Verify Document OTP Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to verify code', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to verify code'});
   }
 });
 
@@ -1298,7 +1320,7 @@ router.get('/documents/public/:token', async (req: Request, res: Response): Prom
     });
   } catch (err: any) {
     console.error('[Load Document Portal Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to load document', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to load document'});
   }
 });
 
@@ -1404,7 +1426,7 @@ router.get('/documents/public/:token/pdf', async (req: Request, res: Response): 
     res.status(200).send(pdfBuffer);
   } catch (err: any) {
     console.error('[Document PDF Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to generate PDF', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to generate PDF'});
   }
 });
 
@@ -1563,7 +1585,7 @@ router.post('/documents/public/:token/approve', async (req: Request, res: Respon
     });
   } catch (err: any) {
     console.error('[Document Approval Error]:', err);
-    res.status(500).json({ success: false, message: 'Failed to submit decision', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to submit decision'});
   }
 });
 

@@ -125,8 +125,8 @@ router.get('/stats', requireAuth, async (req: AuthenticatedRequest, res: Respons
       }
     });
   } catch (err: any) {
-    console.error('Dashboard stats error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Dashboard Stats Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch executive dashboard metrics' });
   }
 });
 

@@ -12,8 +12,6 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
-    "generate-pdf": "node generate_pdf.js",
-    "generate-guide": "node generate_crm_master_guide.js",
     "migrate": "npm --prefix backend run migrate",
     "seed": "npm --prefix backend run seed"
   },
@@ -26,8 +24,5 @@
     "supabase"
   ],
   "author": "OptiVir",
-  "license": "UNLICENSED",
-  "dependencies": {
-    "pdfkit": "^0.20.2"
-  }
+  "license": "UNLICENSED"
 }

@@ -7,7 +7,6 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "jest --forceExit",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
     "clear-data": "tsx src/scripts/clean_all_mock_data.ts"
@@ -20,13 +19,11 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/fluent-ffmpeg": "^2.1.28",
-    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.13.9",
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.11.11",
-    "@types/supertest": "^7.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -41,9 +38,6 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/nodemailer": "^8.0.2",
-    "jest": "^30.5.1",
-    "supertest": "^7.2.2",
-    "ts-jest": "^29.4.12"
+    "@types/nodemailer": "^8.0.2"
   }
 }

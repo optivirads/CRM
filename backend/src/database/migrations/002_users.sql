@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(50),
     is_super_admin BOOLEAN DEFAULT FALSE,
     status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'invited', 'suspended')),
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    lockout_until TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     last_login_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

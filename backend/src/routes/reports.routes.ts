@@ -55,7 +55,8 @@ router.get('/executive-summary', requireAuth, async (req: AuthenticatedRequest, 
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Reports Summary Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate executive summary report' });
   }
 });
 

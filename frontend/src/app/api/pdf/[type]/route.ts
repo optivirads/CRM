@@ -209,7 +209,7 @@ async function generateProposalPDF(params: any, orgData?: any): Promise<Buffer> 
 
   const proposalTitle = params.title || params.name || 'Commercial Proposal & SOW';
   const clientName = params.client || params.client_name || 'Client Organization';
-  let brandName = params.brand || params.brand_name || '';
+  const brandName = params.brand || params.brand_name || '';
   
   // Clean brand name to avoid repetitive "SOW for Client — Client" artifacts
   let displayBrand = brandName;

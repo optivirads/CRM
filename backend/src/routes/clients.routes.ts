@@ -116,7 +116,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -298,7 +300,9 @@ router.get('/:id/360', requireAuth, async (req: AuthenticatedRequest, res: Respo
     });
   } catch (err: any) {
     console.error('Client 360 error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -347,7 +351,9 @@ router.patch('/:id/onboarding/:checklistId', requireAuth, async (req: Authentica
 
     res.json({ success: true, progress });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -379,7 +385,9 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
     await recordAuditLog(orgId, userId, 'DELETE', 'clients', clientId, null, null, req);
     res.json({ success: true, message: 'Client successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -556,7 +564,9 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -796,7 +806,9 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
     res.json({ success: true, data: finalClient });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -884,7 +896,9 @@ router.get('/:id/social-insights', requireAuth, async (req: AuthenticatedRequest
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -957,7 +971,9 @@ router.post('/:id/social-insights', requireAuth, async (req: AuthenticatedReques
       data: result.rows[0]
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -996,7 +1012,9 @@ router.delete('/:id/social-insights/:postId', requireAuth, async (req: Authentic
     await recordAuditLog(orgId, userId, 'DELETE', 'client_social_posts', postId, null, null, req);
     res.json({ success: true, message: 'Post snapshot deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1050,7 +1068,9 @@ router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedReq
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1120,7 +1140,9 @@ router.post('/:id/social-integrations', requireAuth, async (req: AuthenticatedRe
       data: result.rows[0]
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1139,7 +1161,9 @@ router.post('/:id/social-integrations/meta-inspect', requireAuth, async (req: Au
       data: inspected
     });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
+    console.error('[Bad Request Error in clients.routes.ts]:', err);
+
+    res.status(400).json({ success: false, message: 'Invalid request parameters' });
   }
 });
 
@@ -1194,7 +1218,9 @@ router.post('/:id/social-integrations/meta-connect', requireAuth, async (req: Au
       data: result.rows[0]
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1223,7 +1249,9 @@ router.post('/:id/social-insights/sync', requireAuth, async (req: AuthenticatedR
       data: syncResult
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1251,7 +1279,9 @@ router.all('/:id/social-insights/discover', requireAuth, async (req: Authenticat
       data: discovery
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1281,7 +1311,9 @@ router.post('/:id/social-insights/import-selected', requireAuth, async (req: Aut
       data: importRes
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1300,7 +1332,9 @@ router.post('/:id/social-insights/inspect-url', requireAuth, async (req: Authent
       data: metadata
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in clients.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 

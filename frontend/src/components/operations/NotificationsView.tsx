@@ -76,6 +76,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         // Map to tableNotifications
         const mappedTable = rows.map((a: any) => {
           const isProposal = a.type === 'PROPOSAL_ACCEPTED';
+          const isScript = a.type === 'Task' && (a.subject?.toLowerCase().includes('script') || a.description?.toLowerCase().includes('script'));
+          const isTask = a.type === 'Task';
           let meta: any = {};
           if (typeof a.metadata === 'string') {
             try { meta = JSON.parse(a.metadata); } catch (e) {}
@@ -83,19 +85,43 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             meta = a.metadata;
           }
 
+          let dotColor = 'bg-blue-500';
+          let typeLabel = a.type || 'SYSTEM ALERT';
+          let typeColor = 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300';
+          let badgeLabel = 'ACTIVITY';
+          let category = 'General';
+
+          if (isProposal) {
+            dotColor = 'bg-emerald-500';
+            typeLabel = 'PROPOSAL ACCEPTED';
+            typeColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800';
+            badgeLabel = 'COMMERCIAL SIGNED';
+            category = 'Commercial & Sales';
+          } else if (isScript) {
+            dotColor = 'bg-rose-500';
+            typeLabel = 'CREATIVE SCRIPT ADDED';
+            typeColor = 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800';
+            badgeLabel = 'SCRIPT ATTACHED';
+            category = 'Creative Studio & Deliverables';
+          } else if (isTask) {
+            dotColor = 'bg-purple-500';
+            typeLabel = 'TASK ASSIGNED';
+            typeColor = 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800';
+            badgeLabel = 'DELIVERABLE';
+            category = 'Operations & Tasks';
+          }
+
           return {
             id: a.id,
-            dotColor: isProposal ? 'bg-emerald-500' : 'bg-blue-500',
-            type: isProposal ? 'PROPOSAL ACCEPTED' : (a.type || 'SYSTEM ALERT'),
-            typeColor: isProposal
-              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-              : 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300',
+            dotColor,
+            type: typeLabel,
+            typeColor,
             subject: a.subject || 'Activity Record',
             reference: a.description || '',
-            badge: isProposal ? 'COMMERCIAL SIGNED' : 'ACTIVITY',
+            badge: badgeLabel,
             time: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
             statusText: a.read_at ? 'Settled' : 'Active',
-            category: isProposal ? 'Commercial & Sales' : 'General',
+            category,
             unread: !a.read_at,
             proposalId: meta.proposal_id
           };
@@ -104,6 +130,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         // Map to drawerNotifications
         const mappedDrawer = rows.map((a: any) => {
           const isProposal = a.type === 'PROPOSAL_ACCEPTED';
+          const isScript = a.type === 'Task' && (a.subject?.toLowerCase().includes('script') || a.description?.toLowerCase().includes('script'));
+          const isTask = a.type === 'Task';
           let meta: any = {};
           if (typeof a.metadata === 'string') {
             try { meta = JSON.parse(a.metadata); } catch (e) {}
@@ -111,16 +139,37 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             meta = a.metadata;
           }
 
+          let iconBg = 'bg-blue-100 text-blue-700 dark:bg-blue-950';
+          let actionPrimary: any = undefined;
+          let category = 'General';
+          let code = meta.proposal_number || (isProposal ? 'PROPOSAL SOW' : 'ACTIVITY');
+
+          if (isProposal) {
+            iconBg = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950';
+            actionPrimary = { label: 'View Proposal', nav: 'proposals', red: false };
+            category = 'Action Required';
+          } else if (isScript) {
+            iconBg = 'bg-rose-100 text-rose-700 dark:bg-rose-950';
+            actionPrimary = { label: 'Open Deliverable Task', nav: 'tasks', red: true };
+            category = 'Creative Studio';
+            code = 'CREATIVE SCRIPT';
+          } else if (isTask) {
+            iconBg = 'bg-purple-100 text-purple-700 dark:bg-purple-950';
+            actionPrimary = { label: 'View Task in CRM', nav: 'tasks', red: false };
+            category = 'Task Flow';
+            code = 'TASK FLOW';
+          }
+
           return {
             id: a.id,
             unread: !a.read_at,
             title: a.subject || 'Notification',
             desc: a.description || '',
-            code: meta.proposal_number || (isProposal ? 'PROPOSAL SOW' : 'ACTIVITY'),
+            code,
             time: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
-            category: isProposal ? 'Action Required' : 'General',
-            iconBg: isProposal ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950' : 'bg-blue-100 text-blue-700 dark:bg-blue-950',
-            actionPrimary: isProposal ? { label: 'View Proposal', nav: 'proposals', red: false } : undefined,
+            category,
+            iconBg,
+            actionPrimary,
             actionSecondary: { label: 'Mark Read' },
             proposalId: meta.proposal_id
           };

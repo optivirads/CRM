@@ -91,7 +91,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
     res.json({ success: true, data: result });
   } catch (err: any) {
     console.error('Fetch integrations error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in integrations.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -337,7 +339,7 @@ router.post(
       }
     } catch (err: any) {
       console.error(`Error verifying integration ${integrationId}:`, err);
-      res.status(500).json({ success: false, message: 'Connection Handshake Failed', details: err.message });
+      res.status(500).json({ success: false, message: 'Connection Handshake Failed' });
     }
   }
 );
@@ -452,7 +454,9 @@ router.post(
       });
     } catch (err: any) {
       console.error('Save integration error:', err);
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Route Error in integrations.routes.ts]:', err);
+
+      res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
     }
   }
 );
@@ -482,7 +486,9 @@ router.delete(
       res.json({ success: true, message: 'Integration disconnected successfully' });
     } catch (err: any) {
       console.error('Disconnect integration error:', err);
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Route Error in integrations.routes.ts]:', err);
+
+      res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
     }
   }
 );
@@ -537,7 +543,9 @@ router.post(
 
       res.json({ success: true, data: accounts });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Route Error in integrations.routes.ts]:', err);
+
+      res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
     }
   }
 );
@@ -631,7 +639,9 @@ router.get(
 
       res.json({ success: true, data: { ...accountDetails, campaigns } });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Route Error in integrations.routes.ts]:', err);
+
+      res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
     }
   }
 );

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { db } from '../config/db';
-import { verifyPassword } from '../utils/auth';
+import { verifyPassword, hashPassword, needsRehash } from '../utils/auth';
 import { generateToken, requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { loginRateLimiter, otpRateLimiter } from '../middleware/rateLimiter';
@@ -21,11 +21,36 @@ const loginSchema = z.object({
   rememberMe: z.boolean().optional()
 });
 
+// Strong password: min 12 chars (NIST compliant), must have uppercase, lowercase, number, special char
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,256}$/;
+const strongPasswordSchema = z
+  .string()
+  .min(12, 'Password must be at least 12 characters')
+  .max(256)
+  .regex(
+    STRONG_PASSWORD_REGEX,
+    'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+  );
+
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(6, 'New password must be at least 6 characters').max(256),
-  otp: z.string().min(6, '6-digit OTP verification code is required').max(10)
+  newPassword: strongPasswordSchema,
+  otp: z.string().regex(/^\d{6}$/, '6-digit numeric OTP verification code is required')
 });
+
+// Used for the force-change-password flow (no current password needed)
+const forceChangePasswordSchema = z.object({
+  newPassword: strongPasswordSchema,
+  otp: z.string().regex(/^\d{6}$/, '6-digit numeric OTP verification code is required')
+});
+
+// ---------------------------------------------------------------------------
+// OTP helpers — store/verify as HMAC-SHA256, never store raw codes
+// ---------------------------------------------------------------------------
+function hashOtp(otp: string): string {
+  const secret = process.env.JWT_SECRET || 'otp-fallback-secret';
+  return crypto.createHmac('sha256', secret).update(otp).digest('hex');
+}
 
 // Default lockout limit if org setting is not configured
 const DEFAULT_LOCKOUT_LIMIT = 5;
@@ -46,7 +71,7 @@ router.post(
       const userRes = await db.query(`
         SELECT 
           u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone, u.avatar_url, u.status,
-          u.failed_login_attempts, u.lockout_until,
+          u.failed_login_attempts, u.lockout_until, u.force_password_change,
           ou.organization_id, ou.designation, ou.is_owner, ou.allowed_tabs, ou.client_id,
           comp.name as client_name,
           r.name as role_name, r.slug as role_slug,
@@ -100,12 +125,12 @@ router.post(
         const shouldLock = newAttempts >= lockoutLimit;
 
         if (shouldLock) {
-          // Set lockout
+          // Set lockout — use parameterized interval to avoid SQL injection risk
           await db.query(
-            `UPDATE users 
-             SET failed_login_attempts = $1, lockout_until = NOW() + INTERVAL '${LOCKOUT_DURATION_MINUTES} minutes'
+            `UPDATE users
+             SET failed_login_attempts = $1, lockout_until = NOW() + ($3 * INTERVAL '1 minute')
              WHERE id = $2;`,
-            [newAttempts, row.id]
+            [newAttempts, row.id, LOCKOUT_DURATION_MINUTES]
           );
           res.status(423).json({
             success: false,
@@ -124,6 +149,16 @@ router.post(
           });
         }
         return;
+      }
+
+      // Transparent PBKDF2 Hash Upgrade: If password used legacy iterations, upgrade in background
+      if (needsRehash(row.password_hash)) {
+        try {
+          const upgradedHash = hashPassword(password);
+          await db.query('UPDATE users SET password_hash = $1 WHERE id = $2;', [upgradedHash, row.id]);
+        } catch (rehashErr) {
+          console.error('[Auth Re-hash Error]:', rehashErr);
+        }
       }
 
       const isRootOwner = row.email?.toLowerCase() === 'optivirads@gmail.com';
@@ -197,6 +232,8 @@ router.post(
 
       res.json({
         success: true,
+        // forcePasswordChange: if true, frontend must redirect to the change-password screen
+        forcePasswordChange: Boolean(row.force_password_change),
         data: {
           token,
           user: {
@@ -213,7 +250,8 @@ router.post(
             allowed_tabs: effectiveTabs,
             clientId: row.client_id || null,
             clientName: row.client_name || null,
-            currentDevice: deviceInfo
+            currentDevice: deviceInfo,
+            forcePasswordChange: Boolean(row.force_password_change)
           },
           organization: {
             id: row.organization_id,
@@ -227,7 +265,7 @@ router.post(
       console.error('Login error:', err);
       res.status(500).json({
         success: false,
-        message: 'Internal server error during authentication: ' + (err?.message || err)
+        message: 'An error occurred during authentication. Please try again.'
       });
     }
   }
@@ -300,8 +338,13 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       }
     }
 
-    // Provide renewed 7-day token on verify to prevent abrupt session drops
-    const freshToken = generateToken({
+    // Only renew token if it's within 24h of expiry (prevents stolen tokens from living forever)
+    const tokenPayload = req.user as any;
+    const tokenExpiresAt = tokenPayload?.exp ? tokenPayload.exp * 1000 : 0;
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+    const shouldRenew = tokenExpiresAt > 0 && (tokenExpiresAt - Date.now()) < twentyFourHours;
+
+    const freshToken = shouldRenew ? generateToken({
       id: row.id,
       email: row.email,
       firstName: row.first_name,
@@ -312,7 +355,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       rememberMe: req.user?.rememberMe !== false,
       clientId: row.client_id || null,
       sessionId: effectiveSessionId
-    }, req.user?.rememberMe !== false);
+    }, req.user?.rememberMe !== false) : null;
 
     const activeDevices: any = {};
     if (row.desktop_device_info || (!isMobile && liveDevice)) {
@@ -339,7 +382,9 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in auth.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -384,7 +429,9 @@ router.post('/logout', requireAuth, async (req: AuthenticatedRequest, res: Respo
     }
     res.json({ success: true, message: 'Signed out successfully' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in auth.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -405,12 +452,13 @@ router.post(
       }
       const user = userRes.rows[0];
       const otpCode = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = hashOtp(otpCode);
 
-      // Store in user_security_otps with 10-minute expiry
+      // Store hashed OTP only — raw code is never saved to DB
       await db.query(
-        `INSERT INTO user_security_otps (user_id, action, otp_code, expires_at)
-         VALUES ($1, 'PASSWORD_CHANGE', $2, NOW() + INTERVAL '10 minutes')`,
-        [userId, otpCode]
+        `INSERT INTO user_security_otps (user_id, action, otp_code, otp_hash, expires_at)
+         VALUES ($1, 'PASSWORD_CHANGE', '', $2, NOW() + INTERVAL '10 minutes')`,
+        [userId, otpHash]
       );
 
       const sent = await EmailService.sendSecurityOtpEmail({
@@ -423,20 +471,19 @@ router.post(
       if (!sent) {
         res.status(500).json({
           success: false,
-          message: `Failed to dispatch verification email to ${user.email}. Please verify your network or contact support.`
+          message: `Failed to dispatch verification email. Please try again or contact support.`
         });
         return;
       }
 
       res.json({
         success: true,
-        message: `A 6-digit verification code has been sent to ${user.email}.`,
+        message: `A 6-digit verification code has been sent to your registered email address.`,
         emailSent: true,
-        email: user.email,
       });
     } catch (err: any) {
       console.error('[Request Password OTP Error]:', err);
-      res.status(500).json({ success: false, message: 'Failed to dispatch verification code: ' + err.message });
+      res.status(500).json({ success: false, message: 'Failed to dispatch verification code' });
     }
   }
 );
@@ -454,13 +501,14 @@ router.post(
     const userId = req.user!.id;
 
     try {
-      // 1. Verify OTP code
+      // 1. Verify OTP code — compare against stored hash, never against raw plaintext
       const cleanOtp = otp?.toString().trim();
+      const submittedHash = hashOtp(cleanOtp);
       const otpRes = await db.query(
         `SELECT id FROM user_security_otps
-         WHERE user_id = $1 AND action = 'PASSWORD_CHANGE' AND otp_code = $2 AND verified_at IS NULL AND expires_at > NOW()
+         WHERE user_id = $1 AND action = 'PASSWORD_CHANGE' AND otp_hash = $2 AND verified_at IS NULL AND expires_at > NOW()
          ORDER BY created_at DESC LIMIT 1`,
-        [userId, cleanOtp]
+        [userId, submittedHash]
       );
 
       if (otpRes.rows.length === 0) {
@@ -514,7 +562,71 @@ router.post(
       res.json({ success: true, message: 'Password has been changed successfully!' });
     } catch (err: any) {
       console.error('Change password error:', err);
-      res.status(500).json({ success: false, message: 'Failed to change password: ' + err.message });
+      res.status(500).json({ success: false, message: 'Failed to change password. Please try again.' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// POST /auth/force-change-password
+// For users with force_password_change = true (first login with temp password).
+// Does NOT require current password — only OTP sent to their email.
+// ---------------------------------------------------------------------------
+router.post(
+  '/force-change-password',
+  requireAuth,
+  otpRateLimiter,
+  validateBody(forceChangePasswordSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { newPassword, otp } = req.body;
+    const userId = req.user!.id;
+
+    try {
+      // 1. Verify OTP hash
+      const cleanOtp = otp?.toString().trim();
+      const submittedHash = hashOtp(cleanOtp);
+      const otpRes = await db.query(
+        `SELECT id FROM user_security_otps
+         WHERE user_id = $1 AND action = 'PASSWORD_CHANGE' AND otp_hash = $2 AND verified_at IS NULL AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId, submittedHash]
+      );
+
+      if (otpRes.rows.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired verification code. Please request a new code.',
+          code: 'INVALID_OTP'
+        });
+        return;
+      }
+
+      // 2. Mark OTP verified
+      await db.query('UPDATE user_security_otps SET verified_at = NOW() WHERE id = $1', [otpRes.rows[0].id]);
+
+      // 3. Set new password and clear the force_password_change flag
+      const { hashPassword } = await import('../utils/auth');
+      const newHash = hashPassword(newPassword);
+      await db.query(
+        'UPDATE users SET password_hash = $1, force_password_change = FALSE, updated_at = NOW() WHERE id = $2;',
+        [newHash, userId]
+      );
+
+      await recordAuditLog(
+        req.user!.organizationId,
+        userId,
+        'FORCE_PASSWORD_CHANGE',
+        'users',
+        userId,
+        null,
+        null,
+        req
+      );
+
+      res.json({ success: true, message: 'Password set successfully! You can now use the app.' });
+    } catch (err: any) {
+      console.error('Force change password error:', err);
+      res.status(500).json({ success: false, message: 'Failed to set password. Please try again.' });
     }
   }
 );

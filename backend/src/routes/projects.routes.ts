@@ -86,7 +86,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -114,7 +116,9 @@ router.get('/team-members', requireAuth, async (req: AuthenticatedRequest, res: 
 
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -178,7 +182,9 @@ router.post('/team-members', requireAuth, async (req: AuthenticatedRequest, res:
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -252,7 +258,9 @@ router.get('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respons
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -316,7 +324,9 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -363,7 +373,7 @@ async function notifyAssigneeOfTask(
     }
 
     if (!assigneeUser) {
-      console.log(`[Task Assignment Notification] Assignee not found in users table for task "${task.title}"`);
+      console.info(`[Task Assignment Notification] Assignee not found for taskId=${task.id}`);
       return;
     }
 
@@ -436,9 +446,223 @@ async function notifyAssigneeOfTask(
       });
     }
 
-    console.log(`[Task Assignment Notification] Successfully notified ${assigneeUser.name} (${assigneeUser.email}) for task "${task.title}"`);
+    console.info(`[Task Assignment Notification] Successfully dispatched notification for taskId=${task.id}`);
   } catch (err) {
     console.error('[notifyAssigneeOfTask Error]:', err);
+  }
+}
+
+/**
+ * Dispatches In-App & Email notifications when a script or creative concept is added/updated on a task
+ */
+async function notifyAssigneeOfTaskScript(
+  task: any,
+  orgId: string,
+  actorUser?: any
+) {
+  try {
+    let assigneeUser: any = null;
+    if (task.assignee_id) {
+      const userRes = await db.query(
+        `SELECT id, email, TRIM(CONCAT(first_name, ' ', last_name)) as name FROM users WHERE id = $1 AND deleted_at IS NULL`,
+        [task.assignee_id]
+      );
+      if (userRes.rows.length > 0) {
+        assigneeUser = userRes.rows[0];
+      }
+    }
+
+    if (!assigneeUser && task.assignee_name) {
+      const trimmed = String(task.assignee_name).trim();
+      const userRes = await db.query(
+        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+         FROM users u
+         JOIN organization_users ou ON u.id = ou.user_id
+         WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
+           AND (LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2) OR LOWER(u.email) = LOWER($2))
+         LIMIT 1`,
+        [orgId, trimmed]
+      );
+      if (userRes.rows.length > 0) {
+        assigneeUser = userRes.rows[0];
+      } else {
+        const directRes = await db.query(
+          `SELECT id, email, TRIM(CONCAT(first_name, ' ', last_name)) as name
+           FROM users
+           WHERE deleted_at IS NULL
+             AND (LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = LOWER($1) OR LOWER(email) = LOWER($1))
+           LIMIT 1`,
+          [trimmed]
+        );
+        if (directRes.rows.length > 0) {
+          assigneeUser = directRes.rows[0];
+        }
+      }
+    }
+
+    // If assignee was found by name but task had no assignee_id, backfill it now
+    if (assigneeUser && !task.assignee_id) {
+      await db.query(`UPDATE tasks SET assignee_id = $1 WHERE id = $2`, [assigneeUser.id, task.id]).catch(() => {});
+    }
+
+    const actorName = actorUser
+      ? `${actorUser.firstName || ''} ${actorUser.lastName || ''}`.trim() || actorUser.email || 'A team member'
+      : 'A team member';
+
+    let clientName: string | null = null;
+    let projectName: string | null = null;
+
+    if (task.client_id) {
+      const cRes = await db.query(`SELECT company_name, name FROM clients WHERE id = $1`, [task.client_id]);
+      if (cRes.rows.length > 0) {
+        clientName = cRes.rows[0].company_name || cRes.rows[0].name;
+      }
+    }
+
+    if (task.project_id) {
+      const pRes = await db.query(`SELECT name FROM projects WHERE id = $1`, [task.project_id]);
+      if (pRes.rows.length > 0) {
+        projectName = pRes.rows[0].name;
+      }
+    }
+
+    const notifTitle = `📝 Creative Script Added: ${task.title}`;
+    const notifMessage = `${actorName} added a creative script / concept for your task "${task.title}".`;
+    const notifLink = `/?tab=tasks&id=${task.id}`;
+
+    // Target users for in-app notification:
+    // If assignee exists, notify them.
+    // If unassigned, notify all organization members so team is aware!
+    let targetUserIds: string[] = [];
+    if (assigneeUser) {
+      targetUserIds.push(assigneeUser.id);
+    } else {
+      const orgUsers = await db.query(
+        `SELECT user_id FROM organization_users WHERE organization_id = $1`,
+        [orgId]
+      );
+      targetUserIds = orgUsers.rows.map(r => r.user_id);
+    }
+
+    // 1. In-App Notifications table
+    for (const uId of targetUserIds) {
+      try {
+        await db.query(
+          `INSERT INTO notifications (organization_id, user_id, title, message, link, type, is_read)
+           VALUES ($1, $2, $3, $4, $5, 'task_creative_script', false)`,
+          [orgId, uId, notifTitle, notifMessage, notifLink]
+        );
+      } catch (notifErr: any) {
+        // Fallback to task_assigned if check constraint differs
+        try {
+          await db.query(
+            `INSERT INTO notifications (organization_id, user_id, title, message, link, type, is_read)
+             VALUES ($1, $2, $3, $4, $5, 'task_assigned', false)`,
+            [orgId, uId, notifTitle, notifMessage, notifLink]
+          );
+        } catch (_) {}
+      }
+    }
+
+    // 2. In-App Activities (powers notification bell and alert feed)
+    try {
+      await db.query(
+        `INSERT INTO activities (organization_id, type, subject, description, completed_at)
+         VALUES ($1, 'Task', $2, $3, NOW())`,
+        [orgId, notifTitle, `${actorName} added a creative script for task "${task.title}". Context: ${clientName || 'Agency Operations'} ${projectName ? `• ${projectName}` : ''}`]
+      );
+    } catch (actErr: any) {
+      console.warn('[notifyAssigneeOfTaskScript Activity Warning]:', actErr.message);
+    }
+
+    // 3. Email Notification via Gmail SMTP
+    if (assigneeUser && assigneeUser.email) {
+      try {
+        await EmailService.sendTaskScriptAddedNotification({
+          task: {
+            id: task.id,
+            title: task.title,
+            deliverableType: task.deliverable_type,
+            scriptContent: task.script_content,
+            conceptIdea: task.concept_idea,
+            priority: task.priority,
+            due_date: task.due_date ? new Date(task.due_date).toLocaleDateString() : null,
+            clientName,
+            projectName
+          },
+          assignee: {
+            name: assigneeUser.name || 'Team Member',
+            email: assigneeUser.email
+          },
+          addedBy: {
+            name: actorName,
+            email: actorUser?.email
+          },
+          agencyName: 'OptiVir Ads'
+        });
+        console.info(`[Task Script Notification] Dispatched email for taskId=${task.id}`);
+      } catch (emailErr: any) {
+        console.error('[notifyAssigneeOfTaskScript Email Error]:', emailErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[notifyAssigneeOfTaskScript Error]:', err);
+  }
+}
+
+/**
+ * Automatically creates or syncs a Creative in 'DRAFT' status in Creative Studio when script is added to task
+ */
+async function syncTaskScriptToCreativeDraft(
+  task: any,
+  orgId: string,
+  userId: string
+) {
+  try {
+    if (!task.script_content && !task.concept_idea) return;
+
+    const adFormat = task.deliverable_type === 'VIDEO' ? 'VIDEO' : 'IMAGE';
+
+    // Check if creative already exists for this task
+    const existing = await db.query(
+      `SELECT id FROM creatives WHERE task_id = $1 AND organization_id = $2 LIMIT 1`,
+      [task.id, orgId]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query(
+        `UPDATE creatives
+         SET 
+           script_content = $1,
+           concept_idea = $2,
+           ad_format = $3,
+           updated_at = NOW()
+         WHERE id = $4 AND organization_id = $5`,
+        [task.script_content, task.concept_idea, adFormat, existing.rows[0].id, orgId]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO creatives (
+           organization_id, client_id, project_id, task_id, name,
+           target_platform, ad_format, aspect_ratio, status,
+           script_content, concept_idea, created_by, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, 'ALL', $6, $7, 'DRAFT', $8, $9, $10, NOW())`,
+        [
+          orgId,
+          task.client_id || null,
+          task.project_id || null,
+          task.id,
+          task.title,
+          adFormat,
+          adFormat === 'VIDEO' ? '9:16' : '1:1',
+          task.script_content,
+          task.concept_idea,
+          userId
+        ]
+      );
+    }
+  } catch (err) {
+    console.error('[syncTaskScriptToCreativeDraft Error]:', err);
   }
 }
 
@@ -449,7 +673,10 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
   const {
     title, description, project_id, client_id,
     assignee_id, assignee_name, assignee_role,
-    priority, due_date, assigned_date, start_date, progress
+    priority, due_date, assigned_date, start_date, progress,
+    deliverable_type, deliverableType,
+    script_content, scriptContent,
+    concept_idea, conceptIdea
   } = req.body;
 
   if (!title) {
@@ -480,31 +707,46 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
     notes: 'Task created'
   }];
 
+  const finalDeliverableType = deliverable_type || deliverableType || 'GENERAL';
+  const finalScriptContent = script_content !== undefined ? script_content : (scriptContent || null);
+  const finalConceptIdea = concept_idea !== undefined ? concept_idea : (conceptIdea || null);
+
   try {
     const result = await db.query(`
       INSERT INTO tasks (
         organization_id, title, description, project_id, client_id, assignee_id,
         assignee_name, assignee_role,
         priority, status, progress, subtasks, stage_history,
-        assigned_date, start_date, due_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'To Do', $10, $11, $12, $13, $13, $14, $15)
+        assigned_date, start_date, due_date, created_by,
+        deliverable_type, script_content, concept_idea
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'To Do', $10, $11, $12, $13, $13, $14, $15, $16, $17, $18)
       RETURNING *;
     `, [
       orgId, title, description || null, project_id || null, client_id || null,
       assignee_id || null, assignee_name || null, assignee_role || null,
       priority || 'Medium', Math.max(0, Math.min(100, Number(progress) || 0)),
       JSON.stringify([]), JSON.stringify(initialHistory),
-      effectiveAssignedDate, due_date || null, userId
+      effectiveAssignedDate, due_date || null, userId,
+      finalDeliverableType, finalScriptContent, finalConceptIdea
     ]);
 
-    res.status(201).json({ success: true, data: result.rows[0] });
+    const createdTask = result.rows[0];
+    res.status(201).json({ success: true, data: createdTask });
 
-    // Notify assignee of newly assigned task
-    if (result.rows[0].assignee_id || result.rows[0].assignee_name) {
-      notifyAssigneeOfTask(result.rows[0], orgId, req.user);
+    // 1. Auto-create/sync Creative in DRAFT status if script or concept provided
+    if (finalScriptContent || finalConceptIdea) {
+      syncTaskScriptToCreativeDraft(createdTask, orgId, userId);
+      notifyAssigneeOfTaskScript(createdTask, orgId, req.user);
+    }
+
+    // 2. Notify assignee of newly assigned task
+    if (createdTask.assignee_id || createdTask.assignee_name) {
+      notifyAssigneeOfTask(createdTask, orgId, req.user);
     }
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -602,7 +844,9 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
 
     res.json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -641,7 +885,9 @@ router.delete('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     await recordAuditLog(orgId, userId, 'DELETE', 'tasks', taskId, null, null, req);
     res.json({ success: true, message: 'Task successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -684,7 +930,9 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
     await recordAuditLog(orgId, userId, 'DELETE', 'projects', projectId, null, null, req);
     res.json({ success: true, message: 'Project successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -743,7 +991,9 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): 
     await recordAuditLog(orgId, userId, 'CREATE', 'projects', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -792,7 +1042,9 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     await recordAuditLog(orgId, userId, 'UPDATE', 'projects', projectId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -883,6 +1135,16 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       }
     }
 
+    const {
+      deliverable_type, deliverableType,
+      script_content, scriptContent,
+      concept_idea, conceptIdea
+    } = req.body;
+
+    const targetDeliverableType = deliverable_type || deliverableType;
+    const targetScript = script_content !== undefined ? script_content : scriptContent;
+    const targetConcept = concept_idea !== undefined ? concept_idea : conceptIdea;
+
     const updated = await db.query(`
       UPDATE tasks
       SET 
@@ -901,6 +1163,9 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
         progress = COALESCE($17, progress),
         subtasks = COALESCE($18::jsonb, subtasks),
         stage_history = COALESCE($19::jsonb, stage_history),
+        deliverable_type = CASE WHEN $20::boolean THEN $21 ELSE deliverable_type END,
+        script_content = CASE WHEN $22::boolean THEN $23 ELSE script_content END,
+        concept_idea = CASE WHEN $24::boolean THEN $25 ELSE concept_idea END,
         completed_at = CASE WHEN $4 = 'Completed' THEN NOW() ELSE completed_at END,
         updated_by = $10
       WHERE id = $11 AND organization_id = $12
@@ -913,12 +1178,21 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       client_id !== undefined, client_id || null,
       computedProgress !== undefined ? computedProgress : null,
       computedSubtasks !== undefined ? JSON.stringify(computedSubtasks) : null,
-      JSON.stringify(updatedHistory)
+      JSON.stringify(updatedHistory),
+      targetDeliverableType !== undefined, targetDeliverableType || 'GENERAL',
+      targetScript !== undefined, targetScript || null,
+      targetConcept !== undefined, targetConcept || null
     ]);
 
     await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, currentTask, updated.rows[0], req);
 
-    // If assignee was newly assigned or changed, dispatch notifications
+    // 1. If script or concept updated, sync to creative draft and notify assignee
+    if (targetScript !== undefined || targetConcept !== undefined) {
+      syncTaskScriptToCreativeDraft(updated.rows[0], orgId, userId);
+      notifyAssigneeOfTaskScript(updated.rows[0], orgId, req.user);
+    }
+
+    // 2. If assignee was newly assigned or changed, dispatch assignment notifications
     const assigneeChanged =
       (assignee_id !== undefined && assignee_id !== currentTask.assignee_id) ||
       (assignee_name !== undefined && assignee_name !== currentTask.assignee_name);
@@ -929,7 +1203,74 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
+  }
+});
+
+// 4b. Update Task Script & Concept Brief (Triggers In-App CRM and Email Notification to Assignee)
+router.patch('/tasks/:id/script', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const orgId = req.user!.organizationId;
+  const userId = req.user!.id;
+  const taskId = req.params.id;
+  const {
+    script_content, scriptContent,
+    concept_idea, conceptIdea,
+    deliverable_type, deliverableType
+  } = req.body;
+
+  const targetDeliverableType = deliverable_type || deliverableType || 'GENERAL';
+  const targetScript = script_content !== undefined ? script_content : scriptContent;
+  const targetConcept = concept_idea !== undefined ? concept_idea : conceptIdea;
+
+  try {
+    const checkTask = await db.query(`SELECT * FROM tasks WHERE id = $1 AND organization_id = $2`, [taskId, orgId]);
+    if (checkTask.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const currentTask = checkTask.rows[0];
+
+    const updated = await db.query(`
+      UPDATE tasks
+      SET
+        deliverable_type = COALESCE($1, deliverable_type),
+        script_content = $2,
+        concept_idea = $3,
+        updated_by = $4,
+        updated_at = NOW()
+      WHERE id = $5 AND organization_id = $6
+      RETURNING *;
+    `, [
+      targetDeliverableType,
+      targetScript !== undefined ? targetScript : currentTask.script_content,
+      targetConcept !== undefined ? targetConcept : currentTask.concept_idea,
+      userId,
+      taskId,
+      orgId
+    ]);
+
+    const updatedTask = updated.rows[0];
+    await recordAuditLog(orgId, userId, 'UPDATE', 'tasks', taskId, currentTask, updatedTask, req);
+
+    // Sync to Creative Studio draft
+    await syncTaskScriptToCreativeDraft(updatedTask, orgId, userId);
+
+    // Notify assignee via In-App CRM and Gmail SMTP Email
+    await notifyAssigneeOfTaskScript(updatedTask, orgId, req.user);
+
+    res.json({
+      success: true,
+      data: updatedTask,
+      message: 'Script added to task and assignee notified via Email & CRM!'
+    });
+  } catch (err: any) {
+    console.error('[PATCH /tasks/:id/script Error]:', err);
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -967,7 +1308,9 @@ router.get('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest,
 
     res.json({ success: true, data: commentsRes.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1013,7 +1356,9 @@ router.post('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1118,7 +1463,9 @@ router.get('/tasks/:id/stakeholders', requireAuth, async (req: AuthenticatedRequ
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in projects.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 

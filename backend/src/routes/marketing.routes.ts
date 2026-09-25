@@ -277,7 +277,9 @@ router.get('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Res
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -357,7 +359,9 @@ router.get('/analytics', requireAuth, async (req: AuthenticatedRequest, res: Res
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -418,7 +422,9 @@ router.post('/campaigns', requireAuth, async (req: AuthenticatedRequest, res: Re
     await recordAuditLog(orgId, userId, 'CREATE', 'campaigns', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -503,7 +509,9 @@ router.post('/campaigns/quick-log', requireAuth, async (req: AuthenticatedReques
     });
   } catch (err: any) {
     console.error('Failed to log campaign metrics:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -547,7 +555,9 @@ router.patch('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, re
     await recordAuditLog(orgId, userId, 'UPDATE', 'campaigns', campaignId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -590,7 +600,9 @@ router.delete('/campaigns/:id', requireAuth, async (req: AuthenticatedRequest, r
     await recordAuditLog(orgId, userId, 'DELETE', 'campaigns', campaignId, null, null, req);
     res.json({ success: true, message: 'Campaign successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -688,7 +700,9 @@ router.get('/ad-accounts/discover', requireAuth, async (req: AuthenticatedReques
 
     res.json({ success: true, data: adAccounts });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -801,7 +815,9 @@ router.get('/ad-accounts/preview-campaigns', requireAuth, async (req: Authentica
     });
   } catch (err: any) {
     console.error('Failed to preview campaigns for ad account:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1006,7 +1022,9 @@ router.post('/campaigns/connect-ad-account', requireAuth, async (req: Authentica
     });
   } catch (err: any) {
     console.error('Failed to connect ad account to client:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -1030,7 +1048,9 @@ router.post('/campaigns/sync-telemetry', requireAuth, async (req: AuthenticatedR
     });
   } catch (err: any) {
     console.error('Failed to sync campaign telemetry:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in marketing.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 

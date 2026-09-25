@@ -85,7 +85,9 @@ router.get('/leads', requireAuth, async (req: AuthenticatedRequest, res: Respons
       }
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -122,7 +124,9 @@ router.post('/leads', requireAuth, validateBody(createLeadSchema), async (req: A
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -169,7 +173,9 @@ router.patch('/leads/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -252,7 +258,9 @@ router.post('/leads/:id/convert', requireAuth, async (req: AuthenticatedRequest,
     });
   } catch (err: any) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   } finally {
     client.release();
   }
@@ -286,7 +294,9 @@ router.get('/companies', requireAuth, async (req: AuthenticatedRequest, res: Res
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -316,7 +326,9 @@ router.get('/contacts', requireAuth, async (req: AuthenticatedRequest, res: Resp
     const result = await db.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -326,7 +338,9 @@ router.get('/lead-sources', requireAuth, async (req: AuthenticatedRequest, res: 
     const result = await db.query(`SELECT * FROM lead_sources WHERE organization_id = $1 ORDER BY name ASC;`, [orgId]);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -360,7 +374,9 @@ router.delete('/leads/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     await recordAuditLog(orgId, userId, 'DELETE', 'leads', leadId, null, null, req);
     res.json({ success: true, message: 'Lead successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -394,7 +410,9 @@ router.delete('/companies/:id', requireAuth, async (req: AuthenticatedRequest, r
     await recordAuditLog(orgId, userId, 'DELETE', 'companies', companyId, null, null, req);
     res.json({ success: true, message: 'Company successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -428,7 +446,9 @@ router.delete('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, re
     await recordAuditLog(orgId, userId, 'DELETE', 'contacts', contactId, null, null, req);
     res.json({ success: true, message: 'Contact successfully deleted' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -457,7 +477,9 @@ router.post('/companies', requireAuth, async (req: AuthenticatedRequest, res: Re
     await recordAuditLog(orgId, userId, 'CREATE', 'companies', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -498,7 +520,9 @@ router.patch('/companies/:id', requireAuth, async (req: AuthenticatedRequest, re
     await recordAuditLog(orgId, userId, 'UPDATE', 'companies', companyId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -541,7 +565,9 @@ router.post('/contacts', requireAuth, async (req: AuthenticatedRequest, res: Res
     await recordAuditLog(orgId, userId, 'CREATE', 'contacts', result.rows[0].id, null, result.rows[0], req);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
@@ -579,7 +605,9 @@ router.patch('/contacts/:id', requireAuth, async (req: AuthenticatedRequest, res
     await recordAuditLog(orgId, userId, 'UPDATE', 'contacts', contactId, current.rows[0], updated.rows[0], req);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[Route Error in crm.routes.ts]:', err);
+
+    res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });
 
