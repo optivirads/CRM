@@ -44,6 +44,7 @@ export default function Home() {
   const [currentTab, setCurrentTab] = useState<NavItem>('dashboard');
   const [selectedClient360Id, setSelectedClient360Id] = useState<string | undefined>(undefined);
   const [selectedClient360Name, setSelectedClient360Name] = useState<string | undefined>(undefined);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
   const [invoiceTransferData, setInvoiceTransferData] = useState<any>(null);
   const [openCreateInvoiceTrigger, setOpenCreateInvoiceTrigger] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -58,9 +59,11 @@ export default function Home() {
         const tabParam = urlParams.get('tab') as NavItem | null;
         const clientParam = urlParams.get('clientId') || undefined;
         const clientNameParam = urlParams.get('clientName') || undefined;
+        const taskParam = urlParams.get('taskId') || undefined;
         const savedTab = localStorage.getItem('optivir_crm_active_tab') as NavItem | null;
         const savedClientId = localStorage.getItem('optivir_crm_client_id') || undefined;
         const savedClientName = localStorage.getItem('optivir_crm_client_name') || undefined;
+        const savedTaskId = localStorage.getItem('optivir_crm_selected_task_id') || undefined;
 
         const validTabs: NavItem[] = [
           'dashboard', 'leads', 'contacts', 'companies', 'opportunities',
@@ -78,6 +81,7 @@ export default function Home() {
 
         const targetClientId = token ? (clientParam || savedClientId) : undefined;
         const targetClientName = token ? (clientNameParam || savedClientName) : undefined;
+        const targetTaskId = token ? (taskParam || savedTaskId) : undefined;
 
         setCurrentTab(targetTab);
         if (targetClientId) {
@@ -85,6 +89,9 @@ export default function Home() {
         }
         if (targetClientName) {
           setSelectedClient360Name(targetClientName);
+        }
+        if (targetTaskId) {
+          setSelectedTaskId(targetTaskId);
         }
 
         // Keep URL synchronized
@@ -98,6 +105,11 @@ export default function Home() {
         } else {
           url.searchParams.delete('clientId');
           url.searchParams.delete('clientName');
+        }
+        if (targetTaskId && targetTab === 'tasks') {
+          url.searchParams.set('taskId', targetTaskId);
+        } else {
+          url.searchParams.delete('taskId');
         }
         window.history.replaceState({}, '', url.toString());
       } catch (err) {
@@ -113,14 +125,17 @@ export default function Home() {
       setCurrentTab('dashboard');
       setSelectedClient360Id(undefined);
       setSelectedClient360Name(undefined);
+      setSelectedTaskId(undefined);
       try {
         localStorage.setItem('optivir_crm_active_tab', 'dashboard');
         localStorage.removeItem('optivir_crm_client_id');
         localStorage.removeItem('optivir_crm_client_name');
+        localStorage.removeItem('optivir_crm_selected_task_id');
         const url = new URL(window.location.href);
         url.searchParams.set('tab', 'dashboard');
         url.searchParams.delete('clientId');
         url.searchParams.delete('clientName');
+        url.searchParams.delete('taskId');
         window.history.replaceState({}, '', url.toString());
       } catch (e) {}
     }
@@ -135,10 +150,12 @@ export default function Home() {
       const tabParam = urlParams.get('tab') as NavItem | null;
       const clientParam = urlParams.get('clientId') || undefined;
       const clientNameParam = urlParams.get('clientName') || undefined;
+      const taskParam = urlParams.get('taskId') || undefined;
       if (tabParam) {
         setCurrentTab(tabParam);
         if (clientParam) setSelectedClient360Id(clientParam);
         if (clientNameParam) setSelectedClient360Name(clientNameParam);
+        if (taskParam) setSelectedTaskId(taskParam);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -160,13 +177,16 @@ export default function Home() {
   }, []);
 
   // Unified navigation function that updates state, localStorage, and URL search parameters
-  const navigateTo = (tab: NavItem, clientId?: string, clientName?: string) => {
+  const navigateTo = (tab: NavItem, clientId?: string, clientName?: string, taskId?: string) => {
     setCurrentTab(tab);
     if (clientId !== undefined) {
       setSelectedClient360Id(clientId);
     }
     if (clientName !== undefined) {
       setSelectedClient360Name(clientName);
+    }
+    if (taskId !== undefined) {
+      setSelectedTaskId(taskId);
     }
     if (typeof window !== 'undefined') {
       try {
@@ -183,6 +203,12 @@ export default function Home() {
           localStorage.removeItem('optivir_crm_client_name');
         }
 
+        if (taskId) {
+          localStorage.setItem('optivir_crm_selected_task_id', taskId);
+        } else if (tab !== 'tasks') {
+          localStorage.removeItem('optivir_crm_selected_task_id');
+        }
+
         const url = new URL(window.location.href);
         url.searchParams.set('tab', tab);
         if (clientId) {
@@ -195,6 +221,11 @@ export default function Home() {
         } else if (tab !== 'client-360') {
           url.searchParams.delete('clientId');
           url.searchParams.delete('clientName');
+        }
+        if (taskId && tab === 'tasks') {
+          url.searchParams.set('taskId', taskId);
+        } else {
+          url.searchParams.delete('taskId');
         }
         window.history.replaceState({}, '', url.toString());
       } catch (e) {
@@ -344,6 +375,7 @@ export default function Home() {
                   clientId={selectedClient360Id}
                   clientName={selectedClient360Name}
                   onBackToList={() => navigateTo('clients')}
+                  onNavigate={(tab, cid, cname, taskId) => navigateTo(tab as any, cid, cname, taskId)}
                 />
               )}
               {currentTab === 'leads' && <LeadsView onNavigate={(tab: any) => navigateTo(tab)} />}
@@ -376,7 +408,7 @@ export default function Home() {
                 />
               )}
               {currentTab === 'projects' && <ProjectsView />}
-              {currentTab === 'tasks' && <TasksView onNavigate={(tab: any, ...args: any[]) => navigateTo(tab, ...args)} />}
+              {currentTab === 'tasks' && <TasksView initialTaskId={selectedTaskId} onNavigate={(tab: any, ...args: any[]) => navigateTo(tab, ...args)} />}
               {currentTab === 'creatives' && <CreativeProofingView onNavigate={(tab) => navigateTo(tab)} />}
               {currentTab === 'sales' && <PipelineView onNavigate={(tab: any) => navigateTo(tab)} />}
               {currentTab === 'marketing' && <MarketingView />}

@@ -56,10 +56,11 @@ import { useAuth } from '@/lib/auth-context';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
 
 interface TasksViewProps {
+  initialTaskId?: string;
   onNavigate?: (tab: any, ...args: any[]) => void;
 }
 
-export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
+export const TasksView: React.FC<TasksViewProps> = ({ initialTaskId, onNavigate }) => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -499,7 +500,20 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
           };
         });
         setTasks(mapped);
-        if (activeTask) {
+        const targetTaskId = initialTaskId || (typeof window !== 'undefined' ? localStorage.getItem('optivir_crm_selected_task_id') : null);
+        const matched = targetTaskId ? mapped.find((m: any) => m.id === targetTaskId) : null;
+
+        if (matched) {
+          setActiveTask(matched);
+          setSubtasksState(matched.subtasks || []);
+          setTaskDeliverableType(matched.deliverable_type || 'GENERAL');
+          setTaskScript(matched.script_content || '');
+          setTaskConcept(matched.concept_idea || '');
+          // If task has specific client, ensure client filter includes it or resets to All
+          if (matched.clientName) {
+            setSelectedClient('All');
+          }
+        } else if (activeTask) {
           const fresh = mapped.find((m: any) => m.id === activeTask.id);
           if (fresh) {
             setActiveTask(fresh);
@@ -528,6 +542,20 @@ export const TasksView: React.FC<TasksViewProps> = ({ onNavigate }) => {
     fetchTeamMembers();
     fetchClientsAndProjects();
   }, []);
+
+  // When initialTaskId updates, auto-focus task
+  useEffect(() => {
+    if (tasks.length > 0 && initialTaskId) {
+      const match = tasks.find((t: any) => t.id === initialTaskId);
+      if (match) {
+        setActiveTask(match);
+        setSubtasksState(match.subtasks || []);
+        setTaskDeliverableType(match.deliverable_type || 'GENERAL');
+        setTaskScript(match.script_content || '');
+        setTaskConcept(match.concept_idea || '');
+      }
+    }
+  }, [initialTaskId, tasks]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();

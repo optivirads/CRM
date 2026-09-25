@@ -274,7 +274,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     const projectRes = await db.query(`
       SELECT 
         p.*,
-        c.id as client_id, comp.name as client_name, comp.domain as client_domain,
+        c.id as client_id, comp.name as client_name,
         u.first_name as pm_first, u.last_name as pm_last, u.email as pm_email,
         (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND deleted_at IS NULL) as total_tasks,
         (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'Completed' AND deleted_at IS NULL) as completed_tasks
@@ -324,8 +324,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       }
     });
   } catch (err: any) {
-    console.error('[Route Error in projects.routes.ts]:', err);
-
+    console.error('[Route Error in projects.routes.ts GET /:id]:', err?.message);
     res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
   }
 });

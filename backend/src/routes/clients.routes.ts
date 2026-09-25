@@ -837,7 +837,7 @@ router.get('/:id/social-insights', requireAuth, async (req: AuthenticatedRequest
       return;
     }
 
-    const postsRes = await db.query(`
+    let postsRes = await db.query(`
       SELECT 
         p.*,
         u.first_name as creator_first, u.last_name as creator_last
@@ -846,6 +846,26 @@ router.get('/:id/social-insights', requireAuth, async (req: AuthenticatedRequest
       WHERE p.client_id = $1 AND p.organization_id = $2
       ORDER BY p.published_at DESC;
     `, [clientId, orgId]);
+
+    // Auto-sync & import newly discovered live posts (e.g. YouTube shorts/videos and new channel publications)
+    try {
+      const discovery = await SocialMediaSyncService.discoverAvailablePosts(rawId, orgId);
+      const unimported = (discovery.availablePosts || []).filter(p => !p.is_imported);
+      if (unimported.length > 0) {
+        await SocialMediaSyncService.importSelectedPosts(rawId, orgId, unimported, userId);
+        postsRes = await db.query(`
+          SELECT 
+            p.*,
+            u.first_name as creator_first, u.last_name as creator_last
+          FROM client_social_posts p
+          LEFT JOIN users u ON p.created_by = u.id
+          WHERE p.client_id = $1 AND p.organization_id = $2
+          ORDER BY p.published_at DESC;
+        `, [clientId, orgId]);
+      }
+    } catch (autoErr) {
+      console.warn('Auto-import of newly discovered live posts skipped:', autoErr);
+    }
 
     // Aggregates
     const aggRes = await db.query(`
@@ -1053,11 +1073,11 @@ router.get('/:id/social-integrations', requireAuth, async (req: AuthenticatedReq
     };
 
     let profileMetrics: any = {};
-    if (row.facebook_access_token) {
-      try {
+    try {
+
         profileMetrics = await SocialMediaSyncService.fetchProfileMetrics(row);
       } catch {}
-    }
+
 
     res.json({
       success: true,
