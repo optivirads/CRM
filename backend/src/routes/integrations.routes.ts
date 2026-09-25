@@ -8,7 +8,10 @@ import {
   getWhatsAppConfig,
   sendWhatsAppTextMessage,
   sendWhatsAppTemplateMessage,
-  normalizeWhatsAppNumber
+  normalizeWhatsAppNumber,
+  sendWhatsAppOtp,
+  maskPhoneNumber,
+  sendWhatsAppDocumentInvite
 } from '../services/whatsapp.service';
 
 const router = Router();
@@ -312,45 +315,69 @@ router.post(
         // 8. WHATSAPP
         case 'int-whatsapp': {
           const { wabaId, phoneId, accessToken } = credentials;
-          if (!wabaId || !accessToken) {
-            res.json({ success: false, message: 'Both WABA ID and Access Token are required' });
+          if (!accessToken) {
+            res.json({ success: false, message: 'Access Token is required' });
             return;
           }
-          const apiRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(wabaId.trim())}?fields=id,name,currency,timezone_id&access_token=${encodeURIComponent(accessToken.trim())}`);
-          const latencyMs = Date.now() - startTime;
-          const data: any = await apiRes.json().catch(() => ({}));
           
-          if (apiRes.ok && !data.error) {
-            let phoneDetailsText = '';
-            let phoneData: any = null;
-            if (phoneId && phoneId.trim()) {
-              try {
-                const phoneRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(phoneId.trim())}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status&access_token=${encodeURIComponent(accessToken.trim())}`);
-                phoneData = await phoneRes.json().catch(() => ({}));
-                if (phoneRes.ok && phoneData?.display_phone_number) {
-                  phoneDetailsText = ` • Number: ${phoneData.display_phone_number} (${phoneData.verified_name || 'Verified'}) • Quality: ${phoneData.quality_rating || 'GREEN'}`;
-                }
-              } catch { /* non-fatal phone detail enrichment */ }
-            }
+          const cleanToken = accessToken.trim();
+          const cleanPhoneId = (phoneId || '').trim();
+          const cleanWabaId = (wabaId || '').trim();
 
+          let apiRes = null;
+          let data: any = {};
+          let verifiedWaba = false;
+          let verifiedPhone = false;
+          let accountName = cleanWabaId || 'WhatsApp Business Account';
+          let phoneDetailsText = '';
+          let phoneData: any = null;
+
+          // 1. Try WABA ID verification
+          if (cleanWabaId) {
+            try {
+              apiRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(cleanWabaId)}?fields=id,name,currency,timezone_id&access_token=${encodeURIComponent(cleanToken)}`);
+              data = await apiRes.json().catch(() => ({}));
+              if (apiRes.ok && !data.error) {
+                verifiedWaba = true;
+                if (data.name) accountName = data.name;
+              }
+            } catch { /* continue to phone check */ }
+          }
+
+          // 2. Try Phone Number ID verification (crucial for temporary Developer Test tokens)
+          if (cleanPhoneId) {
+            try {
+              const phoneRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(cleanPhoneId)}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status&access_token=${encodeURIComponent(cleanToken)}`);
+              phoneData = await phoneRes.json().catch(() => ({}));
+              if (phoneRes.ok && phoneData?.id && !phoneData.error) {
+                verifiedPhone = true;
+                phoneDetailsText = ` • Number: ${phoneData.display_phone_number || cleanPhoneId} (${phoneData.verified_name || 'Verified'})`;
+              }
+            } catch { /* non-fatal phone check */ }
+          }
+
+          const latencyMs = Date.now() - startTime;
+
+          if (verifiedWaba || verifiedPhone) {
             res.json({
               success: true,
               message: 'WhatsApp Cloud API Verified (200 OK)',
-              details: `Connected to WABA: "${data.name || data.id}"${phoneDetailsText}. Free-tier service & template messaging active (${latencyMs}ms).`,
+              details: `Connected: "${accountName}"${phoneDetailsText}. Meta Cloud API messaging active (${latencyMs}ms).`,
               latencyMs,
               data: {
-                id: data.id,
-                name: data.name,
-                phone: phoneData?.display_phone_number || phoneId || undefined,
-                verifiedName: phoneData?.verified_name || undefined,
-                quality: phoneData?.quality_rating || undefined
+                wabaId: cleanWabaId,
+                phoneId: cleanPhoneId,
+                name: accountName,
+                phone: phoneData?.display_phone_number || cleanPhoneId || undefined,
+                verifiedName: phoneData?.verified_name || undefined
               }
             });
           } else {
+            const errDetail = data?.error?.message || phoneData?.error?.message || 'Invalid Access Token or Phone/WABA ID. Make sure you copied the full token without missing characters.';
             res.json({
               success: false,
-              message: 'WhatsApp Cloud API Error',
-              details: data?.error?.message || 'Invalid WABA ID or Access Token. Ensure your System User token has whatsapp_business_messaging and whatsapp_business_management permissions.',
+              message: 'WhatsApp Cloud API Authentication Error',
+              details: errDetail,
               latencyMs
             });
           }
@@ -749,6 +776,67 @@ router.post(
     } catch (err: any) {
       console.error('[WhatsApp Send Error]:', err);
       res.status(500).json({ success: false, message: err?.message || 'Failed to dispatch WhatsApp message' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 11. POST /api/integrations/whatsapp/test-otp — Send a Live Test OTP via WhatsApp
+// ---------------------------------------------------------------------------
+router.post(
+  '/whatsapp/test-otp',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const orgId = req.user!.organizationId;
+    const { phone, title, accessToken, phoneId, wabaId, otpTemplateName } = req.body;
+
+    if (!phone) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide a test recipient phone number (e.g. +91 98765 43210)'
+      });
+      return;
+    }
+
+    try {
+      // Generate test 6-digit OTP
+      const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      const overrideConfig = (accessToken && phoneId) ? {
+        accessToken: accessToken.trim(),
+        phoneId: phoneId.trim(),
+        wabaId: wabaId ? wabaId.trim() : undefined,
+        otpTemplateName: otpTemplateName ? otpTemplateName.trim() : undefined,
+        languageCode: 'en_US',
+        connected: true
+      } : undefined;
+
+      const result = await sendWhatsAppOtp({
+        orgId,
+        to: phone,
+        otpCode: testOtp,
+        title: title || 'OptiVir CRM Integration Test',
+        agencyName: 'OptiVir CRM',
+        overrideConfig
+      });
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: `Test OTP [${testOtp}] dispatched successfully to ${maskPhoneNumber(phone)} via WhatsApp (${result.method})`,
+          messageId: result.messageId,
+          method: result.method,
+          formattedPhone: maskPhoneNumber(phone)
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.error || 'Failed to dispatch test WhatsApp OTP',
+          notConfigured: result.notConfigured
+        });
+      }
+    } catch (err: any) {
+      console.error('[WhatsApp Test OTP Error]:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Server error while sending test OTP' });
     }
   }
 );

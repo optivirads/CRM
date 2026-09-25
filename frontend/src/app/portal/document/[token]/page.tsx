@@ -18,7 +18,8 @@ import {
   Clock,
   Building2,
   User,
-  Mail
+  Mail,
+  Phone
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -41,6 +42,7 @@ export default function ClientDocumentPortalPage() {
   const [otpStep, setOtpStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
   const [otpEmail, setOtpEmail] = useState('');
   const [otpName, setOtpName] = useState('');
+  const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [requestingOtp, setRequestingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -129,7 +131,7 @@ export default function ClientDocumentPortalPage() {
     setRequestingOtp(true);
     setOtpError(null);
     try {
-      const res = await api.requestDocumentOtp(token, otpEmail.trim(), otpName.trim() || undefined);
+      const res = await api.requestDocumentOtp(token, otpEmail.trim(), otpName.trim() || undefined, otpPhone.trim() || undefined);
       if (res.success) {
         setOtpStep('CODE');
         setOtpSuccessMessage(res.message);
@@ -302,6 +304,21 @@ export default function ClientDocumentPortalPage() {
                   />
                   <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
                     Enter your work email address. A one-time verification code will be sent to your inbox.
+                  </p>
+                </div>
+                <div>
+                  <label className="text-slate-300 text-xs font-semibold block mb-1.5">
+                    <Phone className="w-3 h-3 inline mr-1 text-emerald-400" /> WhatsApp Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={otpPhone}
+                    onChange={(e) => setOtpPhone(e.target.value)}
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full bg-[#0A1628] border border-slate-600/50 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                    Receive your 6-digit verification code directly via WhatsApp in addition to Email.
                   </p>
                 </div>
 

@@ -9,6 +9,7 @@ import { WatermarkService } from '../services/watermark.service';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service';
+import { sendWhatsAppOtp, maskPhoneNumber } from '../services/whatsapp.service';
 import { otpRateLimiter } from '../middleware/rateLimiter';
 import { isGlobalLeadership } from '../utils/accessControl';
 
@@ -338,7 +339,7 @@ function buildCreativeScopeClause(req: AuthenticatedRequest, params: any[], tabl
 // 12.1. Request OTP for Client Proof Portal
 router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const { token } = req.params;
-  let { email, name } = req.body;
+  let { email, name, phone } = req.body;
 
   if (!email || !email.includes('@')) {
     res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
@@ -365,6 +366,7 @@ router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Req
 
     const shareLink = linkRes.rows[0];
     const clientEmail = email.trim().toLowerCase();
+    let resolvedPhone: string | null = (phone && String(phone).trim()) || shareLink.recipient_phone || null;
 
     // Verify client authorization against registered client contacts
     if (shareLink.company_id) {
@@ -378,7 +380,7 @@ router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Req
       // Check 2: Database contacts for this client company
       if (!isAuthorized) {
         const contactsRes = await db.query(
-          `SELECT email, first_name, last_name FROM contacts
+          `SELECT email, first_name, last_name, phone, secondary_phone FROM contacts
            WHERE (company_id = $1 OR company_id IN (SELECT id FROM companies WHERE LOWER(TRIM(name)) = $2))
              AND deleted_at IS NULL AND email IS NOT NULL AND email != ''`,
           [shareLink.company_id, (shareLink.client_name || '').trim().toLowerCase()]
@@ -388,9 +390,10 @@ router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Req
           const allowedEmails = contactsRes.rows.map((r: any) => r.email.toLowerCase().trim());
           if (allowedEmails.includes(clientEmail)) {
             isAuthorized = true;
-            if (!name) {
-              const match = contactsRes.rows.find((r: any) => r.email.toLowerCase().trim() === clientEmail);
-              if (match) name = `${match.first_name || ''} ${match.last_name || ''}`.trim();
+            const match = contactsRes.rows.find((r: any) => r.email.toLowerCase().trim() === clientEmail);
+            if (match) {
+              if (!name) name = `${match.first_name || ''} ${match.last_name || ''}`.trim();
+              if (!resolvedPhone) resolvedPhone = match.phone || match.secondary_phone || null;
             }
           } else {
             // Corporate domain matching
@@ -420,33 +423,73 @@ router.post('/public/proofs/:token/request-otp', otpRateLimiter, async (req: Req
     // Generate cryptographically secure 6-digit OTP
     const otpCode = crypto.randomInt(100000, 1000000).toString();
 
-    // Store in database with 10-minute expiry
-    await db.query(
-      `INSERT INTO creative_proof_otps (share_link_id, email, otp_code, expires_at)
-       VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')`,
-      [shareLink.id, clientEmail, otpCode]
-    );
+    // 1. Send OTP email via Gmail
+    let emailSent = false;
+    try {
+      emailSent = await EmailService.sendProofOtpEmail({
+        toEmail: clientEmail,
+        otpCode,
+        creativeName: shareLink.creative_name,
+        agencyName: shareLink.organization_name,
+      });
+    } catch (e: any) {
+      console.warn('[Creatives API] Email OTP dispatch error:', e.message);
+    }
 
-    // Send OTP email via Gmail
-    const sent = await EmailService.sendProofOtpEmail({
-      toEmail: clientEmail,
-      otpCode,
-      creativeName: shareLink.creative_name,
-      agencyName: shareLink.organization_name,
-    });
+    // 2. Send OTP via WhatsApp if phone is available
+    let whatsappSent = false;
+    let maskedPhone: string | null = null;
+    if (resolvedPhone) {
+      try {
+        const waRes = await sendWhatsAppOtp({
+          orgId: shareLink.organization_id,
+          to: resolvedPhone,
+          otpCode,
+          title: shareLink.creative_name || 'Creative Proof',
+          agencyName: shareLink.organization_name,
+        });
+        whatsappSent = waRes.success;
+        if (whatsappSent) {
+          maskedPhone = maskPhoneNumber(resolvedPhone);
+        }
+      } catch (waErr: any) {
+        console.warn('[Creatives API] WhatsApp OTP dispatch failed (non-fatal):', waErr.message);
+      }
+    }
 
-    if (!sent) {
+    if (!emailSent && !whatsappSent) {
       res.status(500).json({
         success: false,
-        message: `Failed to dispatch verification email to ${clientEmail}. Please check that your email is valid or try again.`
+        message: `Failed to dispatch verification code to ${clientEmail}. Please check that your email is valid or try again.`
       });
       return;
     }
 
+    const deliveryChannel = (emailSent && whatsappSent) ? 'both' : (whatsappSent ? 'whatsapp' : 'email');
+
+    // Store in database with 10-minute expiry
+    await db.query(
+      `INSERT INTO creative_proof_otps (share_link_id, email, phone, delivery_channel, otp_code, expires_at)
+       VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '10 minutes')`,
+      [shareLink.id, clientEmail, resolvedPhone, deliveryChannel, otpCode]
+    );
+
+    let messageText = `A 6-digit verification code has been sent to ${clientEmail}.`;
+    if (whatsappSent && maskedPhone) {
+      messageText = `A 6-digit verification code has been sent to ${clientEmail} and your WhatsApp (${maskedPhone}).`;
+    }
+
     res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${clientEmail}.`,
-      emailSent: true,
+      message: messageText,
+      emailSent,
+      whatsappSent,
+      maskedPhone,
+      channels: {
+        email: emailSent,
+        whatsapp: whatsappSent,
+        phone: maskedPhone
+      }
     });
   } catch (err: any) {
     console.error('[Request Proof OTP Error]:', err);

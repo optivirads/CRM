@@ -23,7 +23,8 @@ import {
   Image as ImageIcon,
   Download,
   LogOut,
-  User
+  User,
+  Phone
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { WatermarkOverlay } from '@/components/common/WatermarkOverlay';
@@ -73,6 +74,7 @@ export default function ClientProofingPortalPage() {
   const [otpStep, setOtpStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
   const [otpEmail, setOtpEmail] = useState('');
   const [otpName, setOtpName] = useState('');
+  const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [requestingOtp, setRequestingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -145,7 +147,7 @@ export default function ClientProofingPortalPage() {
       setOtpError(null);
       setOtpSuccessMessage(null);
 
-      const res = await api.requestProofOtp(token, otpEmail.trim(), otpName.trim() || undefined);
+      const res = await api.requestProofOtp(token, otpEmail.trim(), otpName.trim() || undefined, otpPhone.trim() || undefined);
       if (res.success) {
         setOtpStep('CODE');
         setOtpSuccessMessage(res.message);
@@ -477,6 +479,26 @@ export default function ClientProofingPortalPage() {
                     disabled={requestingOtp}
                     className="w-full px-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-rose-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-200 block">WhatsApp Number (Optional)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-400">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="tel"
+                      value={otpPhone}
+                      onChange={(e) => setOtpPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      disabled={requestingOtp}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/60 border border-white/10 focus:border-emerald-500 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden transition"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    Receive your 6-digit verification code directly via WhatsApp in addition to Email.
+                  </p>
                 </div>
 
                 <button

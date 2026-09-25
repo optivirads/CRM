@@ -426,6 +426,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null);
   const [integCategoryFilter, setIntegCategoryFilter] = useState<string>('All');
+  const [testPhone, setTestPhone] = useState('');
+  const [testingWhatsAppOtp, setTestingWhatsAppOtp] = useState(false);
+  const [testWhatsAppResult, setTestWhatsAppResult] = useState<{ success: boolean; message: string; details?: string } | null>(null);
 
   // Ad Accounts Management & Details Window
   const [selectedAdAccountDetails, setSelectedAdAccountDetails] = useState<any | null>(null);
@@ -5756,7 +5759,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                               />
                             </div>
                             <div>
-                              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Phone Number ID</label>
+                              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Phone Number ID <span className="text-rose-600">*</span></label>
                               <input
                                 type="text"
                                 value={integForm.phoneId || ''}
@@ -5776,6 +5779,84 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate }) => {
                                 placeholder="EAAG..."
                                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
                               />
+                            </div>
+                            <div>
+                              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                                OTP Template Name <span className="text-xs font-normal text-slate-500">(Optional — leave blank for direct text message)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={integForm.otpTemplateName || ''}
+                                onChange={e => setIntegForm({ ...integForm, otpTemplateName: e.target.value })}
+                                placeholder="e.g. auth_otp (Meta-approved authentication template)"
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
+                              />
+                            </div>
+
+                            {/* Live WhatsApp Test Box */}
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                                📲 Test WhatsApp OTP Delivery
+                              </label>
+                              <p className="text-xs text-slate-500 mb-2">
+                                Send a live 6-digit test code to your personal mobile to verify your Meta Cloud API setup.
+                              </p>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={testPhone}
+                                  onChange={e => setTestPhone(e.target.value)}
+                                  placeholder="e.g. +91 9876543210"
+                                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-sm text-slate-900 dark:text-white"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={testingWhatsAppOtp || !testPhone.trim()}
+                                  onClick={async () => {
+                                    setTestingWhatsAppOtp(true);
+                                    setTestWhatsAppResult(null);
+                                    try {
+                                      const res = await api.sendWhatsAppTestOtp({
+                                        phone: testPhone.trim(),
+                                        accessToken: integForm.accessToken,
+                                        phoneId: integForm.phoneId,
+                                        wabaId: integForm.wabaId,
+                                        otpTemplateName: integForm.otpTemplateName
+                                      });
+                                      setTestWhatsAppResult({
+                                        success: res.success,
+                                        message: res.message,
+                                        details: res.messageId ? `Meta Message ID: ${res.messageId} • Channel: ${res.method || 'whatsapp'}` : undefined
+                                      });
+                                    } catch (err: any) {
+                                      setTestWhatsAppResult({
+                                        success: false,
+                                        message: err?.message || 'Failed to dispatch test WhatsApp OTP'
+                                      });
+                                    } finally {
+                                      setTestingWhatsAppOtp(false);
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap shadow-sm"
+                                >
+                                  {testingWhatsAppOtp ? 'Sending...' : 'Send Test OTP'}
+                                </button>
+                              </div>
+
+                              {testWhatsAppResult && (
+                                <div className={`mt-2 p-3 rounded-xl text-xs border ${
+                                  testWhatsAppResult.success
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                                }`}>
+                                  <div className="font-bold flex items-center gap-1.5">
+                                    {testWhatsAppResult.success ? '✓' : '⚠️'} {testWhatsAppResult.message}
+                                  </div>
+                                  {testWhatsAppResult.details && (
+                                    <div className="text-[11px] opacity-80 mt-1 font-mono">{testWhatsAppResult.details}</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

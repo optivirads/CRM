@@ -5,6 +5,7 @@ import { db } from '../config/db';
 import { requireAuth, recordAuditLog } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { EmailService } from '../services/email.service';
+import { sendWhatsAppOtp, maskPhoneNumber, sendWhatsAppDocumentInvite } from '../services/whatsapp.service';
 import { otpRateLimiter } from '../middleware/rateLimiter';
 import { generateProposalPDF, generateAgreementPDF, generateInvoicePDF, generateQuotationPDF } from './pdf.routes';
 import { isGlobalLeadership } from '../utils/accessControl';
@@ -775,10 +776,12 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
   const {
     recipientEmail,
     recipientName,
+    recipientPhone,
     documentType = 'proposal',
     expiresInDays = 14,
     requireOtp = true,
     sendEmail = false,
+    sendWhatsApp = false,
     personalMessage = ''
   } = req.body;
 
@@ -816,10 +819,10 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
     const insertRes = await db.query(
       `INSERT INTO document_share_links (
         organization_id, document_type, document_id, token_hash,
-        recipient_email, recipient_name, require_otp,
+        recipient_email, recipient_name, recipient_phone, require_otp,
         created_by, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, expires_at, recipient_email, recipient_name, require_otp, created_at`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, expires_at, recipient_email, recipient_name, recipient_phone, require_otp, created_at`,
       [
         orgId,
         documentType,
@@ -827,6 +830,7 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
         tokenHash,
         recipientEmail ? recipientEmail.trim().toLowerCase() : null,
         recipientName ? recipientName.trim() : null,
+        recipientPhone ? recipientPhone.trim() : null,
         requireOtp,
         userId,
         expiresAt
@@ -846,6 +850,8 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
     const shareUrl = `${frontendBase}/portal/document/${rawToken}`;
     let emailSent = false;
     let emailError: string | null = null;
+    let whatsappSent = false;
+    let whatsappError: string | null = null;
 
     if (sendEmail && recipientEmail) {
       try {
@@ -866,10 +872,34 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
       }
     }
 
+    if (sendWhatsApp && recipientPhone) {
+      try {
+        const waRes = await sendWhatsAppDocumentInvite({
+          orgId,
+          to: recipientPhone.trim(),
+          recipientName: recipientName ? recipientName.trim() : (proposal.contact_person || proposal.client_name),
+          shareUrl,
+          documentTitle: proposal.title || 'Commercial SOW',
+          documentType,
+          agencyName: 'OptiVir',
+          personalMessage: personalMessage ? String(personalMessage).trim() : undefined,
+        });
+        whatsappSent = waRes.success;
+        if (!waRes.success) {
+          whatsappError = waRes.error || 'Failed to dispatch WhatsApp message';
+        }
+      } catch (e: any) {
+        console.error('[Sales API] Failed to send document invite via WhatsApp:', e);
+        whatsappError = e?.message || 'Failed to send WhatsApp invite';
+      }
+    }
+
     res.status(201).json({
       success: true,
       emailSent,
       emailError,
+      whatsappSent,
+      whatsappError,
       shareLink: {
         ...insertRes.rows[0],
         token: rawToken,
@@ -885,7 +915,7 @@ router.post('/proposals/:id/share', requireAuth, async (req: AuthenticatedReques
 // PUBLIC: Request OTP for Document Review Portal
 router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const { token } = req.params;
-  let { email, name } = req.body;
+  let { email, name, phone } = req.body;
 
   if (!email || !email.includes('@')) {
     res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
@@ -909,6 +939,7 @@ router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: 
 
     const shareLink = linkRes.rows[0];
     const clientEmail = email.trim().toLowerCase();
+    let resolvedPhone: string | null = (phone && String(phone).trim()) || shareLink.recipient_phone || null;
 
     // Verify client authorization against registered client contacts
     let documentTitle = 'Document';
@@ -942,7 +973,7 @@ router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: 
 
         // Check 3: Check database contacts for this client's company
         let contactsQuery = `
-          SELECT email, first_name, last_name
+          SELECT email, first_name, last_name, phone, secondary_phone
           FROM contacts
           WHERE deleted_at IS NULL AND email IS NOT NULL AND email != ''
         `;
@@ -966,9 +997,10 @@ router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: 
             const allowedEmails = contactsRes.rows.map((r: any) => r.email.toLowerCase().trim());
             if (allowedEmails.includes(clientEmail)) {
               isAuthorized = true;
-              if (!name) {
-                const match = contactsRes.rows.find((r: any) => r.email.toLowerCase().trim() === clientEmail);
-                if (match) name = `${match.first_name || ''} ${match.last_name || ''}`.trim();
+              const match = contactsRes.rows.find((r: any) => r.email.toLowerCase().trim() === clientEmail);
+              if (match) {
+                if (!name) name = `${match.first_name || ''} ${match.last_name || ''}`.trim();
+                if (!resolvedPhone) resolvedPhone = match.phone || match.secondary_phone || null;
               }
             } else {
               // Domain matching for corporate domains
@@ -999,34 +1031,75 @@ router.post('/documents/public/:token/request-otp', otpRateLimiter, async (req: 
     // Generate cryptographically secure 6-digit OTP
     const otpCode = crypto.randomInt(100000, 1000000).toString();
 
-    // Store in database with 10-minute expiry
-    await db.query(
-      `INSERT INTO document_otps (share_link_id, email, otp_code, expires_at)
-       VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')`,
-      [shareLink.id, clientEmail, otpCode]
-    );
+    // 1. Send OTP email
+    let emailSent = false;
+    try {
+      emailSent = await EmailService.sendDocumentOtpEmail({
+        toEmail: clientEmail,
+        otpCode,
+        documentTitle,
+        documentType: shareLink.document_type,
+        agencyName: shareLink.organization_name,
+      });
+    } catch (e: any) {
+      console.warn('[Sales API] Email OTP dispatch error:', e.message);
+    }
 
-    // Send OTP email
-    const sent = await EmailService.sendDocumentOtpEmail({
-      toEmail: clientEmail,
-      otpCode,
-      documentTitle,
-      documentType: shareLink.document_type,
-      agencyName: shareLink.organization_name,
-    });
+    // 2. Send OTP via WhatsApp if phone is available
+    let whatsappSent = false;
+    let maskedPhone: string | null = null;
+    if (resolvedPhone) {
+      try {
+        const waRes = await sendWhatsAppOtp({
+          orgId: shareLink.organization_id,
+          to: resolvedPhone,
+          otpCode,
+          title: documentTitle,
+          documentType: shareLink.document_type,
+          agencyName: shareLink.organization_name,
+        });
+        whatsappSent = waRes.success;
+        if (whatsappSent) {
+          maskedPhone = maskPhoneNumber(resolvedPhone);
+        }
+      } catch (waErr: any) {
+        console.warn('[Sales API] WhatsApp OTP dispatch failed (non-fatal):', waErr.message);
+      }
+    }
 
-    if (!sent) {
+    if (!emailSent && !whatsappSent) {
       res.status(500).json({
         success: false,
-        message: `Failed to dispatch verification email to ${clientEmail}. Please check that your email is valid or try again.`
+        message: `Failed to dispatch verification code to ${clientEmail}. Please check that your email is valid or try again.`
       });
       return;
     }
 
+    const deliveryChannel = (emailSent && whatsappSent) ? 'both' : (whatsappSent ? 'whatsapp' : 'email');
+
+    // Store in database with 10-minute expiry
+    await db.query(
+      `INSERT INTO document_otps (share_link_id, email, phone, delivery_channel, otp_code, expires_at)
+       VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '10 minutes')`,
+      [shareLink.id, clientEmail, resolvedPhone, deliveryChannel, otpCode]
+    );
+
+    let messageText = `A 6-digit verification code has been sent to ${clientEmail}.`;
+    if (whatsappSent && maskedPhone) {
+      messageText = `A 6-digit verification code has been sent to ${clientEmail} and your WhatsApp (${maskedPhone}).`;
+    }
+
     res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${clientEmail}.`,
-      emailSent: true,
+      message: messageText,
+      emailSent,
+      whatsappSent,
+      maskedPhone,
+      channels: {
+        email: emailSent,
+        whatsapp: whatsappSent,
+        phone: maskedPhone
+      }
     });
   } catch (err: any) {
     console.error('[Request Document OTP Error]:', err);

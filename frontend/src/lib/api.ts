@@ -717,6 +717,20 @@ class ApiClient {
     });
   }
 
+  async sendWhatsAppTestOtp(payload: { phone: string; title?: string; accessToken?: string; phoneId?: string; wabaId?: string; otpTemplateName?: string }) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      messageId?: string;
+      method?: string;
+      formattedPhone?: string;
+      notConfigured?: boolean;
+    }>('/integrations/whatsapp/test-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // ==========================================
   // Settings API Methods (Real PostgreSQL persistence)
   // ==========================================
@@ -1568,14 +1582,17 @@ class ApiClient {
   }
 
   // Public Client Portal API (OTP Gated & Session Verified)
-  async requestProofOtp(token: string, email: string, name?: string) {
+  async requestProofOtp(token: string, email: string, name?: string, phone?: string) {
     return this.request<{
       success: boolean;
       message: string;
       emailSent: boolean;
+      whatsappSent?: boolean;
+      maskedPhone?: string | null;
+      channels?: { email: boolean; whatsapp: boolean; phone?: string | null };
     }>(`/public/proofs/${token}/request-otp`, {
       method: 'POST',
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email, name, phone }),
     });
   }
 
@@ -1693,16 +1710,20 @@ class ApiClient {
   async generateDocumentShareLink(proposalId: string, payload?: {
     recipientEmail?: string;
     recipientName?: string;
+    recipientPhone?: string;
     documentType?: string;
     expiresInDays?: number;
     requireOtp?: boolean;
     sendEmail?: boolean;
+    sendWhatsApp?: boolean;
     personalMessage?: string;
   }) {
     return this.request<{
       success: boolean;
       emailSent?: boolean;
       emailError?: string;
+      whatsappSent?: boolean;
+      whatsappError?: string;
       shareLink: {
         id: string;
         token: string;
@@ -1710,6 +1731,7 @@ class ApiClient {
         expires_at: string;
         recipient_email?: string;
         recipient_name?: string;
+        recipient_phone?: string;
         require_otp?: boolean;
       };
     }>(`/sales/proposals/${proposalId}/share`, {
@@ -1742,14 +1764,17 @@ class ApiClient {
     }>(`/sales/documents/public/${token}`, { headers });
   }
 
-  async requestDocumentOtp(token: string, email: string, name?: string) {
+  async requestDocumentOtp(token: string, email: string, name?: string, phone?: string) {
     return this.request<{
       success: boolean;
       message: string;
       emailSent: boolean;
+      whatsappSent?: boolean;
+      maskedPhone?: string | null;
+      channels?: { email: boolean; whatsapp: boolean; phone?: string | null };
     }>(`/sales/documents/public/${token}/request-otp`, {
       method: 'POST',
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email, name, phone }),
     });
   }
 
