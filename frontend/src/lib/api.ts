@@ -705,6 +705,18 @@ class ApiClient {
     return this.request<{ success: boolean; data: any; message?: string }>(`/integrations/ad-accounts/${adAccountId}/details`);
   }
 
+  // WhatsApp Cloud API Messaging
+  async getWhatsAppStatus() {
+    return this.request<{ success: boolean; configured: boolean; phoneIdMasked: string | null; wabaId: string | null; connected: boolean }>('/integrations/whatsapp/status');
+  }
+
+  async sendWhatsAppMessage(payload: { to: string; message?: string; templateName?: string; languageCode?: string; components?: any[] }) {
+    return this.request<{ success: boolean; message: string; messageId?: string }>('/integrations/whatsapp/send', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // ==========================================
   // Settings API Methods (Real PostgreSQL persistence)
   // ==========================================

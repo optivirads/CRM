@@ -4,6 +4,12 @@ import { requireAuth, requireOwnerOrRole, recordAuditLog } from '../middleware/a
 import { integrationTestRateLimiter } from '../middleware/rateLimiter';
 import { AuthenticatedRequest } from '../types';
 import { encryptConfigObject, decryptConfigObject, isEncrypted } from '../utils/encrypt';
+import {
+  getWhatsAppConfig,
+  sendWhatsAppTextMessage,
+  sendWhatsAppTemplateMessage,
+  normalizeWhatsAppNumber
+} from '../services/whatsapp.service';
 
 const router = Router();
 
@@ -305,7 +311,7 @@ router.post(
 
         // 8. WHATSAPP
         case 'int-whatsapp': {
-          const { wabaId, accessToken } = credentials;
+          const { wabaId, phoneId, accessToken } = credentials;
           if (!wabaId || !accessToken) {
             res.json({ success: false, message: 'Both WABA ID and Access Token are required' });
             return;
@@ -313,10 +319,40 @@ router.post(
           const apiRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(wabaId.trim())}?fields=id,name,currency,timezone_id&access_token=${encodeURIComponent(accessToken.trim())}`);
           const latencyMs = Date.now() - startTime;
           const data: any = await apiRes.json().catch(() => ({}));
+          
           if (apiRes.ok && !data.error) {
-            res.json({ success: true, message: 'WhatsApp Cloud API Verified (200 OK)', details: `Connected to WABA: "${data.name || data.id}". Template messaging ready (${latencyMs}ms).`, latencyMs, data: { id: data.id, name: data.name } });
+            let phoneDetailsText = '';
+            let phoneData: any = null;
+            if (phoneId && phoneId.trim()) {
+              try {
+                const phoneRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(phoneId.trim())}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status&access_token=${encodeURIComponent(accessToken.trim())}`);
+                phoneData = await phoneRes.json().catch(() => ({}));
+                if (phoneRes.ok && phoneData?.display_phone_number) {
+                  phoneDetailsText = ` • Number: ${phoneData.display_phone_number} (${phoneData.verified_name || 'Verified'}) • Quality: ${phoneData.quality_rating || 'GREEN'}`;
+                }
+              } catch { /* non-fatal phone detail enrichment */ }
+            }
+
+            res.json({
+              success: true,
+              message: 'WhatsApp Cloud API Verified (200 OK)',
+              details: `Connected to WABA: "${data.name || data.id}"${phoneDetailsText}. Free-tier service & template messaging active (${latencyMs}ms).`,
+              latencyMs,
+              data: {
+                id: data.id,
+                name: data.name,
+                phone: phoneData?.display_phone_number || phoneId || undefined,
+                verifiedName: phoneData?.verified_name || undefined,
+                quality: phoneData?.quality_rating || undefined
+              }
+            });
           } else {
-            res.json({ success: false, message: 'WhatsApp Cloud API Error', details: data?.error?.message || 'Invalid WABA ID or Access Token.', latencyMs });
+            res.json({
+              success: false,
+              message: 'WhatsApp Cloud API Error',
+              details: data?.error?.message || 'Invalid WABA ID or Access Token. Ensure your System User token has whatsapp_business_messaging and whatsapp_business_management permissions.',
+              latencyMs
+            });
           }
           return;
         }
@@ -642,6 +678,77 @@ router.get(
       console.error('[Route Error in integrations.routes.ts]:', err);
 
       res.status(500).json({ success: false, message: 'An internal server error occurred. Please try again later.' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 9. GET /api/integrations/whatsapp/status — Get connection status
+// ---------------------------------------------------------------------------
+router.get(
+  '/whatsapp/status',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const orgId = req.user!.organizationId;
+    try {
+      const config = await getWhatsAppConfig(orgId);
+      res.json({
+        success: true,
+        configured: !!(config?.phoneId && config?.accessToken),
+        phoneIdMasked: config?.phoneId ? `${config.phoneId.slice(0, 4)}••••${config.phoneId.slice(-4)}` : null,
+        wabaId: config?.wabaId || null,
+        connected: config?.connected ?? false
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Error checking WhatsApp status' });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 10. POST /api/integrations/whatsapp/send — Dispatch message via Meta Cloud API
+// ---------------------------------------------------------------------------
+router.post(
+  '/whatsapp/send',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const orgId = req.user!.organizationId;
+    const { to, message, templateName, languageCode, components } = req.body;
+
+    if (!to) {
+      res.status(400).json({ success: false, message: 'Recipient phone number is required' });
+      return;
+    }
+
+    if (!message && !templateName) {
+      res.status(400).json({ success: false, message: 'Either message text or templateName is required' });
+      return;
+    }
+
+    try {
+      let result;
+      if (templateName) {
+        result = await sendWhatsAppTemplateMessage(orgId, to, templateName, languageCode, components);
+      } else {
+        result = await sendWhatsAppTextMessage(orgId, to, message);
+      }
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: 'WhatsApp message dispatched successfully via Meta Cloud API',
+          messageId: result.messageId
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.error || 'Failed to dispatch WhatsApp message',
+          details: result.details
+        });
+      }
+    } catch (err: any) {
+      console.error('[WhatsApp Send Error]:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Failed to dispatch WhatsApp message' });
     }
   }
 );

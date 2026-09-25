@@ -9,6 +9,7 @@ import {
   isGlobalLeadership
 } from '../utils/accessControl';
 import { EmailService } from '../services/email.service';
+import { sendWhatsAppTextMessage } from '../services/whatsapp.service';
 
 const router = Router();
 
@@ -338,12 +339,12 @@ async function notifyAssigneeOfTask(
   assignerUser?: { id: string; firstName?: string; lastName?: string; email?: string }
 ): Promise<void> {
   try {
-    let assigneeUser: { id: string; email: string; name: string } | null = null;
+    let assigneeUser: { id: string; email: string; phone?: string; name: string } | null = null;
 
     // 1. Look up by assignee_id first (if valid UUID or matching user in organization)
     if (task.assignee_id) {
       const userRes = await db.query(
-        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+        `SELECT u.id, u.email, u.phone, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
          WHERE u.id::text = $1 AND ou.organization_id = $2 AND u.deleted_at IS NULL`,
@@ -358,7 +359,7 @@ async function notifyAssigneeOfTask(
     if (!assigneeUser && task.assignee_name) {
       const trimmed = String(task.assignee_name).trim();
       const userRes = await db.query(
-        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+        `SELECT u.id, u.email, u.phone, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
          WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
@@ -442,6 +443,21 @@ async function notifyAssigneeOfTask(
           email: assignerUser?.email
         },
         agencyName: 'OptiVir Ads'
+      }).catch((e: any) => console.warn('[Task Email Warning]:', e.message));
+    }
+
+    // 7. WhatsApp Instant Notification via Meta Cloud API
+    if (assigneeUser.phone) {
+      const waText = `📋 *New Task Assigned: ${task.title}*\n\n` +
+        `👤 *Assigned By:* ${assignerName}\n` +
+        `🚀 *Project:* ${projectName || 'Agency Delivery'}\n` +
+        `🏢 *Client:* ${clientName || 'OptiVir Direct'}\n` +
+        `⚡ *Priority:* ${task.priority || 'Medium'}\n` +
+        `📅 *Due Date:* ${task.due_date ? new Date(task.due_date).toLocaleDateString('en-IN') : 'No Due Date'}\n\n` +
+        `👉 *Open Workspace:* ${process.env.APP_URL || 'http://localhost:3000'}/?tab=tasks&taskId=${task.id}`;
+
+      await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
+        console.warn('[WhatsApp Task Assign Notification Warning]:', waErr?.message);
       });
     }
 
@@ -463,7 +479,7 @@ async function notifyAssigneeOfTaskScript(
     let assigneeUser: any = null;
     if (task.assignee_id) {
       const userRes = await db.query(
-        `SELECT id, email, TRIM(CONCAT(first_name, ' ', last_name)) as name FROM users WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT id, email, phone, TRIM(CONCAT(first_name, ' ', last_name)) as name FROM users WHERE id = $1 AND deleted_at IS NULL`,
         [task.assignee_id]
       );
       if (userRes.rows.length > 0) {
@@ -474,7 +490,7 @@ async function notifyAssigneeOfTaskScript(
     if (!assigneeUser && task.assignee_name) {
       const trimmed = String(task.assignee_name).trim();
       const userRes = await db.query(
-        `SELECT u.id, u.email, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+        `SELECT u.id, u.email, u.phone, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
          WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
@@ -486,7 +502,7 @@ async function notifyAssigneeOfTaskScript(
         assigneeUser = userRes.rows[0];
       } else {
         const directRes = await db.query(
-          `SELECT id, email, TRIM(CONCAT(first_name, ' ', last_name)) as name
+          `SELECT id, email, phone, TRIM(CONCAT(first_name, ' ', last_name)) as name
            FROM users
            WHERE deleted_at IS NULL
              AND (LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = LOWER($1) OR LOWER(email) = LOWER($1))
@@ -603,6 +619,24 @@ async function notifyAssigneeOfTaskScript(
       } catch (emailErr: any) {
         console.error('[notifyAssigneeOfTaskScript Email Error]:', emailErr.message);
       }
+    }
+
+    // 4. WhatsApp Instant Notification via Meta Cloud API
+    if (assigneeUser && assigneeUser.phone) {
+      const scriptSnippet = (task.script_content || task.concept_idea || '').trim();
+      const previewText = scriptSnippet.length > 250 ? `${scriptSnippet.slice(0, 250)}...` : scriptSnippet;
+      const waText = `🎬 *Creative Concept & Script Added*\n\n` +
+        `📋 *Task:* ${task.title}\n` +
+        `📦 *Deliverable:* ${task.deliverable_type || 'VIDEO'}\n` +
+        `👤 *Updated By:* ${actorName}\n` +
+        `🚀 *Project:* ${projectName || 'Creative Workstream'}\n` +
+        `🏢 *Client:* ${clientName || 'OptiVir Direct'}\n\n` +
+        `📝 *Script Preview:*\n"${previewText || 'Script updated in workspace'}"\n\n` +
+        `👉 *Review Full Script:* ${process.env.APP_URL || 'http://localhost:3000'}/?tab=tasks&taskId=${task.id}`;
+
+      await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
+        console.warn('[WhatsApp Task Script Notification Warning]:', waErr?.message);
+      });
     }
   } catch (err) {
     console.error('[notifyAssigneeOfTaskScript Error]:', err);
