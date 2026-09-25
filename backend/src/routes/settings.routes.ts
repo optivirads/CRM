@@ -775,7 +775,7 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
 
   const orgId = req.user!.organizationId;
   const targetUserId = req.params.id;
-  const { role, designation, status, team_id, client_id, allowed_tabs, name, firstName, lastName } = req.body;
+  const { role, designation, status, team_id, client_id, allowed_tabs, name, firstName, lastName, phone, email } = req.body;
 
   try {
     const setClauses: string[] = ['updated_at = NOW()'];
@@ -864,7 +864,7 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
     }
 
     // Optionally update user name in users table
-    if (name || firstName || lastName) {
+    if (name || firstName || lastName || phone !== undefined || email !== undefined) {
       const uUpdates: string[] = ['updated_at = NOW()'];
       const uParams: any[] = [targetUserId];
       if (firstName) {
@@ -883,6 +883,14 @@ router.patch('/users/:id', requireAuth, async (req: AuthenticatedRequest, res: R
           uParams.push(parts.slice(1).join(' '));
           uUpdates.push(`last_name = $${uParams.length}`);
         }
+      }
+      if (phone !== undefined) {
+        uParams.push(phone ? phone.trim() : null);
+        uUpdates.push(`phone = $${uParams.length}`);
+      }
+      if (email !== undefined) {
+        uParams.push(email ? email.trim().toLowerCase() : null);
+        uUpdates.push(`email = $${uParams.length}`);
       }
       await db.query(`UPDATE users SET ${uUpdates.join(', ')} WHERE id = $1;`, uParams);
     }

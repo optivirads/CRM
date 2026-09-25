@@ -1,4 +1,4 @@
-import nodemailer, { Transporter } from 'nodemailer';
+import nodemailer, { Transporter, SendMailOptions } from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -98,38 +98,72 @@ export interface ProposalAcceptedNotificationParams {
 
 export class EmailService {
   private static transporter: Transporter | null = null;
-  private static cachedUser: string | null = null;
-  private static cachedPass: string | null = null;
+  private static cachedKey: string | null = null;
 
-  private static getTransporter(): Transporter | null {
+  private static getTransporter(forceFallbackPort = false): Transporter | null {
     dotenv.config();
     const user = (process.env.GMAIL_USER || '').trim();
     const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+    const host = (process.env.GMAIL_HOST || 'smtp.gmail.com').trim();
+    const port = forceFallbackPort ? 587 : parseInt(process.env.GMAIL_PORT || '465', 10);
+    const secure = port === 465;
 
     if (!user || !pass) {
-      console.error('[EmailService] Missing GMAIL_USER or GMAIL_APP_PASSWORD in environment.');
+      console.error('[EmailService] Missing GMAIL_USER or GMAIL_APP_PASSWORD in production environment variables.');
       return null;
     }
 
-    if (!this.transporter || this.cachedUser !== user || this.cachedPass !== pass) {
-      this.cachedUser = user;
-      this.cachedPass = pass;
+    const cacheKey = `${user}:${pass}:${host}:${port}:${secure}`;
+    if (!this.transporter || this.cachedKey !== cacheKey) {
+      this.cachedKey = cacheKey;
       this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
+        host,
+        port,
+        secure,
         auth: {
           user,
           pass,
         },
-        pool: true,
-        maxConnections: 3,
-        connectionTimeout: 10000,
-        socketTimeout: 15000,
+        tls: {
+          rejectUnauthorized: false,
+        },
+        connectionTimeout: 12000,
+        socketTimeout: 18000,
       });
     }
 
     return this.transporter;
+  }
+
+  private static async sendMailWithRetry(mailOptions: SendMailOptions): Promise<boolean> {
+    const transporter = this.getTransporter(false);
+    if (!transporter) return false;
+
+    try {
+      const sendPromise = transporter.sendMail(mailOptions);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP connection timed out after 12s')), 12000)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      return true;
+    } catch (err: any) {
+      console.warn(`[EmailService] Primary SMTP dispatch failed (${err.message}). Retrying via Port 587 STARTTLS...`);
+      try {
+        const fallbackTransporter = this.getTransporter(true);
+        if (fallbackTransporter) {
+          const sendPromise = fallbackTransporter.sendMail(mailOptions);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Fallback SMTP timed out after 12s')), 12000)
+          );
+          await Promise.race([sendPromise, timeoutPromise]);
+          console.log(`[EmailService] Dispatched email successfully via Port 587 STARTTLS fallback.`);
+          return true;
+        }
+      } catch (fallbackErr: any) {
+        console.error(`[EmailService] Fallback SMTP dispatch also failed:`, fallbackErr.message);
+      }
+      return false;
+    }
   }
 
   /**
@@ -185,29 +219,12 @@ export class EmailService {
       </div>
     `;
 
-    if (!transporter) {
-      console.error('[Gmail Service] Gmail transporter not initialized. Ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in .env');
-      return false;
-    }
-
-    try {
-      const sendPromise = transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: toEmail,
-        subject,
-        html: htmlContent,
-      });
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
-      );
-      await Promise.race([sendPromise, timeoutPromise]);
-
-      console.log(`[Gmail Service] Successfully dispatched OTP email to: ${toEmail}`);
-      return true;
-    } catch (err: any) {
-      console.error(`[Gmail Service] Error sending OTP email to ${toEmail}:`, err.message);
-      return false;
-    }
+    return await this.sendMailWithRetry({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: toEmail,
+      subject,
+      html: htmlContent,
+    });
   }
 
   /**
@@ -226,7 +243,6 @@ export class EmailService {
     documentType: string;
     agencyName?: string;
   }): Promise<boolean> {
-    const transporter = this.getTransporter();
     const fromName = process.env.GMAIL_FROM_NAME || agencyName || 'Opti CRM';
     const brandName = agencyName || process.env.GMAIL_FROM_NAME || 'Opti CRM';
     const fromEmail = (process.env.GMAIL_USER || '').trim() || 'optivirads@gmail.com';
@@ -272,29 +288,12 @@ export class EmailService {
       </div>
     `;
 
-    if (!transporter) {
-      console.error('[Gmail Service] Gmail transporter not initialized. Ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in .env');
-      return false;
-    }
-
-    try {
-      const sendPromise = transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: toEmail,
-        subject,
-        html: htmlContent,
-      });
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
-      );
-      await Promise.race([sendPromise, timeoutPromise]);
-
-      console.log(`[Gmail Service] Successfully dispatched document OTP email to: ${toEmail}`);
-      return true;
-    } catch (err: any) {
-      console.error(`[Gmail Service] Error sending document OTP email to ${toEmail}:`, err.message);
-      return false;
-    }
+    return await this.sendMailWithRetry({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: toEmail,
+      subject,
+      html: htmlContent,
+    });
   }
 
   /**
@@ -713,28 +712,12 @@ export class EmailService {
       </div>
     `;
 
-    if (!transporter) {
-      console.error('[Gmail Service] Gmail transporter not initialized for security OTP.');
-      return false;
-    }
-
-    try {
-      const sendPromise = transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: toEmail,
-        subject,
-        html: htmlContent,
-      });
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gmail SMTP connection timed out after 15s')), 15000)
-      );
-      await Promise.race([sendPromise, timeoutPromise]);
-      console.log(`[Gmail Service] Successfully sent Security OTP to ${toEmail}`);
-      return true;
-    } catch (err: any) {
-      console.error(`[Gmail Service] Error sending security OTP to ${toEmail}:`, err.message);
-      return false;
-    }
+    return await this.sendMailWithRetry({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: toEmail,
+      subject,
+      html: htmlContent,
+    });
   }
 
   /**

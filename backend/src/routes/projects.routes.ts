@@ -355,7 +355,7 @@ async function notifyAssigneeOfTask(
       }
     }
 
-    // 2. If not found by ID, look up by assignee_name in organization_users
+    // 2. If not found by ID, look up by assignee_name with flexible name matching
     if (!assigneeUser && task.assignee_name) {
       const trimmed = String(task.assignee_name).trim();
       const userRes = await db.query(
@@ -363,17 +363,47 @@ async function notifyAssigneeOfTask(
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
          WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
-           AND (LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2) OR LOWER(u.email) = LOWER($2))
+           AND (
+             LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2)
+             OR LOWER(u.email) = LOWER($2)
+             OR LOWER(u.first_name) = LOWER($2)
+             OR LOWER(u.last_name) = LOWER($2)
+             OR LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) ILIKE '%' || LOWER($2) || '%'
+             OR LOWER($2) ILIKE '%' || LOWER(u.first_name) || '%'
+           )
          LIMIT 1`,
         [orgId, trimmed]
       );
       if (userRes.rows.length > 0) {
         assigneeUser = userRes.rows[0];
+      } else {
+        const directRes = await db.query(
+          `SELECT id, email, phone, TRIM(CONCAT(first_name, ' ', last_name)) as name
+           FROM users
+           WHERE deleted_at IS NULL
+             AND (
+               LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = LOWER($1)
+               OR LOWER(email) = LOWER($1)
+               OR LOWER(first_name) = LOWER($1)
+               OR LOWER(last_name) = LOWER($1)
+               OR LOWER(TRIM(CONCAT(first_name, ' ', last_name))) ILIKE '%' || LOWER($1) || '%'
+               OR LOWER($1) ILIKE '%' || LOWER(first_name) || '%'
+             )
+           LIMIT 1`,
+          [trimmed]
+        );
+        if (directRes.rows.length > 0) {
+          assigneeUser = directRes.rows[0];
+        }
       }
     }
 
+    if (assigneeUser && !task.assignee_id) {
+      await db.query(`UPDATE tasks SET assignee_id = $1 WHERE id = $2`, [assigneeUser.id, task.id]).catch(() => {});
+    }
+
     if (!assigneeUser) {
-      console.info(`[Task Assignment Notification] Assignee not found for taskId=${task.id}`);
+      console.info(`[Task Assignment Notification] Assignee not found for taskId=${task.id} (name: "${task.assignee_name}")`);
       return;
     }
 
@@ -456,9 +486,15 @@ async function notifyAssigneeOfTask(
         `📅 *Due Date:* ${task.due_date ? new Date(task.due_date).toLocaleDateString('en-IN') : 'No Due Date'}\n\n` +
         `👉 *Open Workspace:* ${process.env.APP_URL || 'http://localhost:3000'}/?tab=tasks&taskId=${task.id}`;
 
-      await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
+      const waRes = await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
         console.warn('[WhatsApp Task Assign Notification Warning]:', waErr?.message);
+        return { success: false, error: waErr?.message };
       });
+      if (waRes && waRes.success) {
+        console.info(`[Task Assignment Notification] WhatsApp dispatched successfully to ${assigneeUser.phone}`);
+      } else if (waRes && !waRes.success) {
+        console.warn(`[Task Assignment Notification] WhatsApp dispatch response: ${waRes.error}`);
+      }
     }
 
     console.info(`[Task Assignment Notification] Successfully dispatched notification for taskId=${task.id}`);
@@ -494,7 +530,14 @@ async function notifyAssigneeOfTaskScript(
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
          WHERE ou.organization_id = $1 AND u.deleted_at IS NULL
-           AND (LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2) OR LOWER(u.email) = LOWER($2))
+           AND (
+             LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) = LOWER($2)
+             OR LOWER(u.email) = LOWER($2)
+             OR LOWER(u.first_name) = LOWER($2)
+             OR LOWER(u.last_name) = LOWER($2)
+             OR LOWER(TRIM(CONCAT(u.first_name, ' ', u.last_name))) ILIKE '%' || LOWER($2) || '%'
+             OR LOWER($2) ILIKE '%' || LOWER(u.first_name) || '%'
+           )
          LIMIT 1`,
         [orgId, trimmed]
       );
@@ -505,7 +548,14 @@ async function notifyAssigneeOfTaskScript(
           `SELECT id, email, phone, TRIM(CONCAT(first_name, ' ', last_name)) as name
            FROM users
            WHERE deleted_at IS NULL
-             AND (LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = LOWER($1) OR LOWER(email) = LOWER($1))
+             AND (
+               LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = LOWER($1)
+               OR LOWER(email) = LOWER($1)
+               OR LOWER(first_name) = LOWER($1)
+               OR LOWER(last_name) = LOWER($1)
+               OR LOWER(TRIM(CONCAT(first_name, ' ', last_name))) ILIKE '%' || LOWER($1) || '%'
+               OR LOWER($1) ILIKE '%' || LOWER(first_name) || '%'
+             )
            LIMIT 1`,
           [trimmed]
         );
@@ -634,9 +684,15 @@ async function notifyAssigneeOfTaskScript(
         `📝 *Script Preview:*\n"${previewText || 'Script updated in workspace'}"\n\n` +
         `👉 *Review Full Script:* ${process.env.APP_URL || 'http://localhost:3000'}/?tab=tasks&taskId=${task.id}`;
 
-      await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
+      const waRes = await sendWhatsAppTextMessage(orgId, assigneeUser.phone, waText).catch((waErr: any) => {
         console.warn('[WhatsApp Task Script Notification Warning]:', waErr?.message);
+        return { success: false, error: waErr?.message };
       });
+      if (waRes && waRes.success) {
+        console.info(`[Task Script Notification] WhatsApp dispatched successfully to ${assigneeUser.phone}`);
+      } else if (waRes && !waRes.success) {
+        console.warn(`[Task Script Notification] WhatsApp dispatch response: ${waRes.error}`);
+      }
     }
   } catch (err) {
     console.error('[notifyAssigneeOfTaskScript Error]:', err);
