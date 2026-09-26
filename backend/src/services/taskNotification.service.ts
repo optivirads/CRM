@@ -118,39 +118,6 @@ export class TaskNotificationService {
         pmRes.rows.forEach((r: any) => candidateUserIds.add(String(r.user_id)));
       }
 
-      // Client Account Manager (Agency lead for this client)
-      if (task.account_manager_id) {
-        candidateUserIds.add(String(task.account_manager_id));
-      }
-
-      // Client Account Assistant(s)
-      if (task.account_assistant_id) {
-        candidateUserIds.add(String(task.account_assistant_id));
-      }
-      if (Array.isArray(task.account_assistant_ids)) {
-        task.account_assistant_ids.forEach((id: string) => {
-          if (id) candidateUserIds.add(String(id));
-        });
-      }
-
-      // Client Assigned Team members
-      if (Array.isArray(task.client_team_ids)) {
-        task.client_team_ids.forEach((id: string) => {
-          if (id) candidateUserIds.add(String(id));
-        });
-      }
-
-      // Look up any assistant associations in client_assistants table
-      if (task.client_id) {
-        try {
-          const caRes = await db.query(
-            `SELECT user_id FROM client_assistants WHERE client_id = $1;`,
-            [task.client_id]
-          );
-          caRes.rows.forEach((r: any) => candidateUserIds.add(String(r.user_id)));
-        } catch (_) {}
-      }
-
       // Remove the actor so they don't get self-notified for their own action
       // EXCEPT when a task is ASSIGNED and the actor is the assignee (e.g. self-assignment or testing)
       if (actor.id) {
@@ -166,7 +133,7 @@ export class TaskNotificationService {
       }
 
       // 3. Query user details with STRICT FILTER to exclude clients
-      // Only include active users in organization_users where role is NOT 'client_portal'
+      // Strictly includes ONLY internal team members. Blocks client portal users, client-scoped members, and client contacts.
       const candidateList = Array.from(candidateUserIds);
       const recipientsRes = await db.query(`
         SELECT 
@@ -183,7 +150,13 @@ export class TaskNotificationService {
         WHERE u.id = ANY($2::uuid[])
           AND u.deleted_at IS NULL
           AND ou.status = 'active'
-          AND (r.slug IS NULL OR LOWER(r.slug) NOT IN ('client_portal', 'client', 'client_rep'))
+          AND ou.client_id IS NULL
+          AND (r.slug IS NULL OR LOWER(r.slug) NOT IN ('client_portal', 'client', 'client_rep', 'client_representative'))
+          AND NOT EXISTS (
+            SELECT 1 FROM contacts ct 
+            WHERE LOWER(ct.email) = LOWER(u.email)
+               OR (ct.phone IS NOT NULL AND u.phone IS NOT NULL AND ct.phone = u.phone)
+          )
       `, [orgId, candidateList]);
 
       const recipients: TeamRecipient[] = recipientsRes.rows.map((row: any) => ({
