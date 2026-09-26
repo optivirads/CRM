@@ -54,7 +54,7 @@ export class TaskNotificationService {
           t.project_id, t.client_id,
           p.name AS project_name, p.project_manager_id,
           c.id AS client_ref_id,
-          COALESCE(c.company_name, c.name) AS client_name,
+          comp.name AS client_name,
           c.account_manager_id,
           c.account_assistant_id,
           c.account_assistant_ids,
@@ -62,6 +62,7 @@ export class TaskNotificationService {
         FROM tasks t
         LEFT JOIN projects p ON t.project_id = p.id
         LEFT JOIN clients c ON t.client_id = c.id
+        LEFT JOIN companies comp ON c.company_id = comp.id
         WHERE t.id = $1 AND t.organization_id = $2 AND t.deleted_at IS NULL;
       `, [taskId, orgId]);
 
@@ -151,8 +152,12 @@ export class TaskNotificationService {
       }
 
       // Remove the actor so they don't get self-notified for their own action
+      // EXCEPT when a task is ASSIGNED and the actor is the assignee (e.g. self-assignment or testing)
       if (actor.id) {
-        candidateUserIds.delete(String(actor.id));
+        const isAssignee = task.assignee_id && String(task.assignee_id) === String(actor.id);
+        if (eventType !== 'ASSIGNED' || !isAssignee) {
+          candidateUserIds.delete(String(actor.id));
+        }
       }
 
       if (candidateUserIds.size === 0) {
@@ -276,10 +281,11 @@ export class TaskNotificationService {
       `, [orgId, notifTitle, notifMessage]).catch(() => {});
 
       // 7. Dispatch Email Notifications
-      for (const recipient of recipients) {
-        if (recipient.email) {
+      const emailPromises = recipients
+        .filter(r => !!r.email)
+        .map(recipient => {
           if (eventType === 'ASSIGNED') {
-            EmailService.sendTaskAssignedNotification({
+            return EmailService.sendTaskAssignedNotification({
               task: {
                 id: task.id,
                 title: task.title,
@@ -298,9 +304,12 @@ export class TaskNotificationService {
                 email: actor.email
               },
               agencyName: 'OptiVir Ads'
-            }).catch(e => console.warn(`[TaskNotificationService] Email error for ${recipient.email}:`, e.message));
+            }).catch(e => {
+              console.warn(`[TaskNotificationService] Email error for ${recipient.email}:`, e.message);
+              return false;
+            });
           } else {
-            EmailService.sendTaskUpdatedNotification({
+            return EmailService.sendTaskUpdatedNotification({
               task: {
                 id: task.id,
                 title: task.title,
@@ -325,14 +334,17 @@ export class TaskNotificationService {
               changes,
               comment,
               agencyName: 'OptiVir Ads'
-            }).catch(e => console.warn(`[TaskNotificationService] Email error for ${recipient.email}:`, e.message));
+            }).catch(e => {
+              console.warn(`[TaskNotificationService] Email error for ${recipient.email}:`, e.message);
+              return false;
+            });
           }
-        }
-      }
+        });
 
       // 8. Dispatch WhatsApp Notifications via Meta Cloud API
-      for (const recipient of recipients) {
-        if (recipient.phone) {
+      const waPromises = recipients
+        .filter(r => !!r.phone)
+        .map(recipient => {
           let waBody = '';
 
           if (eventType === 'ASSIGNED') {
@@ -376,17 +388,22 @@ export class TaskNotificationService {
               `👉 *Open Task:* ${taskLink}`;
           }
 
-          sendWhatsAppTextMessage(orgId, recipient.phone, waBody)
+          return sendWhatsAppTextMessage(orgId, recipient.phone!, waBody)
             .then(res => {
               if (res.success) {
                 console.info(`[TaskNotificationService] WhatsApp delivered to ${recipient.phone} for taskId=${taskId}`);
               } else {
                 console.warn(`[TaskNotificationService] WhatsApp dispatch response for ${recipient.phone}: ${res.error}`);
               }
+              return res;
             })
-            .catch(waErr => console.warn(`[TaskNotificationService] WhatsApp error for ${recipient.phone}:`, waErr?.message));
-        }
-      }
+            .catch(waErr => {
+              console.warn(`[TaskNotificationService] WhatsApp error for ${recipient.phone}:`, waErr?.message);
+              return { success: false, error: waErr?.message };
+            });
+        });
+
+      await Promise.allSettled([...emailPromises, ...waPromises]);
 
       console.info(`[TaskNotificationService] Dispatched ${eventType} notifications to ${recipients.length} team members for taskId=${taskId}`);
     } catch (err: any) {
