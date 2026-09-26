@@ -10,6 +10,7 @@ import {
 } from '../utils/accessControl';
 import { EmailService } from '../services/email.service';
 import { sendWhatsAppTextMessage } from '../services/whatsapp.service';
+import { TaskNotificationService } from '../services/taskNotification.service';
 
 const router = Router();
 
@@ -347,7 +348,7 @@ async function notifyAssigneeOfTask(
         `SELECT u.id, u.email, u.phone, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
          FROM users u
          JOIN organization_users ou ON u.id = ou.user_id
-         WHERE u.id::text = $1 AND ou.organization_id = $2 AND u.deleted_at IS NULL`,
+         WHERE (u.id::text = $1 OR ou.id::text = $1) AND ou.organization_id = $2 AND u.deleted_at IS NULL`,
         [String(task.assignee_id), orgId]
       );
       if (userRes.rows.length > 0) {
@@ -515,8 +516,12 @@ async function notifyAssigneeOfTaskScript(
     let assigneeUser: any = null;
     if (task.assignee_id) {
       const userRes = await db.query(
-        `SELECT id, email, phone, TRIM(CONCAT(first_name, ' ', last_name)) as name FROM users WHERE id = $1 AND deleted_at IS NULL`,
-        [task.assignee_id]
+        `SELECT u.id, u.email, u.phone, TRIM(CONCAT(u.first_name, ' ', u.last_name)) as name
+         FROM users u
+         LEFT JOIN organization_users ou ON u.id = ou.user_id
+         WHERE (u.id::text = $1 OR ou.id::text = $1) AND u.deleted_at IS NULL
+         LIMIT 1`,
+        [String(task.assignee_id)]
       );
       if (userRes.rows.length > 0) {
         assigneeUser = userRes.rows[0];
@@ -828,9 +833,18 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
       notifyAssigneeOfTaskScript(createdTask, orgId, req.user);
     }
 
-    // 2. Notify assignee of newly assigned task
+    // 2. Dispatch Email, WhatsApp, and In-App notifications to all internal team members working on this client/task
     if (createdTask.assignee_id || createdTask.assignee_name) {
-      notifyAssigneeOfTask(createdTask, orgId, req.user);
+      TaskNotificationService.notifyTeamOfTaskEvent({
+        taskId: createdTask.id,
+        orgId,
+        actor: {
+          id: userId,
+          name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
+          email: req.user?.email
+        },
+        eventType: 'ASSIGNED'
+      }).catch(e => console.warn('[Task Created Notification Warning]:', e.message));
     }
   } catch (err: any) {
     console.error('[Route Error in projects.routes.ts]:', err);
@@ -931,7 +945,24 @@ router.patch('/tasks/:id/status', requireAuth, async (req: AuthenticatedRequest,
       return;
     }
 
-    res.json({ success: true, data: result.rows[0] });
+    const updatedTask = result.rows[0];
+    res.json({ success: true, data: updatedTask });
+
+    // Notify all assigned internal team members of stage progression
+    if (currentTask.status !== normalizedStatus) {
+      TaskNotificationService.notifyTeamOfTaskEvent({
+        taskId,
+        orgId,
+        actor: {
+          id: userId,
+          name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
+          email: req.user?.email
+        },
+        eventType: 'STATUS_CHANGED',
+        changes: [{ field: 'Status', from: currentTask.status, to: normalizedStatus }],
+        summaryOverride: notes ? `${notes} (${currentTask.status} ➔ ${normalizedStatus})` : undefined
+      }).catch(e => console.warn('[Task Status Notification Warning]:', e.message));
+    }
   } catch (err: any) {
     console.error('[Route Error in projects.routes.ts]:', err);
 
@@ -1281,13 +1312,57 @@ router.patch('/tasks/:id', requireAuth, async (req: AuthenticatedRequest, res: R
       notifyAssigneeOfTaskScript(updated.rows[0], orgId, req.user);
     }
 
-    // 2. If assignee was newly assigned or changed, dispatch assignment notifications
+    // 2. Dispatch notifications to all internal team members working on this client/task
     const assigneeChanged =
       (assignee_id !== undefined && assignee_id !== currentTask.assignee_id) ||
       (assignee_name !== undefined && assignee_name !== currentTask.assignee_name);
 
-    if (assigneeChanged && (updated.rows[0].assignee_id || updated.rows[0].assignee_name)) {
-      notifyAssigneeOfTask(updated.rows[0], orgId, req.user);
+    const updatedTask = updated.rows[0];
+
+    if (assigneeChanged && (updatedTask.assignee_id || updatedTask.assignee_name)) {
+      TaskNotificationService.notifyTeamOfTaskEvent({
+        taskId: updatedTask.id,
+        orgId,
+        actor: {
+          id: userId,
+          name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
+          email: req.user?.email
+        },
+        eventType: 'ASSIGNED'
+      }).catch(e => console.warn('[Task Reassigned Notification Warning]:', e.message));
+    } else {
+      // Check for property changes to notify team
+      const changes: Array<{ field: string; from: any; to: any }> = [];
+      if (status && status !== currentTask.status) {
+        changes.push({ field: 'Status', from: currentTask.status, to: status });
+      }
+      if (priority && priority !== currentTask.priority) {
+        changes.push({ field: 'Priority', from: currentTask.priority || 'None', to: priority });
+      }
+      if (due_date && due_date !== currentTask.due_date) {
+        changes.push({
+          field: 'Due Date',
+          from: currentTask.due_date ? new Date(currentTask.due_date).toLocaleDateString('en-IN') : 'None',
+          to: new Date(due_date).toLocaleDateString('en-IN')
+        });
+      }
+      if (title && title !== currentTask.title) {
+        changes.push({ field: 'Title', from: currentTask.title, to: title });
+      }
+
+      if (changes.length > 0) {
+        TaskNotificationService.notifyTeamOfTaskEvent({
+          taskId: updatedTask.id,
+          orgId,
+          actor: {
+            id: userId,
+            name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
+            email: req.user?.email
+          },
+          eventType: changes.some(c => c.field === 'Status') ? 'STATUS_CHANGED' : 'UPDATED',
+          changes
+        }).catch(e => console.warn('[Task Update Notification Warning]:', e.message));
+      }
     }
 
     res.json({ success: true, data: updated.rows[0] });
@@ -1444,6 +1519,19 @@ router.post('/tasks/:id/comments', requireAuth, async (req: AuthenticatedRequest
         role_name: req.user?.role || 'Team Member'
       }
     });
+
+    // Notify all assigned internal team members of new discussion comment
+    TaskNotificationService.notifyTeamOfTaskEvent({
+      taskId,
+      orgId,
+      actor: {
+        id: userId,
+        name: authorName || req.user?.email || 'A team member',
+        email: req.user?.email
+      },
+      eventType: 'COMMENT_ADDED',
+      comment: comment.trim()
+    }).catch(e => console.warn('[Task Comment Notification Warning]:', e.message));
   } catch (err: any) {
     console.error('[Route Error in projects.routes.ts]:', err);
 

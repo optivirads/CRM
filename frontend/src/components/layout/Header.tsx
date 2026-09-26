@@ -108,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch notification count from activities or real source
+  // Fetch notification count from activities & real source with live auto-refresh
   useEffect(() => {
     const fetchNotificationCount = async () => {
       try {
@@ -129,7 +129,15 @@ export const Header: React.FC<HeaderProps> = ({
         // Silently fail — notifications are non-critical
       }
     };
+
     fetchNotificationCount();
+    const intervalId = setInterval(fetchNotificationCount, 6000);
+    window.addEventListener('notification_updated', fetchNotificationCount);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('notification_updated', fetchNotificationCount);
+    };
   }, []);
 
   // Global shortcut ⌘K / Ctrl+K

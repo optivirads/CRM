@@ -585,6 +585,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ initialTaskId, onNavigate 
       });
       if (res.success) {
         showToast(`Task created and assigned to ${selectedAssigneeName || 'team'}!`, 'success');
+        window.dispatchEvent(new CustomEvent('notification_updated'));
         setShowCreateModal(false);
         setNewTaskTitle('');
         setNewTaskDesc('');
