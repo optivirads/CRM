@@ -834,18 +834,16 @@ router.post('/tasks', requireAuth, async (req: AuthenticatedRequest, res: Respon
     }
 
     // 2. Dispatch Email, WhatsApp, and In-App notifications to all internal team members working on this client/task
-    if (createdTask.assignee_id || createdTask.assignee_name) {
-      TaskNotificationService.notifyTeamOfTaskEvent({
-        taskId: createdTask.id,
-        orgId,
-        actor: {
-          id: userId,
-          name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
-          email: req.user?.email
-        },
-        eventType: 'ASSIGNED'
-      }).catch(e => console.warn('[Task Created Notification Warning]:', e.message));
-    }
+    TaskNotificationService.notifyTeamOfTaskEvent({
+      taskId: createdTask.id,
+      orgId,
+      actor: {
+        id: userId,
+        name: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'A team member',
+        email: req.user?.email
+      },
+      eventType: 'ASSIGNED'
+    }).catch(e => console.warn('[Task Created Notification Warning]:', e.message));
   } catch (err: any) {
     console.error('[Route Error in projects.routes.ts]:', err);
 
